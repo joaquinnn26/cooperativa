@@ -1,0 +1,38 @@
+export default defineNuxtConfig({
+  devtools: { enabled: true },
+  modules: [
+    '@nuxtjs/tailwindcss',
+    '@pinia/nuxt',
+    '@vueuse/nuxt',
+    '@nuxtjs/google-fonts',
+    '@nuxtjs/color-mode'
+  ],
+  css: ['~/assets/css/main.css'],
+  googleFonts: {
+    families: {
+      Inter: [400, 500, 600, 700],
+      'Open Sans': [400, 500, 600, 700]
+    }
+  },
+  colorMode: {
+    classSuffix: ''
+  },
+  app: {
+    head: {
+      title: 'Cooperativa de Agua y Luz',
+      meta: [
+        { charset: 'utf-8' },
+        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+        { name: 'description', content: 'Portal web para socios de la cooperativa de agua y luz' }
+      ],
+      link: [
+        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' }
+      ]
+    }
+  },
+  runtimeConfig: {
+    public: {
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:3000/api'
+    }
+  }
+})
