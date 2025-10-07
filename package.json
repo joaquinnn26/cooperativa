@@ -7,8 +7,7 @@
     "dev": "npx nuxi dev",
     "build": "npx nuxi build",
     "start": "node .output/server/index.mjs",
-    "generate": "npx nuxi generate",
-    "preview": "npx nuxi preview"
+    "postinstall": "chmod +x node_modules/.bin/nuxi"
   },
   "dependencies": {
     "nuxt": "^3.8.0",
@@ -23,6 +22,6 @@
     "@headlessui/vue": "^1.7.16"
   },
   "engines": {
-    "node": ">=18"
+    "node": "20.x"
   }
 }
