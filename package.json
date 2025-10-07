@@ -4,11 +4,11 @@
   "description": "Portal web para cooperativa de agua y luz",
   "private": true,
   "scripts": {
-    "dev": "npx nuxt dev",
-    "build": "npx nuxt build && npx nuxt prepare",
+    "dev": "npx nuxi dev",
+    "build": "npx nuxi build",
     "start": "node .output/server/index.mjs",
-    "generate": "npx nuxt generate",
-    "preview": "npx nuxt preview"
+    "generate": "npx nuxi generate",
+    "preview": "npx nuxi preview"
   },
   "dependencies": {
     "nuxt": "^3.8.0",
