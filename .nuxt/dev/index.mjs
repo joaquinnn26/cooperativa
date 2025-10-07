@@ -3,40 +3,40 @@ import { Server } from 'node:http';
 import { resolve, dirname, join } from 'node:path';
 import nodeCrypto from 'node:crypto';
 import { parentPort, threadId } from 'node:worker_threads';
-import { defineEventHandler, handleCacheHeaders, splitCookiesString, createEvent, fetchWithEvent, isEvent, eventHandler, setHeaders, sendRedirect, proxyRequest, getRequestHeader, setResponseHeaders, setResponseStatus, send, getRequestHeaders, setResponseHeader, appendResponseHeader, getRequestURL, getResponseHeader, removeResponseHeader, createError, getQuery as getQuery$1, readBody, createApp, createRouter as createRouter$1, toNodeListener, lazyEventHandler, getResponseStatus, getRouterParam, getResponseStatusText } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/h3/dist/index.mjs';
-import { escapeHtml } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/@vue/shared/dist/shared.cjs.js';
-import { createRenderer, getRequestDependencies, getPreloadLinks, getPrefetchLinks } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/vue-bundle-renderer/dist/runtime.mjs';
-import { parseURL, withoutBase, joinURL, getQuery, withQuery, withTrailingSlash, decodePath, withLeadingSlash, withoutTrailingSlash, joinRelativeURL } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/ufo/dist/index.mjs';
-import { renderToString } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/vue/server-renderer/index.mjs';
-import { klona } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/klona/dist/index.mjs';
-import defu, { defuFn } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/defu/dist/defu.mjs';
-import destr, { destr as destr$1 } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/destr/dist/index.mjs';
-import { snakeCase } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/scule/dist/index.mjs';
-import { createHead as createHead$1, propsToString, renderSSRHead } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/unhead/dist/server.mjs';
-import { stringify, uneval } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/devalue/index.js';
-import { isVNode, toValue, isRef } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/vue/index.mjs';
-import { DeprecationsPlugin, PromisesPlugin, TemplateParamsPlugin, AliasSortingPlugin } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/unhead/dist/plugins.mjs';
-import { createHooks } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/hookable/dist/index.mjs';
-import { createFetch, Headers as Headers$1 } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/ofetch/dist/node.mjs';
-import { fetchNodeRequestHandler, callNodeRequestHandler } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/node-mock-http/dist/index.mjs';
-import { createStorage, prefixStorage } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/unstorage/dist/index.mjs';
-import unstorage_47drivers_47fs from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/unstorage/drivers/fs.mjs';
-import { digest } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/ohash/dist/index.mjs';
-import { toRouteMatcher, createRouter } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/radix3/dist/index.mjs';
+import { defineEventHandler, handleCacheHeaders, splitCookiesString, createEvent, fetchWithEvent, isEvent, eventHandler, setHeaders, sendRedirect, proxyRequest, getRequestHeader, setResponseHeaders, setResponseStatus, send, getRequestHeaders, setResponseHeader, appendResponseHeader, getRequestURL, getResponseHeader, removeResponseHeader, createError, getQuery as getQuery$1, readBody, createApp, createRouter as createRouter$1, toNodeListener, lazyEventHandler, getResponseStatus, getRouterParam, getResponseStatusText } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/h3/dist/index.mjs';
+import { escapeHtml } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/@vue/shared/dist/shared.cjs.js';
+import { createRenderer, getRequestDependencies, getPreloadLinks, getPrefetchLinks } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/vue-bundle-renderer/dist/runtime.mjs';
+import { parseURL, withoutBase, joinURL, getQuery, withQuery, withTrailingSlash, decodePath, withLeadingSlash, withoutTrailingSlash, joinRelativeURL } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/ufo/dist/index.mjs';
+import { renderToString } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/vue/server-renderer/index.mjs';
+import { klona } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/klona/dist/index.mjs';
+import defu, { defuFn } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/defu/dist/defu.mjs';
+import destr, { destr as destr$1 } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/destr/dist/index.mjs';
+import { snakeCase } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/scule/dist/index.mjs';
+import { createHead as createHead$1, propsToString, renderSSRHead } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/unhead/dist/server.mjs';
+import { stringify, uneval } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/devalue/index.js';
+import { isVNode, toValue, isRef } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/vue/index.mjs';
+import { DeprecationsPlugin, PromisesPlugin, TemplateParamsPlugin, AliasSortingPlugin } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/unhead/dist/plugins.mjs';
+import { createHooks } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/hookable/dist/index.mjs';
+import { createFetch, Headers as Headers$1 } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/ofetch/dist/node.mjs';
+import { fetchNodeRequestHandler, callNodeRequestHandler } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/node-mock-http/dist/index.mjs';
+import { createStorage, prefixStorage } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/unstorage/dist/index.mjs';
+import unstorage_47drivers_47fs from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/unstorage/drivers/fs.mjs';
+import { digest } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/ohash/dist/index.mjs';
+import { toRouteMatcher, createRouter } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/radix3/dist/index.mjs';
 import { readFile } from 'node:fs/promises';
-import consola, { consola as consola$1 } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/consola/dist/index.mjs';
-import { ErrorParser } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/youch-core/build/index.js';
-import { Youch } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/youch/build/index.js';
-import { SourceMapConsumer } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/source-map/source-map.js';
+import consola, { consola as consola$1 } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/consola/dist/index.mjs';
+import { ErrorParser } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/youch-core/build/index.js';
+import { Youch } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/youch/build/index.js';
+import { SourceMapConsumer } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/source-map/source-map.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { getContext } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/unctx/dist/index.mjs';
-import { captureRawStackTrace, parseRawStackTrace } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/errx/dist/index.js';
+import { getContext } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/unctx/dist/index.mjs';
+import { captureRawStackTrace, parseRawStackTrace } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/errx/dist/index.js';
 import { promises } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname as dirname$1, resolve as resolve$1 } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/pathe/dist/index.mjs';
-import { walkResolver } from 'file://C:/Users/rodri/Desktop/joaquin/cooperativa/node_modules/unhead/dist/utils.mjs';
+import { dirname as dirname$1, resolve as resolve$1 } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/pathe/dist/index.mjs';
+import { walkResolver } from 'file://C:/Users/pc/Desktop/cooperativa/cooperativa/node_modules/unhead/dist/utils.mjs';
 
-const serverAssets = [{"baseName":"server","dir":"C:/Users/rodri/Desktop/joaquin/cooperativa/server/assets"}];
+const serverAssets = [{"baseName":"server","dir":"C:/Users/pc/Desktop/cooperativa/cooperativa/server/assets"}];
 
 const assets$1 = createStorage();
 
@@ -48,11 +48,11 @@ const storage = createStorage({});
 
 storage.mount('/assets', assets$1);
 
-storage.mount('root', unstorage_47drivers_47fs({"driver":"fs","readOnly":true,"base":"C:/Users/rodri/Desktop/joaquin/cooperativa","watchOptions":{"ignored":[null]}}));
-storage.mount('src', unstorage_47drivers_47fs({"driver":"fs","readOnly":true,"base":"C:/Users/rodri/Desktop/joaquin/cooperativa/server","watchOptions":{"ignored":[null]}}));
-storage.mount('build', unstorage_47drivers_47fs({"driver":"fs","readOnly":false,"base":"C:/Users/rodri/Desktop/joaquin/cooperativa/.nuxt"}));
-storage.mount('cache', unstorage_47drivers_47fs({"driver":"fs","readOnly":false,"base":"C:/Users/rodri/Desktop/joaquin/cooperativa/.nuxt/cache"}));
-storage.mount('data', unstorage_47drivers_47fs({"driver":"fs","base":"C:/Users/rodri/Desktop/joaquin/cooperativa/.data/kv"}));
+storage.mount('root', unstorage_47drivers_47fs({"driver":"fs","readOnly":true,"base":"C:/Users/pc/Desktop/cooperativa/cooperativa","watchOptions":{"ignored":[null]}}));
+storage.mount('src', unstorage_47drivers_47fs({"driver":"fs","readOnly":true,"base":"C:/Users/pc/Desktop/cooperativa/cooperativa/server","watchOptions":{"ignored":[null]}}));
+storage.mount('build', unstorage_47drivers_47fs({"driver":"fs","readOnly":false,"base":"C:/Users/pc/Desktop/cooperativa/cooperativa/.nuxt"}));
+storage.mount('cache', unstorage_47drivers_47fs({"driver":"fs","readOnly":false,"base":"C:/Users/pc/Desktop/cooperativa/cooperativa/.nuxt/cache"}));
+storage.mount('data', unstorage_47drivers_47fs({"driver":"fs","base":"C:/Users/pc/Desktop/cooperativa/cooperativa/.data/kv"}));
 
 function useStorage(base = "") {
   return base ? prefixStorage(storage, base) : storage;
@@ -1014,13 +1014,13 @@ if (!window.__NUXT_DEVTOOLS_TIME_METRIC__) {
 window.__NUXT_DEVTOOLS_TIME_METRIC__.appInit = Date.now()
 `;
 
-const _qbMfM2LAEfFK5Ph1aHv_DMKFaZx6gAeD6laQGTRK8o = (function(nitro) {
+const _X3AwoHLmu6bLcDP91sVspwVfGzix7KFl7YbYHZ2A0X4 = (function(nitro) {
   nitro.hooks.hook("render:html", (htmlContext) => {
     htmlContext.head.push(`<script>${script$1}<\/script>`);
   });
 });
 
-const rootDir = "C:/Users/rodri/Desktop/joaquin/cooperativa";
+const rootDir = "C:/Users/pc/Desktop/cooperativa/cooperativa";
 
 const appHead = {"meta":[{"charset":"utf-8"},{"name":"viewport","content":"width=device-width, initial-scale=1"},{"name":"description","content":"Portal web para socios de la cooperativa de agua y luz"}],"link":[{"rel":"icon","type":"image/x-icon","href":"/favicon.ico"}],"style":[],"script":[],"noscript":[],"title":"Cooperativa de Agua y Luz"};
 
@@ -1039,7 +1039,7 @@ const devReducers = {
   URL: (data) => data instanceof URL ? data.toString() : void 0
 };
 const asyncContext = getContext("nuxt-dev", { asyncContext: true, AsyncLocalStorage });
-const _NKX23ycbparGPJqUZ0CA18CtDJOk05Hti4_CtNcd5Q = (nitroApp) => {
+const _C_XvHCs7y6AZEqSeWlzqsq8pnwQPczsaWQpaPxlTS94 = (nitroApp) => {
   const handler = nitroApp.h3App.handler;
   nitroApp.h3App.handler = (event) => {
     return asyncContext.callAsync({ logs: [], event }, () => handler(event));
@@ -1110,16 +1110,16 @@ function onConsoleLog(callback) {
 
 const script = "\"use strict\";(()=>{const t=window,e=document.documentElement,c=[\"dark\",\"light\"],n=getStorageValue(\"localStorage\",\"nuxt-color-mode\")||\"system\";let i=n===\"system\"?u():n;const r=e.getAttribute(\"data-color-mode-forced\");r&&(i=r),l(i),t[\"__NUXT_COLOR_MODE__\"]={preference:n,value:i,getColorScheme:u,addColorScheme:l,removeColorScheme:d};function l(o){const s=\"\"+o+\"\",a=\"\";e.classList?e.classList.add(s):e.className+=\" \"+s,a&&e.setAttribute(\"data-\"+a,o)}function d(o){const s=\"\"+o+\"\",a=\"\";e.classList?e.classList.remove(s):e.className=e.className.replace(new RegExp(s,\"g\"),\"\"),a&&e.removeAttribute(\"data-\"+a)}function f(o){return t.matchMedia(\"(prefers-color-scheme\"+o+\")\")}function u(){if(t.matchMedia&&f(\"\").media!==\"not all\"){for(const o of c)if(f(\":\"+o).matches)return o}return\"light\"}})();function getStorageValue(t,e){switch(t){case\"localStorage\":return window.localStorage.getItem(e);case\"sessionStorage\":return window.sessionStorage.getItem(e);case\"cookie\":return getCookie(e);default:return null}}function getCookie(t){const c=(\"; \"+window.document.cookie).split(\"; \"+t+\"=\");if(c.length===2)return c.pop()?.split(\";\").shift()}";
 
-const _cWvWJwY9npwcYZoEcZjplXKIqvSYN24eAOnhvH44ik = (function(nitro) {
+const _AAq2oe2XCqHDUP_BCr50oYU0arGOX0khSXvsETIib_A = (function(nitro) {
   nitro.hooks.hook("render:html", (htmlContext) => {
     htmlContext.head.push(`<script>${script}<\/script>`);
   });
 });
 
 const plugins = [
-  _qbMfM2LAEfFK5Ph1aHv_DMKFaZx6gAeD6laQGTRK8o,
-_NKX23ycbparGPJqUZ0CA18CtDJOk05Hti4_CtNcd5Q,
-_cWvWJwY9npwcYZoEcZjplXKIqvSYN24eAOnhvH44ik
+  _X3AwoHLmu6bLcDP91sVspwVfGzix7KFl7YbYHZ2A0X4,
+_C_XvHCs7y6AZEqSeWlzqsq8pnwQPczsaWQpaPxlTS94,
+_AAq2oe2XCqHDUP_BCr50oYU0arGOX0khSXvsETIib_A
 ];
 
 const assets = {};
@@ -1147,7 +1147,7 @@ function getAsset (id) {
 
 const METHODS = /* @__PURE__ */ new Set(["HEAD", "GET"]);
 const EncodingMap = { gzip: ".gz", br: ".br" };
-const _AZlXhi = eventHandler((event) => {
+const _wpqGnH = eventHandler((event) => {
   if (event.method && !METHODS.has(event.method)) {
     return;
   }
@@ -1282,8 +1282,8 @@ function publicAssetsURL(...path) {
 
 const APP_ROOT_OPEN_TAG = `<${appRootTag}${propsToString(appRootAttrs)}>`;
 const APP_ROOT_CLOSE_TAG = `</${appRootTag}>`;
-const getServerEntry = () => import('file://C:/Users/rodri/Desktop/joaquin/cooperativa/.nuxt//dist/server/server.mjs').then((r) => r.default || r);
-const getClientManifest = () => import('file://C:/Users/rodri/Desktop/joaquin/cooperativa/.nuxt//dist/server/client.manifest.mjs').then((r) => r.default || r).then((r) => typeof r === "function" ? r() : r);
+const getServerEntry = () => import('file://C:/Users/pc/Desktop/cooperativa/cooperativa/.nuxt//dist/server/server.mjs').then((r) => r.default || r);
+const getClientManifest = () => import('file://C:/Users/pc/Desktop/cooperativa/cooperativa/.nuxt//dist/server/client.manifest.mjs').then((r) => r.default || r).then((r) => typeof r === "function" ? r() : r);
 const getSSRRenderer = lazyCachedFunction(async () => {
   const manifest = await getClientManifest();
   if (!manifest) {
@@ -1529,17 +1529,17 @@ async function getIslandContext(event) {
   return ctx;
 }
 
-const _lazy_S6gAc2 = () => Promise.resolve().then(function () { return login_post$1; });
-const _lazy_LWpOmX = () => Promise.resolve().then(function () { return register_post$1; });
-const _lazy_UDxGxk = () => Promise.resolve().then(function () { return renderer$1; });
+const _lazy_q1fUnd = () => Promise.resolve().then(function () { return login_post$1; });
+const _lazy_jmOnDA = () => Promise.resolve().then(function () { return register_post$1; });
+const _lazy_LvAD9A = () => Promise.resolve().then(function () { return renderer$1; });
 
 const handlers = [
-  { route: '', handler: _AZlXhi, lazy: false, middleware: true, method: undefined },
-  { route: '/api/auth/login', handler: _lazy_S6gAc2, lazy: true, middleware: false, method: "post" },
-  { route: '/api/auth/register', handler: _lazy_LWpOmX, lazy: true, middleware: false, method: "post" },
-  { route: '/__nuxt_error', handler: _lazy_UDxGxk, lazy: true, middleware: false, method: undefined },
+  { route: '', handler: _wpqGnH, lazy: false, middleware: true, method: undefined },
+  { route: '/api/auth/login', handler: _lazy_q1fUnd, lazy: true, middleware: false, method: "post" },
+  { route: '/api/auth/register', handler: _lazy_jmOnDA, lazy: true, middleware: false, method: "post" },
+  { route: '/__nuxt_error', handler: _lazy_LvAD9A, lazy: true, middleware: false, method: undefined },
   { route: '/__nuxt_island/**', handler: _SxA8c9, lazy: false, middleware: false, method: undefined },
-  { route: '/**', handler: _lazy_UDxGxk, lazy: true, middleware: false, method: undefined }
+  { route: '/**', handler: _lazy_LvAD9A, lazy: true, middleware: false, method: undefined }
 ];
 
 function createNitroApp() {
