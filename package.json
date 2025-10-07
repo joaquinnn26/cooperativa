@@ -4,17 +4,15 @@
   "description": "Portal web para cooperativa de agua y luz",
   "private": true,
   "scripts": {
-      "dev": "nuxt dev",
-    "build": "nuxt build && nuxt prepare",
+    "dev": "npx nuxt dev",
+    "build": "npx nuxt build && npx nuxt prepare",
     "start": "node .output/server/index.mjs",
-    "generate": "nuxt generate",
-    "preview": "nuxt preview"
-  },
-  "devDependencies": {
-    "@nuxt/devtools": "latest",
-    "nuxt": "^3.8.0"
+    "generate": "npx nuxt generate",
+    "preview": "npx nuxt preview"
   },
   "dependencies": {
+    "nuxt": "^3.8.0",
+    "@nuxt/devtools": "latest",
     "@nuxtjs/tailwindcss": "^6.8.4",
     "@pinia/nuxt": "^0.5.1",
     "@vueuse/nuxt": "^10.5.0",
@@ -23,5 +21,8 @@
     "@nuxtjs/color-mode": "^3.3.0",
     "lucide-vue-next": "^0.294.0",
     "@headlessui/vue": "^1.7.16"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
