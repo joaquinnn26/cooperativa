@@ -1,25 +1,27 @@
 {
-  "name": "cooperativa-portal",
+  "name": "cooperativa-react",
   "version": "1.0.0",
-  "description": "Portal web para cooperativa de agua y luz",
+  "description": "Portal web para cooperativa de agua y luz (React + Vite)",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "npx nuxi dev",
-    "build": "npx nuxi build",
-    "start": "node .output/server/index.mjs",
-    "postinstall": "chmod +x node_modules/.bin/nuxi"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "nuxt": "^3.8.0",
-    "@nuxt/devtools": "latest",
-    "@nuxtjs/tailwindcss": "^6.8.4",
-    "@pinia/nuxt": "^0.5.1",
-    "@vueuse/nuxt": "^10.5.0",
-    "pinia": "^2.1.7",
-    "@nuxtjs/google-fonts": "^3.0.2",
-    "@nuxtjs/color-mode": "^3.3.0",
-    "lucide-vue-next": "^0.294.0",
-    "@headlessui/vue": "^1.7.16"
+    "lucide-react": "^0.397.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.22.3",
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.17",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.3",
+    "vite": "^5.1.4"
   },
   "engines": {
     "node": "20.x"
