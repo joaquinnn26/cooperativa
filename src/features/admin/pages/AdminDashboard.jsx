@@ -9,6 +9,8 @@ import {
   BarChart3,
   Receipt,
   CreditCard,
+  Briefcase,
+  ClipboardList,
   Megaphone,
   FileText,
   User,
@@ -163,6 +165,64 @@ export default function AdminDashboard() {
               <div>
                 <h3 className="font-semibold text-gray-900">Registrar Lecturas</h3>
                 <p className="text-sm text-gray-600">Ingresar lecturas de medidores</p>
+              </div>
+            </a>
+
+            <a
+              href="/admin/requisitos-servicio"
+              className="flex items-center p-4 bg-violet-50 rounded-lg hover:bg-violet-100 transition-colors"
+            >
+              <FileText className="w-8 h-8 text-violet-600 mr-4" />
+              <div>
+                <h3 className="font-semibold text-gray-900">Gestionar Requisitos</h3>
+                <p className="text-sm text-gray-600">ABM de requisitos por servicio</p>
+              </div>
+            </a>
+
+            <a
+              href="/admin/medidores"
+              className="flex items-center p-4 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+            >
+              <Zap className="w-8 h-8 text-amber-600 mr-4" />
+              <div>
+                <h3 className="font-semibold text-gray-900">Gestionar Medidores</h3>
+                <p className="text-sm text-gray-600">Instalacion, edicion y estado</p>
+              </div>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-8 mb-8">
+        <div className="card">
+          <h2 className="text-xl font-bold text-gray-900 mb-6">Gestion de Empleados</h2>
+          <div className="space-y-4">
+            <a
+              href="/admin/empleados"
+              className="flex items-center p-4 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+            >
+              <Briefcase className="w-8 h-8 text-amber-600 mr-4" />
+              <div>
+                <h3 className="font-semibold text-gray-900">Administrar Empleados</h3>
+                <p className="text-sm text-gray-600">Asignar cargos, editar y dar de baja</p>
+              </div>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-8 mb-8">
+        <div className="card">
+          <h2 className="text-xl font-bold text-gray-900 mb-6">Solicitudes de Servicio</h2>
+          <div className="space-y-4">
+            <a
+              href="/admin/solicitudes-servicio"
+              className="flex items-center p-4 bg-sky-50 rounded-lg hover:bg-sky-100 transition-colors"
+            >
+              <ClipboardList className="w-8 h-8 text-sky-600 mr-4" />
+              <div>
+                <h3 className="font-semibold text-gray-900">Revisar Solicitudes</h3>
+                <p className="text-sm text-gray-600">Cambiar estado y asignar medidor a servicios de luz</p>
               </div>
             </a>
           </div>

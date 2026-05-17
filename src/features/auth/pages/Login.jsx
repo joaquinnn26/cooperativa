@@ -43,7 +43,7 @@ export default function Login() {
 
       const redirect =
         location.state?.from?.pathname ||
-        (rol === 'Admin' ? '/admin' : '/socio')
+        (rol === 'Admin' ? '/admin' : rol === 'Empleado' ? '/empleado' : '/socio')
 
       navigate(redirect, { replace: true })
     } catch (error) {

@@ -28,5 +28,7 @@ export function isTokenExpired(token) {
 }
 
 export function getDefaultRouteByRole(role) {
-  return role === 'Admin' ? '/admin' : '/socio'
+  if (role === 'Admin') return '/admin'
+  if (role === 'Empleado') return '/empleado'
+  return '/socio'
 }

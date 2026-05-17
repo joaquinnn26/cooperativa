@@ -3,8 +3,9 @@ import { apiUrl } from '@/config/api.js'
 
 const useAuthStore = create((set) => ({
   token: localStorage.getItem('token') || null,
-  rol: localStorage.getItem('rol') || null,
+  //rol: localStorage.getItem('rol') || null,
   usuario: localStorage.getItem('usuario') || null,
+  nombre: localStorage.getItem('nombre') || null,
 
   login: async (form) => {
     const res = await fetch(apiUrl('/auth/login'), {
@@ -21,15 +22,18 @@ const useAuthStore = create((set) => ({
     if (!res.ok) throw new Error('Login error')
 
     const data = await res.json()
+    const nombre = data.nombre || data.Nombre || data.nombreSocio || data.usuario
 
     localStorage.setItem('token', data.token)
-    localStorage.setItem('rol', data.rol)
+    //localStorage.setItem('rol', data.rol)
     localStorage.setItem('usuario', data.usuario)
+    localStorage.setItem('nombre', nombre)
 
     set({
       token: data.token,
-      rol: data.rol,
-      usuario: data.usuario
+      //rol: data.rol,
+      usuario: data.usuario,
+      nombre
     })
 
     return data
@@ -59,7 +63,7 @@ const useAuthStore = create((set) => ({
 
   logout: () => {
     localStorage.clear()
-    set({ token: null, rol: null, usuario: null })
+    set({ token: null, rol: null, usuario: null, nombre: null })
   },
 
   getAuthHeaders: () => {

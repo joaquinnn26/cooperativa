@@ -7,14 +7,24 @@ import Register from '@/features/auth/pages/Register.jsx'
 import SocioDashboard from '@/features/socio/pages/SocioDashboard.jsx'
 import ReclamosList from '@/features/socio/pages/ReclamosList.jsx'
 import ReclamoNuevo from '@/features/socio/pages/ReclamoNuevo.jsx'
+import SocioSolicitudesServicio from '@/features/socio/pages/SocioSolicitudesServicio.jsx'
+import SocioSolicitudServicioNueva from '@/features/socio/pages/SocioSolicitudServicioNueva.jsx'
+import SocioServicios from '@/features/socio/pages/SocioServicios.jsx'
+import SocioMediciones from '@/features/socio/pages/SocioMediciones.jsx'
 import AdminDashboard from '@/features/admin/pages/AdminDashboard.jsx'
 import AdminSocios from '@/features/admin/pages/AdminSocios.jsx'
+import AdminEmpleados from '@/features/admin/pages/AdminEmpleados.jsx'
 import AdminFacturas from '@/features/admin/pages/AdminFacturas.jsx'
 import AdminServicios from '@/features/admin/pages/AdminServicios.jsx'
 import AdminPagos from '@/features/admin/pages/AdminPagos.jsx'
 import AdminAnuncios from '@/features/admin/pages/AdminAnuncios.jsx'
 import AdminReportes from '@/features/admin/pages/AdminReportes.jsx'
 import AdminLecturas from '@/features/admin/pages/AdminLecturas.jsx'
+import AdminSolicitudesServicio from '@/features/admin/pages/AdminSolicitudesServicio.jsx'
+import AdminRequisitosServicio from '@/features/admin/pages/AdminRequisitosServicio.jsx'
+import AdminMedidores from '@/features/admin/pages/AdminMedidores.jsx'
+import EmpleadoDashboard from '@/features/empleado/pages/EmpleadoDashboard.jsx'
+import EmpleadoMediciones from '@/features/empleado/pages/EmpleadoMediciones.jsx'
 import HelpCenter from '@/features/help/pages/HelpCenter.jsx'
 import ProtectedRoute from '@/components/ProtectedRoute.jsx'
 import PublicOnlyRoute from '@/components/PublicOnlyRoute.jsx'
@@ -42,17 +52,30 @@ export default function App() {
           <Route path="/socio" element={<SocioDashboard />} />
           <Route path="/socio/reclamos" element={<ReclamosList />} />
           <Route path="/socio/reclamos/nuevo" element={<ReclamoNuevo />} />
+          <Route path="/socio/solicitudes-servicio" element={<SocioSolicitudesServicio />} />
+          <Route path="/socio/solicitudes-servicio/nueva" element={<SocioSolicitudServicioNueva />} />
+          <Route path="/socio/mis-servicios" element={<SocioServicios />} />
+          <Route path="/socio/mis-mediciones" element={<SocioMediciones />} />
         </Route>
 
         <Route element={<ProtectedRoute role="Admin" />}>
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/socios" element={<AdminSocios />} />
+          <Route path="/admin/empleados" element={<AdminEmpleados />} />
           <Route path="/admin/facturas" element={<AdminFacturas />} />
           <Route path="/admin/servicios" element={<AdminServicios />} />
           <Route path="/admin/pagos" element={<AdminPagos />} />
           <Route path="/admin/anuncios" element={<AdminAnuncios />} />
           <Route path="/admin/reportes" element={<AdminReportes />} />
           <Route path="/admin/lecturas" element={<AdminLecturas />} />
+          <Route path="/admin/solicitudes-servicio" element={<AdminSolicitudesServicio />} />
+          <Route path="/admin/requisitos-servicio" element={<AdminRequisitosServicio />} />
+          <Route path="/admin/medidores" element={<AdminMedidores />} />
+        </Route>
+
+        <Route element={<ProtectedRoute role="Empleado" />}>
+          <Route path="/empleado" element={<EmpleadoDashboard />} />
+          <Route path="/empleado/mediciones" element={<EmpleadoMediciones />} />
         </Route>
 
         <Route path="*" element={<NotFound />} />

@@ -89,6 +89,10 @@ export function useSocios(autoLoad = true) {
     })
   }, [])
 
+  const fetchServiciosSocio = useCallback(async (idSocio) => {
+    return jsonFetch(apiUrl(`/serviciosocio/${idSocio}`))
+  }, [])
+
   const toggleEstadoSocio = useCallback(
     async (socioId) => {
       await jsonFetch(apiUrl(`/socio/estado/${socioId}`), { method: 'PUT' })
@@ -117,6 +121,7 @@ export function useSocios(autoLoad = true) {
     editarSocio,
     eliminarSocio,
     asignarServicios,
+    fetchServiciosSocio,
     toggleEstadoSocio
   }
 }

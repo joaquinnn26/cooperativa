@@ -9,7 +9,7 @@ export default function Layout() {
   const usuario = useAuthStore((state) => state.usuario)
   const logout = useAuthStore((state) => state.logout)
   const rol = useAuthStore((state) => state.rol)
-  const panelPath = rol === 'Admin' ? '/admin' : '/socio'
+  const panelPath = rol === 'Admin' ? '/admin' : rol === 'Empleado' ? '/empleado' : '/socio'
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -88,7 +88,7 @@ export default function Layout() {
                   <div className="text-right">
                     <p className="text-sm font-medium text-gray-900">{usuario}</p>
                     <p className="text-xs text-gray-600">
-                      {rol === 'Admin' ? 'Administrador' : 'Socio'}
+                      {rol === 'Admin' ? 'Administrador' : rol === 'Empleado' ? 'Empleado' : 'Socio'}
                     </p>
                   </div>
                   <button

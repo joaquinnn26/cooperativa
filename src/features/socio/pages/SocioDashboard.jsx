@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Droplet, Zap, Settings, Receipt, AlertTriangle } from 'lucide-react'
+import { Droplet, Zap, Settings, Receipt, AlertTriangle, FilePlus2 } from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
 import useCooperativeStore from '@/store/cooperativeStore.js'
 import useAppStore from '@/store/appStore.js'
 import { formatDate } from '@/utils/formatDate.js'
 
 export default function SocioDashboard() {
-  const user = useAuthStore((state) => state.user)
+  const nombre = useAuthStore((state) => state.nombre)
+  const usuario = useAuthStore((state) => state.usuario)
   const fetchServices = useCooperativeStore((state) => state.fetchServices)
   const fetchBills = useCooperativeStore((state) => state.fetchBills)
   const payBill = useCooperativeStore((state) => state.payBill)
@@ -37,7 +38,7 @@ export default function SocioDashboard() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          ¡Hola, {user?.name || 'socio'}!
+          ¡Hola, {nombre || usuario || 'socio'}!
         </h1>
         <p className="text-lg text-gray-600">Bienvenido a tu panel de socio</p>
       </div>
@@ -139,9 +140,9 @@ export default function SocioDashboard() {
       <div className="card">
         <h2 className="text-2xl font-bold text-gray-900 mb-6">Acciones Rápidas</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           <Link
-            to="/servicios"
+            to="/socio/mis-servicios"
             className="flex items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
           >
             <Settings className="w-8 h-8 text-blue-600 mr-4" />
@@ -152,13 +153,13 @@ export default function SocioDashboard() {
           </Link>
 
           <Link
-            to="/facturas"
+            to="/socio/mis-mediciones"
             className="flex items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
           >
             <Receipt className="w-8 h-8 text-green-600 mr-4" />
             <div>
-              <h3 className="font-semibold text-gray-900">Facturas</h3>
-              <p className="text-sm text-gray-600">Ver historial</p>
+              <h3 className="font-semibold text-gray-900">Mis Mediciones</h3>
+              <p className="text-sm text-gray-600">Ver historial y consumos</p>
             </div>
           </Link>
 
@@ -170,6 +171,17 @@ export default function SocioDashboard() {
             <div>
               <h3 className="font-semibold text-gray-900">Mis Reclamos</h3>
               <p className="text-sm text-gray-600">Visualiza o realiza tus reclamos aquí.</p>
+            </div>
+          </Link>
+
+          <Link
+            to="/socio/solicitudes-servicio"
+            className="flex items-center p-4 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+          >
+            <FilePlus2 className="w-8 h-8 text-amber-600 mr-4" />
+            <div>
+              <h3 className="font-semibold text-gray-900">Solicitudes de Servicio</h3>
+              <p className="text-sm text-gray-600">Pedir altas y seguir el tramite.</p>
             </div>
           </Link>
         </div>

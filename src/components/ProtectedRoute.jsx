@@ -1,7 +1,7 @@
 import React from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import useAuthStore from '@/store/authStore.js'
-import { getDefaultRouteByRole, isTokenExpired } from '@/utils/auth.js'
+import { isTokenExpired } from '@/utils/auth.js'
 
 export default function ProtectedRoute({ role }) {
   const location = useLocation()
@@ -12,8 +12,8 @@ export default function ProtectedRoute({ role }) {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
 
-  if (role && rol !== role) {
-    return <Navigate to={getDefaultRouteByRole(rol)} replace />
+  if (role && rol && role !== rol) {
+    return <Navigate to={rol === 'Admin' ? '/admin' : rol === 'Empleado' ? '/empleado' : '/socio'} replace />
   }
 
   return <Outlet />
