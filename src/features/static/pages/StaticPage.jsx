@@ -20,7 +20,7 @@ export function Terminos() {
 }
 
 export function Guia() {
-  return <Placeholder title="Guía de uso" description="Próximamente incorporaremos tutorial paso a paso." />
+  return <Placeholder title="Reportaje de Emiliano" description= "este es el inicio de mi trabajo "/>
 }
 
 export function FAQ() {
