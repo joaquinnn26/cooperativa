@@ -13,6 +13,7 @@ import {
   FileText,
   User,
   AlertTriangle,
+  CalendarCheck,
   CheckCircle
 } from 'lucide-react'
 import { formatDate } from '@/utils/formatDate.js'
@@ -310,6 +311,7 @@ export default function AdminDashboard() {
                 <p className="text-sm text-gray-600">Ver y procesar pagos</p>
               </div>
             </a>
+
           </div>
         </div>
 
@@ -335,6 +337,17 @@ export default function AdminDashboard() {
               <div>
                 <h3 className="font-semibold text-gray-900">Generar Reportes</h3>
                 <p className="text-sm text-gray-600">Estadísticas y análisis</p>
+              </div>
+            </a>
+
+            <a
+              href="/admin/turnos"
+              className="flex items-center p-4 bg-cyan-50 rounded-lg hover:bg-cyan-100 transition-colors"
+            >
+              <CalendarCheck className="w-8 h-8 text-cyan-600 mr-4" />
+              <div>
+                <h3 className="font-semibold text-gray-900">Gestionar Turnos</h3>
+                <p className="text-sm text-gray-600">Aprobar o rechazar solicitudes</p>
               </div>
             </a>
           </div>

@@ -3,7 +3,7 @@ import { apiUrl } from '@/config/api.js'
 
 const useAuthStore = create((set) => ({
   token: localStorage.getItem('token') || null,
-  rol: localStorage.getItem('rol') || null,
+  //rol: localStorage.getItem('rol') || null,
   usuario: localStorage.getItem('usuario') || null,
 
   login: async (form) => {
@@ -23,12 +23,12 @@ const useAuthStore = create((set) => ({
     const data = await res.json()
 
     localStorage.setItem('token', data.token)
-    localStorage.setItem('rol', data.rol)
+    //localStorage.setItem('rol', data.rol)
     localStorage.setItem('usuario', data.usuario)
 
     set({
       token: data.token,
-      rol: data.rol,
+      //rol: data.rol,
       usuario: data.usuario
     })
 

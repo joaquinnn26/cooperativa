@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Droplet, Zap, Settings, Receipt, AlertTriangle } from 'lucide-react'
+import { CalendarCheck, CalendarPlus, Droplet, Zap, Settings, Receipt, AlertTriangle } from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
 import useCooperativeStore from '@/store/cooperativeStore.js'
 import useAppStore from '@/store/appStore.js'
@@ -26,7 +26,7 @@ export default function SocioDashboard() {
   const handlePayBill = async (billId) => {
     try {
       await payBill(billId)
-      addNotification({ title: '¡Éxito!', message: 'Factura pagada correctamente', type: 'success' })
+      addNotification({ title: 'Exito', message: 'Factura pagada correctamente', type: 'success' })
       fetchBills().then(setBills)
     } catch (error) {
       addNotification({ title: 'Error', message: 'No se pudo procesar el pago', type: 'error' })
@@ -37,7 +37,7 @@ export default function SocioDashboard() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          ¡Hola, {user?.name || 'socio'}!
+          Hola, {user?.name || 'socio'}!
         </h1>
         <p className="text-lg text-gray-600">Bienvenido a tu panel de socio</p>
       </div>
@@ -60,7 +60,7 @@ export default function SocioDashboard() {
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900">{service.name}</h3>
-                  <p className="text-sm text-gray-600">Última lectura: {service.lastReading}</p>
+                  <p className="text-sm text-gray-600">Ultima lectura: {service.lastReading}</p>
                 </div>
               </div>
               <div
@@ -137,9 +137,9 @@ export default function SocioDashboard() {
       </div>
 
       <div className="card">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Acciones Rápidas</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">Acciones Rapidas</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <Link
             to="/servicios"
             className="flex items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
@@ -169,7 +169,29 @@ export default function SocioDashboard() {
             <AlertTriangle className="w-8 h-8 text-purple-600 mr-4" />
             <div>
               <h3 className="font-semibold text-gray-900">Mis Reclamos</h3>
-              <p className="text-sm text-gray-600">Visualiza o realiza tus reclamos aquí.</p>
+              <p className="text-sm text-gray-600">Visualiza o realiza tus reclamos aqui.</p>
+            </div>
+          </Link>
+
+          <Link
+            to="/socio/turnos/nuevo"
+            className="flex items-center p-4 bg-cyan-50 rounded-lg hover:bg-cyan-100 transition-colors"
+          >
+            <CalendarPlus className="w-8 h-8 text-cyan-600 mr-4" />
+            <div>
+              <h3 className="font-semibold text-gray-900">Agregar Turno</h3>
+              <p className="text-sm text-gray-600">Solicitar un nuevo turno</p>
+            </div>
+          </Link>
+
+          <Link
+            to="/socio/turnos"
+            className="flex items-center p-4 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
+          >
+            <CalendarCheck className="w-8 h-8 text-indigo-600 mr-4" />
+            <div>
+              <h3 className="font-semibold text-gray-900">Mis Turnos</h3>
+              <p className="text-sm text-gray-600">Ver y aceptar propuestas</p>
             </div>
           </Link>
         </div>

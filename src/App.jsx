@@ -7,6 +7,8 @@ import Register from '@/features/auth/pages/Register.jsx'
 import SocioDashboard from '@/features/socio/pages/SocioDashboard.jsx'
 import ReclamosList from '@/features/socio/pages/ReclamosList.jsx'
 import ReclamoNuevo from '@/features/socio/pages/ReclamoNuevo.jsx'
+import TurnoNuevo from '@/features/socio/pages/TurnoNuevo.jsx'
+import MisTurnos from '@/features/socio/pages/MisTurnos.jsx'
 import AdminDashboard from '@/features/admin/pages/AdminDashboard.jsx'
 import AdminSocios from '@/features/admin/pages/AdminSocios.jsx'
 import AdminFacturas from '@/features/admin/pages/AdminFacturas.jsx'
@@ -15,6 +17,7 @@ import AdminPagos from '@/features/admin/pages/AdminPagos.jsx'
 import AdminAnuncios from '@/features/admin/pages/AdminAnuncios.jsx'
 import AdminReportes from '@/features/admin/pages/AdminReportes.jsx'
 import AdminLecturas from '@/features/admin/pages/AdminLecturas.jsx'
+import AdminTurnos from '@/features/admin/pages/AdminTurnos.jsx'
 import HelpCenter from '@/features/help/pages/HelpCenter.jsx'
 import ProtectedRoute from '@/components/ProtectedRoute.jsx'
 import PublicOnlyRoute from '@/components/PublicOnlyRoute.jsx'
@@ -42,6 +45,8 @@ export default function App() {
           <Route path="/socio" element={<SocioDashboard />} />
           <Route path="/socio/reclamos" element={<ReclamosList />} />
           <Route path="/socio/reclamos/nuevo" element={<ReclamoNuevo />} />
+          <Route path="/socio/turnos" element={<MisTurnos />} />
+          <Route path="/socio/turnos/nuevo" element={<TurnoNuevo />} />
         </Route>
 
         <Route element={<ProtectedRoute role="Admin" />}>
@@ -53,6 +58,7 @@ export default function App() {
           <Route path="/admin/anuncios" element={<AdminAnuncios />} />
           <Route path="/admin/reportes" element={<AdminReportes />} />
           <Route path="/admin/lecturas" element={<AdminLecturas />} />
+          <Route path="/admin/turnos" element={<AdminTurnos />} />
         </Route>
 
         <Route path="*" element={<NotFound />} />
