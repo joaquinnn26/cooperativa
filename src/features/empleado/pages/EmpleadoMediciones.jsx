@@ -1,21 +1,46 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { History, Search, Save } from 'lucide-react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { Droplet, History, Save, Search, Zap } from 'lucide-react'
 import useAppStore from '@/store/appStore.js'
 import useAuthStore from '@/store/authStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
+import { useCurrentEmpleado } from '@/hooks/useCurrentEmpleado.js'
+import { useEmpleados } from '@/hooks/useEmpleados.js'
+import { cargoMatches } from '@/utils/auth.js'
 import { formatDate } from '@/utils/formatDate.js'
 
 const initialForm = {
   idMedidor: '',
-  TipoLectura: 'Manual',
+  idTipoLectura: '1',
   FechaLectura: '',
   LecturaActual: ''
 }
 
-export default function EmpleadoMediciones() {
+function serviceIcon(serviceName) {
+  return String(serviceName).toLowerCase().includes('agua') ? Droplet : Zap
+}
+
+function isLecturista(employee) {
+  const cargo = String(employee?.Cargo?.Nombre || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+
+  return cargo.includes('lecturista')
+}
+
+export default function EmpleadoMediciones({ adminMode = false }) {
+  const HISTORY_PAGE_SIZE = 6
   const addNotification = useAppStore((state) => state.addNotification)
-  const empleadoUsuario = useAuthStore((state) => state.usuario)
+  const idEmpleado = useAuthStore((state) => state.idEmpleado)
+  const usuario = useAuthStore((state) => state.usuario)
+  const nombre = useAuthStore((state) => state.nombre)
+  const rol = useAuthStore((state) => state.rol)
+  const cargo = useAuthStore((state) => state.cargo)
+  const { empleadoId, loadingEmpleado, resolveEmpleadoId } = useCurrentEmpleado()
+  const { fetchEmpleados } = useEmpleados(false)
   const fetchMeters = useServiceWorkflowStore((state) => state.fetchMeters)
+  const fetchMeasurementTypes = useServiceWorkflowStore((state) => state.fetchMeasurementTypes)
   const fetchMeasurementsByMeter = useServiceWorkflowStore((state) => state.fetchMeasurementsByMeter)
   const createMeasurement = useServiceWorkflowStore((state) => state.createMeasurement)
 
@@ -23,6 +48,15 @@ export default function EmpleadoMediciones() {
   const [meters, setMeters] = useState([])
   const [history, setHistory] = useState([])
   const [form, setForm] = useState(initialForm)
+  const [employees, setEmployees] = useState([])
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
+  const [measurementTypes, setMeasurementTypes] = useState([])
+  const [historyPage, setHistoryPage] = useState(1)
+  const selectedMeterIdRef = useRef('')
+
+  useEffect(() => {
+    selectedMeterIdRef.current = String(form.idMedidor || '')
+  }, [form.idMedidor])
 
   useEffect(() => {
     fetchMeters().then((data) => {
@@ -39,27 +73,123 @@ export default function EmpleadoMediciones() {
   }, [fetchMeters])
 
   useEffect(() => {
+    fetchMeasurementTypes().then((data) => {
+      const normalized = (data || []).map((item) => ({
+        id: String(item.idTipoLectura),
+        label: item.Nombre
+      }))
+      setMeasurementTypes(normalized)
+      if (normalized[0]?.id) {
+        setForm((prev) => ({ ...prev, idTipoLectura: normalized[0].id }))
+      }
+    })
+  }, [fetchMeasurementTypes])
+
+  useEffect(() => {
+    if (!adminMode) return
+    fetchEmpleados().then((data) => {
+      const activeLecturistas = (data || []).filter((employee) => employee.Activo && isLecturista(employee))
+      setEmployees(activeLecturistas)
+      if (activeLecturistas[0]?.idEmpleado != null) {
+        setSelectedEmployeeId(String(activeLecturistas[0].idEmpleado))
+      }
+    })
+  }, [adminMode, fetchEmpleados])
+
+  useEffect(() => {
     if (!form.idMedidor) return
-    fetchMeasurementsByMeter(form.idMedidor).then(setHistory)
+    const requestedMeterId = String(form.idMedidor)
+    let cancelled = false
+    setHistory([])
+    setHistoryPage(1)
+
+    fetchMeasurementsByMeter(requestedMeterId).then((data) => {
+      if (!cancelled && selectedMeterIdRef.current === requestedMeterId) {
+        setHistory(data || [])
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
   }, [fetchMeasurementsByMeter, form.idMedidor])
 
   const filteredMeters = useMemo(() => {
     const query = search.toLowerCase()
     return meters.filter((meter) =>
-      [meter.NumeroMedidor, meter.socioNombre, meter.servicioNombre].join(' ').toLowerCase().includes(query)
+      [meter.NumeroMedidor, meter.socioNombre, meter.socioUsuario, meter.servicioNombre]
+        .join(' ')
+        .toLowerCase()
+        .includes(query)
     )
   }, [meters, search])
+
+  const selectedMeter = useMemo(
+    () => meters.find((meter) => String(meter.idMedidor) === String(form.idMedidor)) ?? null,
+    [form.idMedidor, meters]
+  )
+
+  const selectedEmployee = useMemo(
+    () => employees.find((employee) => String(employee.idEmpleado) === String(selectedEmployeeId)) ?? null,
+    [employees, selectedEmployeeId]
+  )
+  const filteredHistory = useMemo(
+    () => history.filter((measurement) => String(measurement.idMedidor) === String(form.idMedidor)),
+    [form.idMedidor, history]
+  )
+  const totalHistoryPages = Math.max(1, Math.ceil(filteredHistory.length / HISTORY_PAGE_SIZE))
+  const paginatedHistory = useMemo(() => {
+    const start = (historyPage - 1) * HISTORY_PAGE_SIZE
+    return filteredHistory.slice(start, start + HISTORY_PAGE_SIZE)
+  }, [filteredHistory, historyPage])
+
+  useEffect(() => {
+    if (historyPage > totalHistoryPages) {
+      setHistoryPage(totalHistoryPages)
+    }
+  }, [historyPage, totalHistoryPages])
+
+  const latestMeasurement = filteredHistory[0] ?? null
+  const selectedMeasurementType = measurementTypes.find((option) => option.id === form.idTipoLectura)
+  const canAccessMeasurements = adminMode || cargoMatches(cargo, 'Lecturista')
+
+  if (!canAccessMeasurements) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-8">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-800">
+          Esta vista solo esta disponible para empleados con cargo Lecturista. Tu cargo actual es: {cargo || 'No informado'}.
+        </div>
+      </div>
+    )
+  }
 
   const handleSubmit = async (event) => {
     event.preventDefault()
 
     try {
+      const resolvedEmpleadoId = adminMode
+        ? Number(selectedEmployeeId)
+        : empleadoId ?? idEmpleado ?? (await resolveEmpleadoId())
+
+      if (!resolvedEmpleadoId) {
+        throw new Error('No se pudo identificar el empleado que registra la lectura.')
+      }
+
+      if (!measurementTypes.length) {
+        throw new Error('No hay tipos de lectura cargados en el sistema.')
+      }
+
       await createMeasurement({
         idMedidor: Number(form.idMedidor),
-        TipoLectura: form.TipoLectura,
+        idEmpleado: Number(resolvedEmpleadoId),
+        idTipoLectura: Number(form.idTipoLectura),
         FechaLectura: form.FechaLectura,
         LecturaActual: Number(form.LecturaActual),
-        EmpleadoUsuario: empleadoUsuario
+        tipoLecturaNombre: selectedMeasurementType?.label,
+        empleadoUsuario: adminMode ? selectedEmployee?.Persona?.Documento || '' : usuario,
+        empleadoNombre: adminMode
+          ? `${selectedEmployee?.Persona?.Nombre || ''} ${selectedEmployee?.Persona?.Apellido || ''}`.trim()
+          : nombre || usuario
       })
 
       addNotification({
@@ -68,8 +198,14 @@ export default function EmpleadoMediciones() {
         type: 'success'
       })
 
+      const targetMeterId = String(form.idMedidor)
       setForm((prev) => ({ ...prev, LecturaActual: '' }))
-      fetchMeasurementsByMeter(form.idMedidor).then(setHistory)
+      fetchMeasurementsByMeter(targetMeterId).then((data) => {
+        if (selectedMeterIdRef.current === targetMeterId) {
+          setHistory(data || [])
+          setHistoryPage(1)
+        }
+      })
     } catch (error) {
       addNotification({
         title: 'Error',
@@ -82,8 +218,10 @@ export default function EmpleadoMediciones() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Cargar Mediciones</h1>
-        <p className="mt-2 text-gray-600">Busca un medidor, registra la lectura y revisa el historial.</p>
+        <h1 className="text-3xl font-bold text-gray-900">Cargar mediciones</h1>
+        <p className="mt-2 text-gray-600">
+          Busca por socio, documento, servicio o medidor y registra la lectura sobre el medidor correcto.
+        </p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
@@ -93,7 +231,7 @@ export default function EmpleadoMediciones() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar medidor o socio..."
+              placeholder="Buscar socio, documento, servicio o medidor..."
               className="w-full text-sm outline-none"
             />
           </div>
@@ -103,7 +241,13 @@ export default function EmpleadoMediciones() {
               <button
                 key={meter.idMedidor}
                 type="button"
-                onClick={() => setForm((prev) => ({ ...prev, idMedidor: String(meter.idMedidor) }))}
+                onClick={() =>
+                  setForm((prev) => ({
+                    ...prev,
+                    idMedidor: String(meter.idMedidor),
+                    FechaLectura: prev.FechaLectura || new Date().toISOString().slice(0, 10)
+                  }))
+                }
                 className={`w-full rounded-xl border p-4 text-left transition ${
                   String(form.idMedidor) === String(meter.idMedidor)
                     ? 'border-blue-500 bg-blue-50'
@@ -112,15 +256,82 @@ export default function EmpleadoMediciones() {
               >
                 <p className="font-semibold text-gray-900">{meter.NumeroMedidor}</p>
                 <p className="text-sm text-gray-600">{meter.socioNombre}</p>
-                <p className="text-xs text-gray-500">{meter.servicioNombre}</p>
+                <p className="text-xs text-gray-500">
+                  {meter.servicioNombre} • Doc. {meter.socioUsuario || 'Sin doc'} • {meter.TipoMedidor}
+                </p>
               </button>
             ))}
+            {!filteredMeters.length ? (
+              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
+                No hay medidores activos para mostrar.
+              </div>
+            ) : null}
           </div>
         </div>
 
         <div className="space-y-6">
+          {selectedMeter ? (
+            <div className="card">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-full bg-cyan-100 p-3 text-cyan-700">
+                    {React.createElement(serviceIcon(selectedMeter.servicioNombre), { className: 'h-6 w-6' })}
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">{selectedMeter.servicioNombre}</h2>
+                    <p className="text-sm text-gray-600">{selectedMeter.socioNombre}</p>
+                    <p className="text-xs text-gray-500">
+                      Medidor {selectedMeter.NumeroMedidor} • Doc. {selectedMeter.socioUsuario || 'Sin doc'} • {selectedMeter.TipoMedidor}
+                    </p>
+                  </div>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                  {selectedMeter.Estado}
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="rounded-xl bg-gray-50 p-4">
+                  <p className="text-xs uppercase text-gray-500">Ultima lectura</p>
+                  <p className="mt-1 text-lg font-semibold text-gray-900">
+                    {latestMeasurement ? latestMeasurement.LecturaActual : 'Sin registros'}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-gray-50 p-4">
+                  <p className="text-xs uppercase text-gray-500">Ultimo consumo</p>
+                  <p className="mt-1 text-lg font-semibold text-gray-900">
+                    {latestMeasurement ? latestMeasurement.Consumo : 'Sin registros'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <form onSubmit={handleSubmit} className="card space-y-4">
             <h2 className="text-xl font-semibold text-gray-900">Nueva lectura</h2>
+
+            {adminMode ? (
+              <>
+                <select
+                  value={selectedEmployeeId}
+                  onChange={(event) => setSelectedEmployeeId(event.target.value)}
+                  className="input-field"
+                  required
+                >
+                  <option value="">Seleccionar lecturista...</option>
+                  {employees.map((employee) => (
+                    <option key={employee.idEmpleado} value={employee.idEmpleado}>
+                      {employee.Persona?.Apellido}, {employee.Persona?.Nombre} - {employee.Cargo?.Nombre}
+                    </option>
+                  ))}
+                </select>
+                {!employees.length ? (
+                  <p className="text-sm text-amber-700">
+                    No hay empleados activos con cargo Lecturista para asignar la lectura.
+                  </p>
+                ) : null}
+              </>
+            ) : null}
 
             <select
               value={form.idMedidor}
@@ -131,20 +342,23 @@ export default function EmpleadoMediciones() {
               <option value="">Seleccionar medidor...</option>
               {meters.map((meter) => (
                 <option key={meter.idMedidor} value={meter.idMedidor}>
-                  {meter.NumeroMedidor} - {meter.socioNombre}
+                  {meter.NumeroMedidor} - {meter.socioNombre} - {meter.servicioNombre}
                 </option>
               ))}
             </select>
 
             <div className="grid gap-4 md:grid-cols-2">
               <select
-                value={form.TipoLectura}
-                onChange={(event) => setForm((prev) => ({ ...prev, TipoLectura: event.target.value }))}
+                value={form.idTipoLectura}
+                onChange={(event) => setForm((prev) => ({ ...prev, idTipoLectura: event.target.value }))}
                 className="input-field"
+                disabled={!measurementTypes.length}
               >
-                <option value="Manual">Manual</option>
-                <option value="Control">Control</option>
-                <option value="Relevamiento">Relevamiento</option>
+                {measurementTypes.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
               <input
                 type="date"
@@ -169,6 +383,16 @@ export default function EmpleadoMediciones() {
               <Save className="mr-2 h-4 w-4" />
               Guardar medicion
             </button>
+
+            {!measurementTypes.length ? (
+              <p className="text-sm text-amber-700">
+                No hay tipos de lectura cargados en la base de datos. Debes crearlos para poder registrar mediciones.
+              </p>
+            ) : null}
+            {loadingEmpleado && !adminMode ? <p className="text-sm text-gray-500">Identificando empleado actual...</p> : null}
+            {adminMode && rol === 'Administrador' ? (
+              <p className="text-sm text-gray-500">La lectura quedara registrada a nombre del empleado seleccionado.</p>
+            ) : null}
           </form>
 
           <div className="card overflow-x-auto">
@@ -185,23 +409,47 @@ export default function EmpleadoMediciones() {
                   <th className="px-4 py-3">Actual</th>
                   <th className="px-4 py-3">Consumo</th>
                   <th className="px-4 py-3">Tipo</th>
+                  <th className="px-4 py-3">Empleado</th>
                 </tr>
               </thead>
               <tbody>
-                {history.map((measurement) => (
+                {paginatedHistory.map((measurement) => (
                   <tr key={measurement.idMedicion} className="border-t border-gray-100">
                     <td className="px-4 py-3">{formatDate(measurement.FechaLectura, 'es-AR')}</td>
                     <td className="px-4 py-3">{measurement.LecturaAnterior}</td>
                     <td className="px-4 py-3">{measurement.LecturaActual}</td>
                     <td className="px-4 py-3 font-semibold text-gray-900">{measurement.Consumo}</td>
                     <td className="px-4 py-3">{measurement.TipoLectura}</td>
+                    <td className="px-4 py-3">{measurement.EmpleadoUsuario || 'No informado'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
 
-            {!history.length ? (
-              <div className="py-10 text-center text-gray-500">Todavia no hay lecturas para este medidor.</div>
+            {!filteredHistory.length ? <div className="py-10 text-center text-gray-500">Todavia no hay lecturas para este medidor.</div> : null}
+
+            {filteredHistory.length ? (
+              <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setHistoryPage((page) => Math.max(1, page - 1))}
+                  disabled={historyPage === 1}
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Anterior
+                </button>
+                <span className="text-sm text-gray-500">
+                  Pagina {historyPage} de {totalHistoryPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setHistoryPage((page) => Math.min(totalHistoryPages, page + 1))}
+                  disabled={historyPage === totalHistoryPages}
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Siguiente
+                </button>
+              </div>
             ) : null}
           </div>
         </div>

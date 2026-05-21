@@ -18,30 +18,69 @@ async function jsonFetch(url, options = {}) {
     const errorText = await res.text()
     throw new Error(errorText || `HTTP ${res.status}`)
   }
+
   return res.status === 204 ? null : res.json()
 }
 
 export function useAuth() {
-  const [user, setUser] = useState(null)
-  const [token, setToken] = useState(localStorage.getItem('token') || null)
+  const [session, setSession] = useState(() => ({
+    token: localStorage.getItem('token') || null,
+    usuario: localStorage.getItem('usuario') || null,
+    email: localStorage.getItem('email') || null,
+    rol: localStorage.getItem('rol') || null,
+    cargo: localStorage.getItem('cargo') || null,
+    idSocio: localStorage.getItem('idSocio') || null,
+    idEmpleado: localStorage.getItem('idEmpleado') || null
+  }))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
   const login = useCallback(async (email, password) => {
     setLoading(true)
     setError(null)
+
     try {
       const data = await jsonFetch(apiUrl('/auth/login'), {
         method: 'POST',
         body: JSON.stringify({ email, password })
       })
 
-      // Guardar token y user en localStorage
-      localStorage.setItem('token', data.token)
-      localStorage.setItem('user', JSON.stringify(data.user))
+      if (data?.token) {
+        localStorage.setItem('token', data.token)
+      } else {
+        localStorage.removeItem('token')
+      }
 
-      setToken(data.token)
-      setUser(data.user)
+      localStorage.setItem('usuario', data?.usuario != null ? String(data.usuario) : '')
+      localStorage.setItem('email', email)
+      localStorage.setItem('rol', data?.rol ?? '')
+      if (data?.cargo) {
+        localStorage.setItem('cargo', String(data.cargo))
+      } else {
+        localStorage.removeItem('cargo')
+      }
+
+      if (data?.idSocio != null) {
+        localStorage.setItem('idSocio', String(data.idSocio))
+      } else {
+        localStorage.removeItem('idSocio')
+      }
+
+      if (data?.idEmpleado != null) {
+        localStorage.setItem('idEmpleado', String(data.idEmpleado))
+      } else {
+        localStorage.removeItem('idEmpleado')
+      }
+
+      setSession({
+        token: data?.token ?? null,
+        usuario: data?.usuario != null ? String(data.usuario) : null,
+        email,
+        rol: data?.rol ?? null,
+        cargo: data?.cargo != null ? String(data.cargo) : null,
+        idSocio: data?.idSocio != null ? String(data.idSocio) : null,
+        idEmpleado: data?.idEmpleado != null ? String(data.idEmpleado) : null
+      })
 
       return data
     } catch (err) {
@@ -54,30 +93,35 @@ export function useAuth() {
 
   const logout = useCallback(() => {
     localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    setToken(null)
-    setUser(null)
+    localStorage.removeItem('usuario')
+    localStorage.removeItem('email')
+    localStorage.removeItem('rol')
+    localStorage.removeItem('cargo')
+    localStorage.removeItem('idSocio')
+    localStorage.removeItem('idEmpleado')
+    setSession({ token: null, usuario: null, email: null, rol: null, cargo: null, idSocio: null, idEmpleado: null })
     setError(null)
   }, [])
 
-  // Cargar usuario si hay token en localStorage
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
-    const storedUser = localStorage.getItem('user')
-
-    if (storedToken && storedUser) {
-      setToken(storedToken)
-      setUser(JSON.parse(storedUser))
-    }
+    setSession({
+      token: localStorage.getItem('token') || null,
+      usuario: localStorage.getItem('usuario') || null,
+      email: localStorage.getItem('email') || null,
+      rol: localStorage.getItem('rol') || null,
+      cargo: localStorage.getItem('cargo') || null,
+      idSocio: localStorage.getItem('idSocio') || null,
+      idEmpleado: localStorage.getItem('idEmpleado') || null
+    })
   }, [])
 
   return {
-    user,
-    token,
+    user: session,
+    token: session.token,
     loading,
     error,
     login,
     logout,
-    isAuthenticated: !!token
+    isAuthenticated: Boolean(session.token || session.usuario)
   }
 }

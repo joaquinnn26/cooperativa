@@ -2,12 +2,25 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Gauge, Plus, Power } from 'lucide-react'
 import useAppStore from '@/store/appStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
+import { useSocios } from '@/hooks/useSocios.js'
 import { formatDate } from '@/utils/formatDate.js'
 
 const initialForm = {
   idServicioSocio: '',
-  TipoMedidor: '',
-  FechaInstalacion: ''
+  idTipoMedidor: ''
+}
+
+function normalizeServiceName(nombre) {
+  return String(nombre || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+}
+
+function serviceRequiresMeter(nombre) {
+  const normalized = normalizeServiceName(nombre)
+  return normalized === 'luz' || normalized === 'agua potable'
 }
 
 export default function AdminMedidores() {
@@ -15,48 +28,58 @@ export default function AdminMedidores() {
   const fetchMeters = useServiceWorkflowStore((state) => state.fetchMeters)
   const fetchAllServiceAssignments = useServiceWorkflowStore((state) => state.fetchAllServiceAssignments)
   const createMeter = useServiceWorkflowStore((state) => state.createMeter)
-  const updateMeter = useServiceWorkflowStore((state) => state.updateMeter)
   const toggleMeterStatus = useServiceWorkflowStore((state) => state.toggleMeterStatus)
+  const { fetchSocios } = useSocios(false)
 
   const [meters, setMeters] = useState([])
   const [serviceAssignments, setServiceAssignments] = useState([])
+  const [socios, setSocios] = useState([])
   const [form, setForm] = useState(initialForm)
-  const [editingMeterId, setEditingMeterId] = useState(null)
 
   const loadData = async () => {
-    const [metersData, assignmentsData] = await Promise.all([
-      fetchMeters(),
-      fetchAllServiceAssignments()
-    ])
+    const [metersData, assignmentsData, sociosData] = await Promise.all([fetchMeters(), fetchAllServiceAssignments(), fetchSocios()])
     setMeters(metersData)
     setServiceAssignments(assignmentsData)
+    setSocios(sociosData)
   }
 
   useEffect(() => {
     loadData()
-  }, [fetchAllServiceAssignments, fetchMeters])
+  }, [fetchAllServiceAssignments, fetchMeters, fetchSocios])
 
   const eligibleAssignments = useMemo(
     () =>
       serviceAssignments.filter(
-        (assignment) => assignment.estado === 'Activo' && !assignment.idMedidor
+        (assignment) => {
+          if (assignment.estado !== 'Activo') return false
+          if (!serviceRequiresMeter(assignment.servicioNombre)) return false
+
+          const socio = socios.find((item) => String(item.idSocio) === String(assignment.idSocio))
+          const documento = String(socio?.Persona?.Documento || assignment.socioUsuario || '')
+
+          const alreadyHasMeter = meters.some(
+            (meter) =>
+              String(meter.socioUsuario || meter.Documento || '') === documento &&
+              normalizeServiceName(meter.servicioNombre) === normalizeServiceName(assignment.servicioNombre) &&
+              meter.Estado !== 'Inactivo'
+          )
+
+          return !alreadyHasMeter
+        }
       ),
-    [serviceAssignments]
+    [meters, serviceAssignments, socios]
   )
 
   const handleSubmit = async (event) => {
     event.preventDefault()
 
     try {
-      if (editingMeterId) {
-        await updateMeter(editingMeterId, form)
-        addNotification({ title: 'Medidor actualizado', message: 'Se guardaron los cambios.', type: 'success' })
-      } else {
-        await createMeter(form)
-        addNotification({ title: 'Medidor instalado', message: 'El medidor se creo correctamente.', type: 'success' })
-      }
+      await createMeter({
+        idServicioSocio: Number(form.idServicioSocio),
+        idTipoMedidor: Number(form.idTipoMedidor)
+      })
+      addNotification({ title: 'Medidor instalado', message: 'El medidor se creo correctamente.', type: 'success' })
       setForm(initialForm)
-      setEditingMeterId(null)
       await loadData()
     } catch (error) {
       addNotification({ title: 'Error', message: error.message || 'No se pudo guardar el medidor.', type: 'error' })
@@ -67,7 +90,7 @@ export default function AdminMedidores() {
     <div className="mx-auto max-w-7xl px-4 py-8">
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Gestion Medidores</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Gestion medidores</h1>
           <p className="mt-2 text-gray-600">Instala medidores sobre servicios aprobados y administra su estado.</p>
         </div>
         <div className="rounded-full bg-amber-100 p-3 text-amber-700">
@@ -77,14 +100,14 @@ export default function AdminMedidores() {
 
       <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <form onSubmit={handleSubmit} className="card space-y-4">
-          <h2 className="text-xl font-semibold text-gray-900">{editingMeterId ? 'Editar medidor' : 'Instalar medidor'}</h2>
+          <h2 className="text-xl font-semibold text-gray-900">Instalar medidor</h2>
+          <p className="text-sm text-gray-500">Solo los servicios de Luz y Agua Potable requieren medidor.</p>
 
           <select
             value={form.idServicioSocio}
             onChange={(event) => setForm((prev) => ({ ...prev, idServicioSocio: event.target.value }))}
             className="input-field"
             required
-            disabled={Boolean(editingMeterId)}
           >
             <option value="">Seleccionar servicio aprobado...</option>
             {eligibleAssignments.map((assignment) => (
@@ -94,40 +117,26 @@ export default function AdminMedidores() {
             ))}
           </select>
 
+          {!eligibleAssignments.length ? (
+            <p className="text-sm text-amber-700">
+              No hay servicios de Luz o Agua Potable pendientes de instalacion de medidor.
+            </p>
+          ) : null}
+
           <input
-            value={form.TipoMedidor}
-            onChange={(event) => setForm((prev) => ({ ...prev, TipoMedidor: event.target.value }))}
+            type="number"
+            min="1"
+            value={form.idTipoMedidor}
+            onChange={(event) => setForm((prev) => ({ ...prev, idTipoMedidor: event.target.value }))}
             className="input-field"
-            placeholder="Tipo medidor"
+            placeholder="Id tipo medidor"
             required
           />
 
-          <input
-            type="date"
-            value={form.FechaInstalacion}
-            onChange={(event) => setForm((prev) => ({ ...prev, FechaInstalacion: event.target.value }))}
-            className="input-field"
-            required
-          />
-
-          <div className="flex gap-2">
-            <button type="submit" className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-              <Plus className="mr-2 h-4 w-4" />
-              {editingMeterId ? 'Guardar cambios' : 'Instalar'}
-            </button>
-            {editingMeterId ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingMeterId(null)
-                  setForm(initialForm)
-                }}
-                className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-200"
-              >
-                Cancelar
-              </button>
-            ) : null}
-          </div>
+          <button type="submit" className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+            <Plus className="mr-2 h-4 w-4" />
+            Instalar
+          </button>
         </form>
 
         <div className="card overflow-x-auto">
@@ -160,20 +169,6 @@ export default function AdminMedidores() {
                     <div className="flex justify-end gap-2">
                       <button
                         type="button"
-                        onClick={() => {
-                          setEditingMeterId(meter.idMedidor)
-                          setForm({
-                            idServicioSocio: String(meter.idServicioSocio || ''),
-                            TipoMedidor: meter.TipoMedidor,
-                            FechaInstalacion: String(meter.FechaInstalacion).slice(0, 10)
-                          })
-                        }}
-                        className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
                         onClick={async () => {
                           await toggleMeterStatus(meter.idMedidor)
                           await loadData()
@@ -190,9 +185,7 @@ export default function AdminMedidores() {
             </tbody>
           </table>
 
-          {!meters.length ? (
-            <div className="py-12 text-center text-gray-500">Todavia no hay medidores instalados.</div>
-          ) : null}
+          {!meters.length ? <div className="py-12 text-center text-gray-500">Todavia no hay medidores instalados.</div> : null}
         </div>
       </div>
     </div>

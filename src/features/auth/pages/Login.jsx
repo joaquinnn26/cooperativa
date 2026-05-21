@@ -34,22 +34,21 @@ export default function Login() {
       const data = await login(form)
 
       addNotification({
-        title: '¡Bienvenido!',
-        message: data.mensaje || 'Has iniciado sesión correctamente',
+        title: 'Bienvenido',
+        message: data.mensaje || 'Has iniciado sesion correctamente',
         type: 'success'
       })
 
       const rol = data.rol
-
       const redirect =
         location.state?.from?.pathname ||
-        (rol === 'Admin' ? '/admin' : rol === 'Empleado' ? '/empleado' : '/socio')
+        (rol === 'Administrador' ? '/admin' : rol === 'Empleado' ? '/empleado' : '/socio')
 
       navigate(redirect, { replace: true })
     } catch (error) {
       addNotification({
         title: 'Error',
-        message: 'Credenciales incorrectas',
+        message: error.message || 'Credenciales incorrectas',
         type: 'error'
       })
     } finally {
@@ -64,21 +63,19 @@ export default function Login() {
           <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
             <LogIn className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Iniciar Sesión</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Iniciar sesion</h1>
           <p className="text-gray-600">Accede a tu cuenta</p>
         </div>
 
         {location.state?.expired ? (
           <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Tu sesión expiró. Tenés que iniciar sesión nuevamente para continuar.
+            Tu sesion expiro. Tienes que iniciar sesion nuevamente para continuar.
           </div>
         ) : null}
 
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Correo Electrónico
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Correo electronico</label>
             <input
               name="email"
               value={form.email}
@@ -91,9 +88,7 @@ export default function Login() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Contraseña
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Contrasena</label>
             <input
               name="password"
               value={form.password}
@@ -101,11 +96,11 @@ export default function Login() {
               type="password"
               required
               className="input-field"
-              placeholder="Tu contraseña"
+              placeholder="Tu contrasena"
             />
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-start">
             <label className="flex items-center text-sm text-gray-700">
               <input
                 name="remember"
@@ -116,10 +111,6 @@ export default function Login() {
               />
               <span className="ml-2">Recordarme</span>
             </label>
-
-            <Link to="/forgot-password" className="text-sm text-blue-600">
-              ¿Olvidaste tu contraseña?
-            </Link>
           </div>
 
           <button
@@ -127,15 +118,15 @@ export default function Login() {
             disabled={isLoading}
             className="w-full btn-primary disabled:opacity-50"
           >
-            {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+            {isLoading ? 'Iniciando sesion...' : 'Iniciar sesion'}
           </button>
         </form>
 
         <div className="mt-6 text-center">
           <p className="text-gray-600">
-            ¿No tienes cuenta?
+            No tienes cuenta?
             <Link to="/register" className="text-blue-600 font-medium ml-1">
-              Regístrate
+              Registrate
             </Link>
           </p>
         </div>

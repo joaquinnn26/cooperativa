@@ -27,8 +27,39 @@ export function isTokenExpired(token) {
   return Date.now() >= expiresAt
 }
 
+export function hasActiveSession({ token, usuario }) {
+  if (token) return !isTokenExpired(token)
+  return Boolean(usuario)
+}
+
+export function normalizeRole(role) {
+  if (!role) return null
+  const value = String(role).trim().toLowerCase()
+  if (value === 'admin' || value === 'administrador') return 'Administrador'
+  if (value === 'empleado') return 'Empleado'
+  if (value === 'socio') return 'Socio'
+  return String(role).trim()
+}
+
+export function normalizeCargo(cargo) {
+  return String(cargo || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+}
+
+export function cargoMatches(cargo, expectedCargo) {
+  return normalizeCargo(cargo).includes(normalizeCargo(expectedCargo))
+}
+
+export function rolesMatch(actualRole, expectedRole) {
+  return normalizeRole(actualRole) === normalizeRole(expectedRole)
+}
+
 export function getDefaultRouteByRole(role) {
-  if (role === 'Admin') return '/admin'
-  if (role === 'Empleado') return '/empleado'
+  const normalizedRole = normalizeRole(role)
+  if (normalizedRole === 'Administrador') return '/admin'
+  if (normalizedRole === 'Empleado') return '/empleado'
   return '/socio'
 }

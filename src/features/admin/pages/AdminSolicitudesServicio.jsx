@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ClipboardList, Eye, Search, XCircle } from 'lucide-react'
+import { API_SERVER_URL } from '@/config/api.js'
 import useAppStore from '@/store/appStore.js'
-import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
+import useServiceWorkflowStore, { SERVICE_REQUEST_STATUSES } from '@/store/serviceWorkflowStore.js'
 import { formatDate } from '@/utils/formatDate.js'
 
 function statusColor(estado) {
@@ -10,6 +11,8 @@ function statusColor(estado) {
       return 'bg-emerald-100 text-emerald-700'
     case 'Rechazada':
       return 'bg-red-100 text-red-700'
+    case 'Cancelada':
+      return 'bg-slate-200 text-slate-700'
     case 'En revision':
       return 'bg-violet-100 text-violet-700'
     default:
@@ -17,17 +20,25 @@ function statusColor(estado) {
   }
 }
 
+function documentUrl(path) {
+  if (!path) return ''
+  if (/^https?:\/\//i.test(path)) return path
+  return `${API_SERVER_URL}${path.startsWith('/') ? path : `/${path}`}`
+}
+
 export default function AdminSolicitudesServicio() {
   const addNotification = useAppStore((state) => state.addNotification)
   const fetchServiceRequests = useServiceWorkflowStore((state) => state.fetchServiceRequests)
   const approveServiceRequest = useServiceWorkflowStore((state) => state.approveServiceRequest)
   const rejectServiceRequest = useServiceWorkflowStore((state) => state.rejectServiceRequest)
+  const updateServiceRequestStatus = useServiceWorkflowStore((state) => state.updateServiceRequestStatus)
 
   const [requests, setRequests] = useState([])
   const [search, setSearch] = useState('')
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [rejectingRequest, setRejectingRequest] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
+  const [statusByRequest, setStatusByRequest] = useState({})
 
   const loadRequests = async () => {
     const data = await fetchServiceRequests()
@@ -37,6 +48,15 @@ export default function AdminSolicitudesServicio() {
   useEffect(() => {
     loadRequests()
   }, [fetchServiceRequests])
+
+  useEffect(() => {
+    setStatusByRequest((prev) =>
+      requests.reduce((acc, request) => {
+        acc[request.idSolicitudServicio] = prev[request.idSolicitudServicio] || request.estado
+        return acc
+      }, {})
+    )
+  }, [requests])
 
   const filteredRequests = useMemo(() => {
     const query = search.toLowerCase()
@@ -95,12 +115,44 @@ export default function AdminSolicitudesServicio() {
     }
   }
 
+  const handleStatusUpdate = async (request) => {
+    const nextStatus = statusByRequest[request.idSolicitudServicio] || request.estado
+
+    if (nextStatus === request.estado) return
+
+    if (nextStatus === 'Rechazada') {
+      setRejectingRequest(request)
+      return
+    }
+
+    try {
+      if (nextStatus === 'Aprobada') {
+        await approveServiceRequest(request.idSolicitudServicio)
+      } else {
+        await updateServiceRequestStatus(request.idSolicitudServicio, { estado: nextStatus })
+      }
+
+      addNotification({
+        title: 'Estado actualizado',
+        message: `La solicitud de ${request.socioNombre} quedo en estado ${nextStatus}.`,
+        type: 'success'
+      })
+      await loadRequests()
+    } catch (error) {
+      addNotification({
+        title: 'Error',
+        message: error.message || 'No se pudo actualizar el estado.',
+        type: 'error'
+      })
+    }
+  }
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Gestion de Solicitudes</h1>
-          <p className="mt-2 text-gray-600">Aprueba o rechaza servicios y revisa la documentacion cargada.</p>
+          <p className="mt-2 text-gray-600">Carga el estado de cada solicitud y revisa la documentacion cargada.</p>
         </div>
         <div className="rounded-full bg-sky-100 p-3 text-sky-700">
           <ClipboardList className="h-6 w-6" />
@@ -125,13 +177,13 @@ export default function AdminSolicitudesServicio() {
               <th className="px-4 py-3">Servicio</th>
               <th className="px-4 py-3">Fecha</th>
               <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3">Direccion</th>
               <th className="px-4 py-3">Documentos</th>
               <th className="px-4 py-3 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {filteredRequests.map((request) => {
-              const closed = ['Aprobada', 'Rechazada'].includes(request.estado)
               return (
                 <tr key={request.idSolicitudServicio} className="border-t border-gray-100">
                   <td className="px-4 py-4">
@@ -148,6 +200,7 @@ export default function AdminSolicitudesServicio() {
                       {request.estado}
                     </span>
                   </td>
+                  <td className="px-4 py-4 text-gray-600">{request.direccion}</td>
                   <td className="px-4 py-4">{request.documentos.length}</td>
                   <td className="px-4 py-4">
                     <div className="flex justify-end gap-2">
@@ -159,20 +212,40 @@ export default function AdminSolicitudesServicio() {
                         <Eye className="mr-1 h-4 w-4" />
                         Ver
                       </button>
+                      <select
+                        value={statusByRequest[request.idSolicitudServicio] || request.estado}
+                        onChange={(event) =>
+                          setStatusByRequest((prev) => ({
+                            ...prev,
+                            [request.idSolicitudServicio]: event.target.value
+                          }))
+                        }
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700"
+                      >
+                        {SERVICE_REQUEST_STATUSES.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
                       <button
                         type="button"
-                        onClick={() => handleApprove(request)}
-                        disabled={closed}
-                        className="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        onClick={() => handleStatusUpdate(request)}
+                        className="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
                       >
                         <CheckCircle2 className="mr-1 h-4 w-4" />
-                        Aprobar
+                        Guardar estado
                       </button>
                       <button
                         type="button"
-                        onClick={() => setRejectingRequest(request)}
-                        disabled={closed}
-                        className="inline-flex items-center rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        onClick={() => {
+                          setStatusByRequest((prev) => ({
+                            ...prev,
+                            [request.idSolicitudServicio]: 'Rechazada'
+                          }))
+                          setRejectingRequest(request)
+                        }}
+                        className="inline-flex items-center rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700"
                       >
                         <XCircle className="mr-1 h-4 w-4" />
                         Rechazar
@@ -219,6 +292,11 @@ export default function AdminSolicitudesServicio() {
             </div>
 
             <div className="mt-4 rounded-xl bg-gray-50 p-4">
+              <p className="text-xs uppercase text-gray-500">Direccion</p>
+              <p className="mt-1 text-gray-800">{selectedRequest.direccion}</p>
+            </div>
+
+            <div className="mt-4 rounded-xl bg-gray-50 p-4">
               <p className="text-xs uppercase text-gray-500">Observaciones</p>
               <p className="mt-1 text-gray-800">{selectedRequest.observaciones}</p>
             </div>
@@ -234,8 +312,20 @@ export default function AdminSolicitudesServicio() {
               <p className="text-xs uppercase text-gray-500">Documentos</p>
               <div className="mt-2 space-y-2">
                 {selectedRequest.documentos.map((documento) => (
-                  <div key={documento.id} className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-800">
-                    {documento.nombre}
+                  <div key={documento.id} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-800">
+                    <span>{documento.nombre}</span>
+                    {documento.ruta ? (
+                      <a
+                        href={documentUrl(documento.ruta)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                      >
+                        Abrir
+                      </a>
+                    ) : (
+                      <span className="text-xs text-gray-400">Sin enlace</span>
+                    )}
                   </div>
                 ))}
                 {!selectedRequest.documentos.length ? (

@@ -5,13 +5,12 @@ const initialForm = {
   Nombre: '',
   Apellido: '',
   Documento: '',
-  Telefono: '',
-  Email: '',
-  idCargo: ''
+  idCargo: '',
+  FechaDelInicio: ''
 }
 
 export default function ModalEditarEmpleado({ show, empleado, onClose, onRefresh }) {
-  const { cargos, loadingCatalogos, catalogosError, fetchCatalogos } = useEmpleados(false)
+  const { cargos, loadingCatalogos, catalogosError, fetchCatalogos, editarEmpleado } = useEmpleados(false)
   const [form, setForm] = useState(initialForm)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -25,11 +24,22 @@ export default function ModalEditarEmpleado({ show, empleado, onClose, onRefresh
       Nombre: empleado.Persona?.Nombre || '',
       Apellido: empleado.Persona?.Apellido || '',
       Documento: empleado.Persona?.Documento || '',
-      Telefono: empleado.Persona?.Telefono || '',
-      Email: empleado.Persona?.Email || '',
-      idCargo: empleado.idCargo ? String(empleado.idCargo) : ''
+      idCargo: empleado.idCargo ? String(empleado.idCargo) : '',
+      FechaDelInicio: String(empleado.FechaDelInicio || '').slice(0, 10)
     })
   }, [show, empleado, fetchCatalogos])
+
+  useEffect(() => {
+    if (!show || !empleado || form.idCargo || !cargos.length) return
+
+    const cargoActual = cargos.find(
+      (cargo) => String(cargo.Nombre).trim().toLowerCase() === String(empleado.Cargo?.Nombre || '').trim().toLowerCase()
+    )
+
+    if (cargoActual?.idCargo != null) {
+      setForm((prev) => ({ ...prev, idCargo: String(cargoActual.idCargo) }))
+    }
+  }, [cargos, empleado, form.idCargo, show])
 
   const handleClose = () => {
     if (saving) return
@@ -39,7 +49,36 @@ export default function ModalEditarEmpleado({ show, empleado, onClose, onRefresh
   }
 
   const handleSubmit = async () => {
-    setError('El backend actual no expone un endpoint para editar empleados.')
+    if (!empleado) return
+
+    if (!form.idCargo || !form.FechaDelInicio) {
+      setError('Debes seleccionar un cargo y una fecha de inicio.')
+      return
+    }
+
+    const idCargo = Number(form.idCargo)
+    if (Number.isNaN(idCargo)) {
+      setError('El cargo seleccionado no es valido.')
+      return
+    }
+
+    setSaving(true)
+    setError('')
+
+    try {
+      await editarEmpleado(empleado.idEmpleado, {
+        idCargo,
+        FechaDelInicio: form.FechaDelInicio
+      })
+
+      await onRefresh?.()
+      handleClose()
+    } catch (saveError) {
+      console.error('Error al editar empleado', saveError)
+      setError(saveError.message || 'No se pudo editar el empleado.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (!show || !empleado) return null
@@ -50,46 +89,15 @@ export default function ModalEditarEmpleado({ show, empleado, onClose, onRefresh
         <h2 className="mb-4 text-xl font-bold">Editar empleado</h2>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <input
-            value={form.Nombre}
-            onChange={(e) => setForm((prev) => ({ ...prev, Nombre: e.target.value }))}
-            placeholder="Nombre"
-            className="input-field"
-            disabled
-          />
-          <input
-            value={form.Apellido}
-            onChange={(e) => setForm((prev) => ({ ...prev, Apellido: e.target.value }))}
-            placeholder="Apellido"
-            className="input-field"
-            disabled
-          />
-          <input
-            value={form.Documento}
-            onChange={(e) => setForm((prev) => ({ ...prev, Documento: e.target.value }))}
-            placeholder="Documento"
-            className="input-field"
-            disabled
-          />
-          <input
-            value={form.Telefono}
-            onChange={(e) => setForm((prev) => ({ ...prev, Telefono: e.target.value }))}
-            placeholder="Telefono"
-            className="input-field"
-            disabled
-          />
-          <input
-            value={form.Email}
-            onChange={(e) => setForm((prev) => ({ ...prev, Email: e.target.value }))}
-            placeholder="Email"
-            className="input-field md:col-span-2"
-            disabled
-          />
+          <input value={form.Nombre} placeholder="Nombre" className="input-field" disabled />
+          <input value={form.Apellido} placeholder="Apellido" className="input-field" disabled />
+          <input value={form.Documento} placeholder="Documento" className="input-field md:col-span-2" disabled />
+
           <select
             value={form.idCargo}
             onChange={(e) => setForm((prev) => ({ ...prev, idCargo: e.target.value }))}
-            className="input-field md:col-span-2"
-            disabled
+            className="input-field"
+            disabled={saving || loadingCatalogos}
           >
             <option value="">Seleccionar cargo...</option>
             {cargos.map((cargo) => (
@@ -98,6 +106,15 @@ export default function ModalEditarEmpleado({ show, empleado, onClose, onRefresh
               </option>
             ))}
           </select>
+
+          <input
+            type="date"
+            value={form.FechaDelInicio}
+            onChange={(e) => setForm((prev) => ({ ...prev, FechaDelInicio: e.target.value }))}
+            className="input-field"
+            disabled={saving}
+          />
+
           {!loadingCatalogos && !cargos.length ? (
             <p className="text-sm text-red-600 md:col-span-2">
               {catalogosError || 'No hay cargos disponibles para seleccionar.'}
@@ -122,9 +139,9 @@ export default function ModalEditarEmpleado({ show, empleado, onClose, onRefresh
           <button
             onClick={handleSubmit}
             className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-60"
-            disabled
+            disabled={saving || loadingCatalogos}
           >
-            Edicion no disponible
+            {saving ? 'Guardando...' : 'Guardar cambios'}
           </button>
         </div>
       </div>

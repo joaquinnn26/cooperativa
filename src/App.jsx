@@ -11,6 +11,7 @@ import SocioSolicitudesServicio from '@/features/socio/pages/SocioSolicitudesSer
 import SocioSolicitudServicioNueva from '@/features/socio/pages/SocioSolicitudServicioNueva.jsx'
 import SocioServicios from '@/features/socio/pages/SocioServicios.jsx'
 import SocioMediciones from '@/features/socio/pages/SocioMediciones.jsx'
+import SocioFacturas from '@/features/socio/pages/SocioFacturas.jsx'
 import AdminDashboard from '@/features/admin/pages/AdminDashboard.jsx'
 import AdminSocios from '@/features/admin/pages/AdminSocios.jsx'
 import AdminEmpleados from '@/features/admin/pages/AdminEmpleados.jsx'
@@ -25,10 +26,11 @@ import AdminRequisitosServicio from '@/features/admin/pages/AdminRequisitosServi
 import AdminMedidores from '@/features/admin/pages/AdminMedidores.jsx'
 import EmpleadoDashboard from '@/features/empleado/pages/EmpleadoDashboard.jsx'
 import EmpleadoMediciones from '@/features/empleado/pages/EmpleadoMediciones.jsx'
+import EmpleadoSolicitudesTecnicas from '@/features/empleado/pages/EmpleadoSolicitudesTecnicas.jsx'
 import HelpCenter from '@/features/help/pages/HelpCenter.jsx'
 import ProtectedRoute from '@/components/ProtectedRoute.jsx'
 import PublicOnlyRoute from '@/components/PublicOnlyRoute.jsx'
-import { Servicios, Facturas, Contacto, Terminos, Guia, FAQ, NotFound } from '@/features/static/pages/StaticPage.jsx'
+import { Servicios, Contacto, Terminos, Guia, FAQ, NotFound } from '@/features/static/pages/StaticPage.jsx'
 
 export default function App() {
   return (
@@ -39,7 +41,7 @@ export default function App() {
         <Route path="/ayuda/guia" element={<Guia />} />
         <Route path="/ayuda/faq" element={<FAQ />} />
         <Route path="/servicios" element={<Servicios />} />
-        <Route path="/facturas" element={<Facturas />} />
+        <Route path="/facturas" element={<SocioFacturas />} />
         <Route path="/contacto" element={<Contacto />} />
         <Route path="/terminos" element={<Terminos />} />
 
@@ -76,6 +78,7 @@ export default function App() {
         <Route element={<ProtectedRoute role="Empleado" />}>
           <Route path="/empleado" element={<EmpleadoDashboard />} />
           <Route path="/empleado/mediciones" element={<EmpleadoMediciones />} />
+          <Route path="/empleado/solicitudes-tecnicas" element={<EmpleadoSolicitudesTecnicas />} />
         </Route>
 
         <Route path="*" element={<NotFound />} />

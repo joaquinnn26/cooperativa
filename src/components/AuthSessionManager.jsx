@@ -19,8 +19,6 @@ export default function AuthSessionManager() {
     const expiresAt = getTokenExpiration(token)
 
     if (!expiresAt) {
-      logout()
-      navigate('/login', { replace: true, state: { expired: true } })
       return undefined
     }
 

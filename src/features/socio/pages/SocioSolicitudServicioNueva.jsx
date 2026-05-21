@@ -2,15 +2,18 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Send, Sparkles } from 'lucide-react'
 import BackToSocioDashboard from '@/components/BackToSocioDashboard.jsx'
-import FileDropzone from '@/components/FileDropzone.jsx'
 import useAuthStore from '@/store/authStore.js'
 import useAppStore from '@/store/appStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
+import { useCurrentSocio } from '@/hooks/useCurrentSocio.js'
+
+const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
 
 export default function SocioSolicitudServicioNueva() {
   const navigate = useNavigate()
   const usuario = useAuthStore((state) => state.usuario)
   const nombre = useAuthStore((state) => state.nombre)
+  const { socioId, resolveSocioId, loadingSocio } = useCurrentSocio()
   const addNotification = useAppStore((state) => state.addNotification)
   const fetchServicesCatalog = useServiceWorkflowStore((state) => state.fetchServicesCatalog)
   const fetchRequirementsByService = useServiceWorkflowStore((state) => state.fetchRequirementsByService)
@@ -26,7 +29,7 @@ export default function SocioSolicitudServicioNueva() {
     idServicio: '',
     observaciones: ''
   })
-  const [files, setFiles] = useState([])
+  const [filesByRequirement, setFilesByRequirement] = useState({})
 
   useEffect(() => {
     let cancelled = false
@@ -52,6 +55,7 @@ export default function SocioSolicitudServicioNueva() {
   useEffect(() => {
     if (!form.idServicio) {
       setRequirements([])
+      setFilesByRequirement({})
       return
     }
 
@@ -59,7 +63,17 @@ export default function SocioSolicitudServicioNueva() {
     setLoadingRequirements(true)
     fetchRequirementsByService(form.idServicio)
       .then((data) => {
-        if (!cancelled) setRequirements(data)
+        if (cancelled) return
+        setRequirements(data)
+        setFilesByRequirement((prev) => {
+          const next = {}
+          data.forEach((requirement) => {
+            if (prev[requirement.idRequisitoServicio]) {
+              next[requirement.idRequisitoServicio] = prev[requirement.idRequisitoServicio]
+            }
+          })
+          return next
+        })
       })
       .finally(() => {
         if (!cancelled) setLoadingRequirements(false)
@@ -75,13 +89,30 @@ export default function SocioSolicitudServicioNueva() {
     [form.idServicio, services]
   )
 
-  const canSubmit = Boolean(form.idServicio && form.observaciones.trim() && files.length)
+  const missingFiles = requirements.filter((item) => !filesByRequirement[item.idRequisitoServicio])
+  const canSubmit = Boolean(form.idServicio && form.observaciones.trim() && !missingFiles.length)
+
+  const handleFileChange = (requirementId, fileList) => {
+    const file = Array.from(fileList || []).find((item) => ACCEPTED_TYPES.includes(item.type))
+
+    setFilesByRequirement((prev) => {
+      const next = { ...prev }
+      if (file) {
+        next[requirementId] = file
+      } else {
+        delete next[requirementId]
+      }
+      return next
+    })
+  }
 
   const handleSubmit = async (event) => {
     event.preventDefault()
 
-    if (!canSubmit || !usuario) {
-      setError('Debes seleccionar un servicio, completar observaciones y adjuntar documentacion.')
+    const resolvedSocioId = socioId ?? (await resolveSocioId())
+
+    if (!canSubmit || !resolvedSocioId) {
+      setError('Debes seleccionar un servicio, completar observaciones y adjuntar un archivo por requisito.')
       return
     }
 
@@ -90,11 +121,12 @@ export default function SocioSolicitudServicioNueva() {
 
     try {
       await createServiceRequest({
+        idSocio: Number(resolvedSocioId),
         idServicio: Number(form.idServicio),
         observaciones: form.observaciones.trim(),
         socioUsuario: usuario,
         socioNombre: nombre || usuario,
-        files
+        filesByRequirement
       })
 
       addNotification({
@@ -118,8 +150,8 @@ export default function SocioSolicitudServicioNueva() {
 
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Solicitar Servicio</h1>
-          <p className="mt-2 text-gray-600">Selecciona un servicio, revisa requisitos y sube la documentacion.</p>
+          <h1 className="text-3xl font-bold text-gray-900">Solicitar servicio</h1>
+          <p className="mt-2 text-gray-600">Selecciona un servicio, revisa requisitos y sube un archivo por requisito.</p>
         </div>
         <div className="rounded-full bg-cyan-100 p-3 text-cyan-700">
           <Sparkles className="h-6 w-6" />
@@ -163,9 +195,33 @@ export default function SocioSolicitudServicioNueva() {
           </div>
 
           <div>
-            <label className="mb-3 block text-sm font-medium text-gray-700">Documentacion</label>
-            <FileDropzone files={files} onChange={setFiles} error={error && !files.length ? error : ''} />
+            <label className="mb-3 block text-sm font-medium text-gray-700">Documentacion por requisito</label>
+            <div className="space-y-4">
+              {requirements.map((requirement) => {
+                const currentFile = filesByRequirement[requirement.idRequisitoServicio]
+
+                return (
+                  <div key={requirement.idRequisitoServicio} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    <h3 className="font-semibold text-gray-900">{requirement.Nombre}</h3>
+                    <p className="mt-1 text-sm text-gray-600">{requirement.Descripcion}</p>
+
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.webp"
+                      className="mt-3 block w-full text-sm text-gray-700"
+                      onChange={(event) => handleFileChange(requirement.idRequisitoServicio, event.target.files)}
+                    />
+
+                    <p className="mt-2 text-xs text-gray-500">
+                      {currentFile ? `Archivo seleccionado: ${currentFile.name}` : 'Aun no hay archivo seleccionado.'}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
           </div>
+
+          {loadingSocio ? <p className="text-sm text-gray-500">Identificando socio actual...</p> : null}
 
           {error ? (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -176,7 +232,7 @@ export default function SocioSolicitudServicioNueva() {
           <div className="flex justify-end">
             <button
               type="submit"
-              disabled={saving || !canSubmit}
+              disabled={saving || loadingSocio || !canSubmit}
               className="inline-flex items-center rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Send className="mr-2 h-5 w-5" />
@@ -187,7 +243,7 @@ export default function SocioSolicitudServicioNueva() {
 
         <div className="card">
           <h2 className="text-xl font-semibold text-gray-900">Requisitos</h2>
-          <p className="mt-2 text-sm text-gray-500">Se actualizan segun el servicio seleccionado.</p>
+          <p className="mt-2 text-sm text-gray-500">Cada requisito debe subirse por separado.</p>
 
           <div className="mt-5 space-y-3">
             {loadingRequirements ? (

@@ -53,8 +53,13 @@ export default function AdminEmpleados() {
 
   const confirmarEliminar = async () => {
     if (!empleadoSeleccionado) return
-    await eliminarEmpleado(empleadoSeleccionado.idEmpleado)
-    setShowEliminar(false)
+    try {
+      await eliminarEmpleado(empleadoSeleccionado.idEmpleado)
+      setShowEliminar(false)
+      setEmpleadoSeleccionado(null)
+    } catch (error) {
+      window.alert(error.message || 'No se pudo eliminar el empleado.')
+    }
   }
 
   return (

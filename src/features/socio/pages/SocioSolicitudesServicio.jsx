@@ -4,6 +4,7 @@ import { Clock3, FileText, PlusCircle, XCircle } from 'lucide-react'
 import BackToSocioDashboard from '@/components/BackToSocioDashboard.jsx'
 import useAuthStore from '@/store/authStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
+import { useCurrentSocio } from '@/hooks/useCurrentSocio.js'
 import { formatDate } from '@/utils/formatDate.js'
 
 function estadoColor(estado) {
@@ -21,14 +22,21 @@ function estadoColor(estado) {
 
 export default function SocioSolicitudesServicio() {
   const usuario = useAuthStore((state) => state.usuario)
+  const { socioId } = useCurrentSocio()
   const fetchServiceRequests = useServiceWorkflowStore((state) => state.fetchServiceRequests)
+  const fetchServiceRequestsBySocio = useServiceWorkflowStore((state) => state.fetchServiceRequestsBySocio)
   const [requests, setRequests] = useState([])
 
   useEffect(() => {
+    if (socioId != null) {
+      fetchServiceRequestsBySocio(socioId).then(setRequests)
+      return
+    }
+
     fetchServiceRequests().then((data) => {
       setRequests(data.filter((item) => String(item.socioUsuario) === String(usuario)))
     })
-  }, [fetchServiceRequests, usuario])
+  }, [fetchServiceRequests, fetchServiceRequestsBySocio, socioId, usuario])
 
   const summary = useMemo(
     () => ({

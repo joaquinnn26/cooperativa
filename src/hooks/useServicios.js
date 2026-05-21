@@ -29,8 +29,10 @@ export function useServicios(autoLoad = true) {
     try {
       const data = await jsonFetch(apiUrl('/servicio'))
       setServicios(data)
+      return Array.isArray(data) ? data : []
     } catch (error) {
       console.error('Error al cargar servicios', error)
+      return []
     } finally {
       setLoadingServicios(false)
     }

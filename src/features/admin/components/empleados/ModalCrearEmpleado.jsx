@@ -3,8 +3,7 @@ import { useEmpleados } from '@/hooks/useEmpleados.js'
 
 const initialForm = {
   idSocio: '',
-  idCargo: '',
-  FechaDeInicio: ''
+  idCargo: ''
 }
 
 export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosExistentes = [] }) {
@@ -51,8 +50,8 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
   }
 
   const handleSubmit = async () => {
-    if (!form.idSocio || !form.idCargo || !form.FechaDeInicio) {
-      setError('Debes seleccionar un socio, un cargo y la fecha de inicio.')
+    if (!form.idSocio || !form.idCargo) {
+      setError('Debes seleccionar un socio y un cargo.')
       return
     }
 
@@ -68,10 +67,12 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
     setError('')
 
     try {
+      const today = new Date().toISOString().slice(0, 10)
+
       await crearEmpleado({
         idSocio,
         idCargo,
-        FechaDeInicio: form.FechaDeInicio
+        FechaDeInicio: today
       })
 
       await onSaved?.()
@@ -135,17 +136,9 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
               </p>
             ) : null}
           </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Fecha de inicio</label>
-            <input
-              type="date"
-              value={form.FechaDeInicio}
-              onChange={(e) => setForm((prev) => ({ ...prev, FechaDeInicio: e.target.value }))}
-              className="input-field"
-              disabled={saving}
-            />
-          </div>
+          <p className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+            La fecha de inicio se asignara automaticamente con la fecha actual.
+          </p>
 
           {error ? (
             <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

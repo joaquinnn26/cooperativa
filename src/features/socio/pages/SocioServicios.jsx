@@ -1,21 +1,61 @@
 import React, { useEffect, useState } from 'react'
 import { Droplet, Gauge, Zap } from 'lucide-react'
 import BackToSocioDashboard from '@/components/BackToSocioDashboard.jsx'
-import useAuthStore from '@/store/authStore.js'
+import { useCurrentSocio } from '@/hooks/useCurrentSocio.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
 
+function normalizeServiceName(nombre) {
+  return String(nombre || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+}
+
+function serviceRequiresMeter(nombre) {
+  const normalized = normalizeServiceName(nombre)
+  return normalized === 'luz' || normalized === 'agua potable'
+}
+
 function serviceIcon(nombre) {
-  return nombre === 'Agua' ? Droplet : Zap
+  return normalizeServiceName(nombre).includes('agua') ? Droplet : Zap
 }
 
 export default function SocioServicios() {
-  const usuario = useAuthStore((state) => state.usuario)
+  const { socioId } = useCurrentSocio()
   const fetchSocioServices = useServiceWorkflowStore((state) => state.fetchSocioServices)
+  const fetchMeters = useServiceWorkflowStore((state) => state.fetchMeters)
   const [services, setServices] = useState([])
 
   useEffect(() => {
-    fetchSocioServices(usuario).then(setServices)
-  }, [fetchSocioServices, usuario])
+    if (!socioId) return
+
+    const loadServices = async () => {
+      const [servicesData, metersData] = await Promise.all([fetchSocioServices(socioId), fetchMeters()])
+
+      const enriched = (servicesData || []).map((service) => {
+        const requiresMeter = serviceRequiresMeter(service.servicioNombre)
+        const matchedMeter = requiresMeter
+          ? (metersData || []).find(
+              (meter) =>
+                String(meter.idSocio) === String(socioId) &&
+                normalizeServiceName(meter.servicioNombre) === normalizeServiceName(service.servicioNombre)
+            )
+          : null
+
+        return {
+          ...service,
+          numeroMedidor: matchedMeter?.NumeroMedidor || service.numeroMedidor || '',
+          tipoMedidor: matchedMeter?.TipoMedidor || service.tipoMedidor || '',
+          requiereMedidor: requiresMeter
+        }
+      })
+
+      setServices(enriched)
+    }
+
+    loadServices()
+  }, [fetchMeters, fetchSocioServices, socioId])
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -46,19 +86,26 @@ export default function SocioServicios() {
                 </span>
               </div>
 
-              <div className="mt-5 grid gap-3 md:grid-cols-2">
-                <div className="rounded-xl bg-gray-50 p-4">
-                  <p className="text-xs uppercase text-gray-500">Medidor</p>
-                  <p className="mt-1 font-semibold text-gray-900">{service.numeroMedidor || 'Pendiente instalacion'}</p>
+              {service.requiereMedidor ? (
+                <div className="mt-5 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-xl bg-gray-50 p-4">
+                    <p className="text-xs uppercase text-gray-500">Medidor</p>
+                    <p className="mt-1 font-semibold text-gray-900">{service.numeroMedidor || 'Pendiente instalacion'}</p>
+                  </div>
+                  <div className="rounded-xl bg-gray-50 p-4">
+                    <p className="text-xs uppercase text-gray-500">Tipo</p>
+                    <p className="mt-1 flex items-center gap-2 font-semibold text-gray-900">
+                      <Gauge className="h-4 w-4 text-gray-500" />
+                      {service.tipoMedidor || 'Sin definir'}
+                    </p>
+                  </div>
                 </div>
-                <div className="rounded-xl bg-gray-50 p-4">
-                  <p className="text-xs uppercase text-gray-500">Tipo</p>
-                  <p className="mt-1 flex items-center gap-2 font-semibold text-gray-900">
-                    <Gauge className="h-4 w-4 text-gray-500" />
-                    {service.tipoMedidor || 'Sin definir'}
-                  </p>
+              ) : (
+                <div className="mt-5 rounded-xl bg-gray-50 p-4">
+                  <p className="text-xs uppercase text-gray-500">Modalidad</p>
+                  <p className="mt-1 font-semibold text-gray-900">Tarifa fija, sin medidor asociado</p>
                 </div>
-              </div>
+              )}
             </div>
           )
         })}

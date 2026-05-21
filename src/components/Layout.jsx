@@ -4,12 +4,14 @@ import { Droplet } from 'lucide-react'
 import useAuthStore from '../store/authStore.js'
 import AuthSessionManager from './AuthSessionManager.jsx'
 import NotificationStack from './NotificationStack.jsx'
+import { getDefaultRouteByRole, normalizeRole } from '@/utils/auth.js'
 
 export default function Layout() {
   const usuario = useAuthStore((state) => state.usuario)
   const logout = useAuthStore((state) => state.logout)
   const rol = useAuthStore((state) => state.rol)
-  const panelPath = rol === 'Admin' ? '/admin' : rol === 'Empleado' ? '/empleado' : '/socio'
+  const normalizedRole = normalizeRole(rol)
+  const panelPath = getDefaultRouteByRole(normalizedRole)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -88,7 +90,11 @@ export default function Layout() {
                   <div className="text-right">
                     <p className="text-sm font-medium text-gray-900">{usuario}</p>
                     <p className="text-xs text-gray-600">
-                      {rol === 'Admin' ? 'Administrador' : rol === 'Empleado' ? 'Empleado' : 'Socio'}
+                      {normalizedRole === 'Administrador'
+                        ? 'Administrador'
+                        : normalizedRole === 'Empleado'
+                          ? 'Empleado'
+                          : 'Socio'}
                     </p>
                   </div>
                   <button

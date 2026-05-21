@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { apiUrl } from '@/config/api.js'
 
-const SERVICE_REQUEST_STATUSES = ['Pendiente', 'En revision', 'Aprobada', 'Rechazada']
+const SERVICE_REQUEST_STATUSES = ['Pendiente', 'En revision', 'Aprobada', 'Cancelada', 'Rechazada']
 
 const mockServices = [
   {
@@ -54,31 +54,16 @@ const mockRequirements = [
   }
 ]
 
-const mockRequests = [
-  {
-    idSolicitudServicio: 1,
-    socioUsuario: '30111222',
-    socioNombre: 'Maria Gonzalez',
-    idServicio: 2,
-    servicioNombre: 'Luz',
-    fechaSolicitud: '2026-05-12T09:00:00.000Z',
-    estado: 'Pendiente',
-    observaciones: 'Solicito alta para vivienda nueva.',
-    motivoRechazo: '',
-    documentos: [
-      {
-        id: 'doc-1',
-        nombre: 'dni.pdf',
-        tipo: 'application/pdf',
-        tamano: 204800
-      }
-    ]
-  }
-]
+const mockRequests = []
 
 const mockAssignments = []
 const mockMeters = []
 const mockMeasurements = []
+const mockMeasurementTypes = [
+  { idTipoLectura: 1, Nombre: 'Lectura normal' },
+  { idTipoLectura: 2, Nombre: 'Lectura estimada' },
+  { idTipoLectura: 3, Nombre: 'Lectura de control' }
+]
 
 function getAuthHeaders(extraHeaders = {}) {
   const token = localStorage.getItem('token')
@@ -136,8 +121,134 @@ function ensureArray(data) {
   return []
 }
 
+function resolveServiceName(entity) {
+  return pickFirst(
+    entity?.servicioNombre,
+    entity?.ServicioNombre,
+    entity?.Servicio?.Nombre,
+    entity?.Servicio?.nombre,
+    entity?.servicio?.Nombre,
+    entity?.servicio?.nombre,
+    entity?.Servicio,
+    entity?.servicio,
+    entity?.NombreServicio,
+    entity?.nombreServicio,
+    'Servicio'
+  )
+}
+
+function resolvePersonName(persona) {
+  if (!persona || typeof persona !== 'object') return ''
+
+  const nombre = pickFirst(persona.Nombre, persona.nombre, '').trim()
+  const apellido = pickFirst(persona.Apellido, persona.apellido, '').trim()
+  return [nombre, apellido].filter(Boolean).join(' ').trim()
+}
+
+function resolveSocioName(entity) {
+  return pickFirst(
+    entity?.socioNombre,
+    entity?.SocioNombre,
+    entity?.nombreSocio,
+    entity?.NombreSocio,
+    entity?.Socio,
+    entity?.socio,
+    resolvePersonName(entity?.Socio?.Persona),
+    resolvePersonName(entity?.socio?.persona),
+    resolvePersonName(entity?.Persona),
+    resolvePersonName(entity?.persona),
+    'Socio'
+  )
+}
+
+function resolveSocioUsuario(entity) {
+  return String(
+    pickFirst(
+      entity?.socioUsuario,
+      entity?.SocioUsuario,
+      entity?.usuario,
+      entity?.Usuario,
+      entity?.Documento,
+      entity?.Socio?.Persona?.Documento,
+      entity?.socio?.persona?.documento,
+      ''
+    )
+  )
+}
+
+function resolveAddress(entity) {
+  const persona =
+    entity?.Persona ||
+    entity?.persona ||
+    entity?.Socio?.Persona ||
+    entity?.socio?.persona ||
+    entity?.Socio?.persona ||
+    entity?.socio?.Persona ||
+    null
+
+  const calle = pickFirst(
+    entity?.Direccion,
+    entity?.direccion,
+    entity?.Domicilio,
+    entity?.domicilio,
+    persona?.Direccion,
+    persona?.direccion,
+    persona?.Calle,
+    persona?.calle,
+    ''
+  )
+  const numero = pickFirst(entity?.Numero, entity?.numero, persona?.Numero, persona?.numero, '')
+  const composed = [String(calle || '').trim(), String(numero || '').trim()].filter(Boolean).join(' ')
+
+  return composed || pickFirst(entity?.observaciones, entity?.Observaciones, 'Sin direccion informada')
+}
+
+function resolveEmployeeName(entity) {
+  return pickFirst(
+    entity?.EmpleadoUsuario,
+    entity?.empleadoUsuario,
+    entity?.NombreEmpleado,
+    entity?.nombreEmpleado,
+    entity?.Empleado,
+    entity?.empleado,
+    resolvePersonName(entity?.Empleado?.Persona),
+    resolvePersonName(entity?.empleado?.persona),
+    ''
+  )
+}
+
+function resolveMeterNumber(entity) {
+  return pickFirst(
+    entity?.NumeroMedidor,
+    entity?.numeroMedidor,
+    entity?.Medidor,
+    entity?.medidor,
+    entity?.Numero,
+    entity?.numero,
+    entity?.Medidor?.NumeroMedidor,
+    entity?.medidor?.numeroMedidor,
+    ''
+  )
+}
+
+function resolveMeasurementType(entity) {
+  return pickFirst(
+    entity?.TipoLectura,
+    entity?.tipoLectura,
+    entity?.TipoDeLectura,
+    entity?.tipoDeLectura,
+    entity?.Tipo,
+    entity?.tipo,
+    'Manual'
+  )
+}
+
 function nextId(items, key) {
   return items.length ? Math.max(...items.map((item) => Number(item[key]) || 0)) + 1 : 1
+}
+
+function isPrimitiveServiceId(value) {
+  return typeof value === 'number' || typeof value === 'string'
 }
 
 function normalizeService(service) {
@@ -169,70 +280,165 @@ function normalizeRequirement(requirement) {
 function normalizeRequest(request) {
   return {
     idSolicitudServicio: pickFirst(request.idSolicitudServicio, request.IdSolicitudServicio, request.id),
-    socioUsuario: String(pickFirst(request.socioUsuario, request.SocioUsuario, request.usuario, request.Documento, '')),
-    socioNombre: pickFirst(request.socioNombre, request.SocioNombre, request.NombreSocio, request.nombreSocio, 'Socio'),
+    idSocio: pickFirst(request.idSocio, request.IdSocio, request.idsocio, null),
+    socioUsuario: resolveSocioUsuario(request),
+    socioNombre: resolveSocioName(request),
     idServicio: Number(pickFirst(request.idServicio, request.IdServicio, request.idservicio)),
-    servicioNombre: pickFirst(
-      request.servicioNombre,
-      request.ServicioNombre,
-      request.Servicio,
-      request.servicio,
-      request.NombreServicio,
-      request.nombreServicio,
-      'Servicio'
-    ),
+    servicioNombre: resolveServiceName(request),
     fechaSolicitud: pickFirst(request.fechaSolicitud, request.FechaSolicitud, request.fecha, new Date().toISOString()),
     estado: pickFirst(request.estado, request.Estado, 'Pendiente'),
+    direccion: resolveAddress(request),
     observaciones: pickFirst(request.observaciones, request.Observaciones, ''),
     motivoRechazo: pickFirst(request.motivoRechazo, request.MotivoRechazo, ''),
     documentos: ensureArray(pickFirst(request.documentos, request.Documentos, []))
   }
 }
 
-function normalizeAssignment(assignment) {
+function normalizeAssignment(assignment, servicesCatalog = []) {
+  if (isPrimitiveServiceId(assignment)) {
+    const idServicio = Number(assignment)
+    const service = servicesCatalog.find((item) => Number(item.idServicio) === idServicio)
+
+    return {
+      idServicioSocio: null,
+      idSocio: null,
+      socioUsuario: '',
+      socioNombre: 'Socio',
+      idServicio,
+      servicioNombre: service?.Nombre || 'Servicio',
+      tarifa: Number(service?.TarifaBase || 0),
+      estado: 'Activo',
+      idMedidor: null,
+      numeroMedidor: '',
+      tipoMedidor: service?.TipoMedidor || ''
+    }
+  }
+
   return {
     idServicioSocio: pickFirst(assignment.idServicioSocio, assignment.IdServicioSocio, assignment.id),
-    socioUsuario: String(pickFirst(assignment.socioUsuario, assignment.SocioUsuario, assignment.usuario, '')),
-    socioNombre: pickFirst(assignment.socioNombre, assignment.SocioNombre, assignment.nombreSocio, 'Socio'),
-    idServicio: Number(pickFirst(assignment.idServicio, assignment.IdServicio, assignment.idservicio)),
-    servicioNombre: pickFirst(assignment.servicioNombre, assignment.ServicioNombre, assignment.Servicio, 'Servicio'),
-    tarifa: Number(pickFirst(assignment.tarifa, assignment.Tarifa, assignment.tarifaBase, 0)),
-    estado: pickFirst(assignment.estado, assignment.Estado, 'Activo'),
+    idSocio: pickFirst(
+      assignment.idSocio,
+      assignment.IdSocio,
+      assignment.idsocio,
+      assignment.Socio?.idSocio,
+      assignment.socio?.idSocio,
+      null
+    ),
+    socioUsuario: resolveSocioUsuario(assignment),
+    socioNombre: resolveSocioName(assignment),
+    idServicio: Number(
+      pickFirst(
+        assignment.idServicio,
+        assignment.IdServicio,
+        assignment.idservicio,
+        assignment.Servicio?.idServicio,
+        assignment.servicio?.idServicio
+      )
+    ),
+    servicioNombre: resolveServiceName(assignment),
+    tarifa: Number(pickFirst(assignment.tarifa, assignment.Tarifa, assignment.tarifaBase, assignment.TarifaBase, 0)),
+    estado: pickFirst(assignment.estado, assignment.Estado, assignment.Activo === false ? 'Inactivo' : 'Activo', 'Activo'),
     idMedidor: pickFirst(assignment.idMedidor, assignment.IdMedidor, null),
-    numeroMedidor: pickFirst(assignment.numeroMedidor, assignment.NumeroMedidor, ''),
+    numeroMedidor: pickFirst(assignment.numeroMedidor, assignment.NumeroMedidor, assignment.Numero, ''),
     tipoMedidor: pickFirst(assignment.tipoMedidor, assignment.TipoMedidor, '')
   }
 }
 
 function normalizeMeter(meter) {
   return {
-    idMedidor: pickFirst(meter.idMedidor, meter.IdMedidor, meter.id),
-    NumeroMedidor: pickFirst(meter.NumeroMedidor, meter.numeroMedidor, meter.Numero, meter.numero, ''),
-    idServicioSocio: pickFirst(meter.idServicioSocio, meter.IdServicioSocio, null),
-    socioUsuario: String(pickFirst(meter.socioUsuario, meter.SocioUsuario, meter.usuario, '')),
-    socioNombre: pickFirst(meter.socioNombre, meter.SocioNombre, 'Socio'),
-    idServicio: Number(pickFirst(meter.idServicio, meter.IdServicio, meter.idservicio, 0)),
-    servicioNombre: pickFirst(meter.servicioNombre, meter.ServicioNombre, meter.Servicio, 'Servicio'),
+    idMedidor: pickFirst(meter.idMedidor, meter.IdMedidor, meter.id, meter.MedidorId),
+    NumeroMedidor: resolveMeterNumber(meter),
+    idServicioSocio: pickFirst(
+      meter.idServicioSocio,
+      meter.IdServicioSocio,
+      meter.ServicioSocio?.idServicioSocio,
+      meter.servicioSocio?.idServicioSocio,
+      null
+    ),
+    idSocio: pickFirst(
+      meter.idSocio,
+      meter.IdSocio,
+      meter.idsocio,
+      meter.ServicioSocio?.idSocio,
+      meter.servicioSocio?.idSocio,
+      meter.ServicioSocio?.Socio?.idSocio,
+      null
+    ),
+    socioUsuario: resolveSocioUsuario(meter),
+    socioNombre: resolveSocioName(meter),
+    idServicio: Number(
+      pickFirst(
+        meter.idServicio,
+        meter.IdServicio,
+        meter.idservicio,
+        meter.ServicioSocio?.idServicio,
+        meter.servicioSocio?.idServicio,
+        0
+      )
+    ),
+    servicioNombre: resolveServiceName(meter),
     TipoMedidor: pickFirst(meter.TipoMedidor, meter.tipoMedidor, meter.Tipo, 'General'),
     FechaInstalacion: pickFirst(meter.FechaInstalacion, meter.fechaInstalacion, new Date().toISOString()),
-    Estado: pickFirst(meter.Estado, meter.estado, 'Activo')
+    Estado: pickFirst(meter.Estado, meter.estado, meter.Activo === false ? 'Inactivo' : 'Activo', 'Activo')
   }
 }
 
 function normalizeMeasurement(measurement) {
   return {
     idMedicion: pickFirst(measurement.idMedicion, measurement.IdMedicion, measurement.id),
-    idMedidor: pickFirst(measurement.idMedidor, measurement.IdMedidor),
-    NumeroMedidor: pickFirst(measurement.NumeroMedidor, measurement.numeroMedidor, ''),
-    socioUsuario: String(pickFirst(measurement.socioUsuario, measurement.SocioUsuario, '')),
-    socioNombre: pickFirst(measurement.socioNombre, measurement.SocioNombre, 'Socio'),
-    servicioNombre: pickFirst(measurement.servicioNombre, measurement.ServicioNombre, measurement.Servicio, 'Servicio'),
+    idMedidor: pickFirst(
+      measurement.idMedidor,
+      measurement.IdMedidor,
+      measurement.Medidor?.idMedidor,
+      measurement.medidor?.idMedidor
+    ),
+    idSocio: pickFirst(
+      measurement.idSocio,
+      measurement.IdSocio,
+      measurement.idsocio,
+      measurement.Medidor?.ServicioSocio?.idSocio,
+      measurement.medidor?.servicioSocio?.idSocio,
+      null
+    ),
+    NumeroMedidor: resolveMeterNumber(measurement),
+    socioUsuario: resolveSocioUsuario(measurement),
+    socioNombre: resolveSocioName(measurement),
+    servicioNombre: resolveServiceName(measurement),
     FechaLectura: pickFirst(measurement.FechaLectura, measurement.fechaLectura, new Date().toISOString()),
+    FechaCarga: pickFirst(measurement.FechaCarga, measurement.fechaCarga, null),
     LecturaAnterior: Number(pickFirst(measurement.LecturaAnterior, measurement.lecturaAnterior, 0)),
-    LecturaActual: Number(pickFirst(measurement.LecturaActual, measurement.lecturaActual, 0)),
-    Consumo: Number(pickFirst(measurement.Consumo, measurement.consumo, 0)),
-    TipoLectura: pickFirst(measurement.TipoLectura, measurement.tipoLectura, 'Manual'),
-    EmpleadoUsuario: pickFirst(measurement.EmpleadoUsuario, measurement.empleadoUsuario, '')
+    LecturaActual: Number(pickFirst(measurement.LecturaActual, measurement.lecturaActual, measurement.ValorLectura, 0)),
+    Consumo: Number(pickFirst(measurement.Consumo, measurement.consumo, measurement.ConsumoCalculado, 0)),
+    TipoLectura: resolveMeasurementType(measurement),
+    idEmpleado: pickFirst(
+      measurement.idEmpleado,
+      measurement.IdEmpleado,
+      measurement.Empleado?.idEmpleado,
+      measurement.empleado?.idEmpleado,
+      null
+    ),
+    EmpleadoUsuario: resolveEmployeeName(measurement)
+  }
+}
+
+function compareMeasurements(a, b) {
+  const fechaLecturaA = new Date(a.FechaLectura).getTime() || 0
+  const fechaLecturaB = new Date(b.FechaLectura).getTime() || 0
+  if (fechaLecturaA !== fechaLecturaB) return fechaLecturaA - fechaLecturaB
+
+  const fechaCargaA = new Date(a.FechaCarga || 0).getTime() || 0
+  const fechaCargaB = new Date(b.FechaCarga || 0).getTime() || 0
+  if (fechaCargaA !== fechaCargaB) return fechaCargaA - fechaCargaB
+
+  return Number(a.idMedicion || 0) - Number(b.idMedicion || 0)
+}
+
+function normalizeMeasurementType(type) {
+  return {
+    idTipoLectura: Number(
+      pickFirst(type.idTipoLectura, type.IdTipoLectura, type.id, type.IDTipoLectura, 0)
+    ),
+    Nombre: pickFirst(type.Nombre, type.nombre, type.TipoLectura, type.tipoLectura, `Tipo ${type.idTipoLectura ?? type.id ?? ''}`)
   }
 }
 
@@ -243,6 +449,41 @@ function fileToMetadata(file, index) {
     tipo: file.type || 'application/octet-stream',
     tamano: file.size
   }
+}
+
+async function uploadRequestDocument({ file, idSolicitudServicio, idRequisitoServicio }) {
+  const formData = new FormData()
+  formData.append('archivo', file)
+  formData.append('idSolicitudServicio', String(idSolicitudServicio))
+  formData.append('idRequisitoServicio', String(idRequisitoServicio))
+
+  return formDataFetch(apiUrl('/documentosolicitud/upload'), formData)
+}
+
+function withPreviousReadings(measurements) {
+  const grouped = new Map()
+
+  measurements.forEach((measurement) => {
+    const key = String(pickFirst(measurement.idMedidor, measurement.NumeroMedidor, ''))
+    if (!grouped.has(key)) grouped.set(key, [])
+    grouped.get(key).push(measurement)
+  })
+
+  const result = []
+
+  grouped.forEach((items) => {
+    const sorted = [...items].sort(compareMeasurements)
+
+    sorted.forEach((item, index) => {
+      const previous = index > 0 ? Number(sorted[index - 1].LecturaActual || 0) : 0
+      result.push({
+        ...item,
+        LecturaAnterior: Number(item.LecturaAnterior || previous)
+      })
+    })
+  })
+
+  return result.sort((a, b) => compareMeasurements(b, a))
 }
 
 function generateMeterNumber(meters) {
@@ -263,6 +504,7 @@ const useServiceWorkflowStore = create(
       serviceAssignments: mockAssignments,
       meters: mockMeters,
       measurements: mockMeasurements,
+      measurementTypes: mockMeasurementTypes,
 
       fetchServicesCatalog: async () => {
         try {
@@ -371,28 +613,52 @@ const useServiceWorkflowStore = create(
 
       createServiceRequest: async (payload) => {
         try {
-          const formData = new FormData()
-          formData.append('idServicio', String(payload.idServicio))
-          formData.append('observaciones', payload.observaciones)
-          formData.append('socioUsuario', payload.socioUsuario)
-          formData.append('socioNombre', payload.socioNombre)
-          payload.files.forEach((file) => formData.append('archivos', file))
+          const created = await jsonFetch(apiUrl('/solicitudservicio'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              idSocio: Number(payload.idSocio),
+              idServicio: Number(payload.idServicio),
+              observaciones: payload.observaciones
+            })
+          })
 
-          const created = await formDataFetch(apiUrl('/solicitudservicio'), formData)
+          const requestId = pickFirst(created?.idSolicitudServicio, created?.IdSolicitudServicio, created?.id)
+          const uploads = Object.entries(payload.filesByRequirement || {})
+            .filter(([, file]) => file instanceof File)
+            .map(([idRequisitoServicio, file]) =>
+              uploadRequestDocument({
+                file,
+                idSolicitudServicio: requestId,
+                idRequisitoServicio
+              })
+            )
+
+          if (requestId && uploads.length) {
+            await Promise.all(uploads)
+          }
+
+          await get().fetchServiceRequests()
           return created
         } catch {
           const service = get().servicesCatalog.find((item) => item.idServicio === Number(payload.idServicio))
+          const documents = Object.entries(payload.filesByRequirement || {}).map(([idRequisitoServicio, file], index) => ({
+            ...fileToMetadata(file, index),
+            idRequisitoServicio: Number(idRequisitoServicio)
+          }))
           const request = {
             idSolicitudServicio: nextId(get().requests, 'idSolicitudServicio'),
-            socioUsuario: String(payload.socioUsuario),
-            socioNombre: payload.socioNombre || payload.socioUsuario,
+            idSocio: Number(payload.idSocio),
+            socioUsuario: String(payload.socioUsuario || ''),
+            socioNombre: payload.socioNombre || payload.socioUsuario || 'Socio',
             idServicio: Number(payload.idServicio),
             servicioNombre: service?.Nombre || 'Servicio',
             fechaSolicitud: new Date().toISOString(),
             estado: 'Pendiente',
+            direccion: payload.direccion || payload.observaciones || 'Sin direccion informada',
             observaciones: payload.observaciones,
             motivoRechazo: '',
-            documentos: (payload.files || []).map(fileToMetadata)
+            documentos: documents
           }
 
           set((state) => ({
@@ -406,11 +672,71 @@ const useServiceWorkflowStore = create(
       fetchServiceRequests: async () => {
         try {
           const data = await jsonFetch(apiUrl('/solicitudservicio'))
-          const normalized = ensureArray(data).map(normalizeRequest)
+          const normalized = await Promise.all(ensureArray(data).map(async (request) => {
+            const normalizedRequest = normalizeRequest(request)
+            const embeddedDocuments = ensureArray(pickFirst(request.Documentos, request.documentos, []))
+
+            if (embeddedDocuments.length) {
+              return {
+                ...normalizedRequest,
+                documentos: embeddedDocuments.map((document, index) => ({
+                  id: pickFirst(document.idDocumentoSolicitud, document.IdDocumentoSolicitud, index),
+                  nombre: pickFirst(document.NombreArchivo, document.nombreArchivo, 'Documento'),
+                  ruta: pickFirst(document.RutaArchivo, document.rutaArchivo, ''),
+                  tipo: pickFirst(document.TipoArchivo, document.tipoArchivo, ''),
+                  fechaSubida: pickFirst(document.FechaSubida, document.fechaSubida, ''),
+                  idRequisitoServicio: pickFirst(document.idRequisitoServicio, document.IdRequisitoServicio, null)
+                }))
+              }
+            }
+
+            try {
+              const documents = await jsonFetch(apiUrl(`/documentosolicitud/solicitud/${normalizedRequest.idSolicitudServicio}`))
+              return {
+                ...normalizedRequest,
+                documentos: ensureArray(documents).map((document, index) => ({
+                  id: pickFirst(document.idDocumentoSolicitud, document.IdDocumentoSolicitud, index),
+                  nombre: pickFirst(document.NombreArchivo, document.nombreArchivo, 'Documento'),
+                  ruta: pickFirst(document.RutaArchivo, document.rutaArchivo, ''),
+                  tipo: pickFirst(document.TipoArchivo, document.tipoArchivo, ''),
+                  fechaSubida: pickFirst(document.FechaSubida, document.fechaSubida, ''),
+                  idRequisitoServicio: pickFirst(document.idRequisitoServicio, document.IdRequisitoServicio, null)
+                }))
+              }
+            } catch {
+              return normalizedRequest
+            }
+          }))
           set({ requests: normalized })
           return normalized
         } catch {
           return get().requests
+        }
+      },
+
+      fetchServiceRequestsBySocio: async (idSocio) => {
+        try {
+          const data = await jsonFetch(apiUrl(`/solicitudservicio/socio/${idSocio}`))
+          const normalized = ensureArray(data).map((request) => ({
+            ...normalizeRequest(request),
+            documentos: ensureArray(pickFirst(request.Documentos, request.documentos, [])).map((document, index) => ({
+              id: pickFirst(document.idDocumentoSolicitud, document.IdDocumentoSolicitud, index),
+              nombre: pickFirst(document.NombreArchivo, document.nombreArchivo, 'Documento'),
+              ruta: pickFirst(document.RutaArchivo, document.rutaArchivo, ''),
+              tipo: pickFirst(document.TipoArchivo, document.tipoArchivo, ''),
+              fechaSubida: pickFirst(document.FechaSubida, document.fechaSubida, ''),
+              idRequisitoServicio: pickFirst(document.idRequisitoServicio, document.IdRequisitoServicio, null)
+            }))
+          }))
+          set((state) => ({
+            requests: [
+              ...state.requests.filter((item) => String(item.idSocio) !== String(idSocio)),
+              ...normalized
+            ]
+          }))
+          return normalized
+        } catch {
+          return get().requests.filter((item) => String(item.idSocio) === String(idSocio))
         }
       },
 
@@ -466,7 +792,7 @@ const useServiceWorkflowStore = create(
           const result = await jsonFetch(apiUrl(`/solicitudservicio/rechazar/${requestId}`), {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ motivoRechazo })
+            body: JSON.stringify({ motivo: motivoRechazo })
           })
           await get().fetchServiceRequests()
           return result
@@ -482,15 +808,83 @@ const useServiceWorkflowStore = create(
         }
       },
 
-      fetchSocioServices: async (socioUsuario) => {
+      updateServiceRequestStatus: async (requestId, payload) => {
+        const nextStatus = pickFirst(payload?.estado, payload?.Estado)
+
+        if (!SERVICE_REQUEST_STATUSES.includes(nextStatus)) {
+          throw new Error('Estado de solicitud no valido.')
+        }
+
+        if (nextStatus === 'Aprobada') {
+          return get().approveServiceRequest(requestId)
+        }
+
+        if (nextStatus === 'Rechazada') {
+          return get().rejectServiceRequest(requestId, payload?.motivoRechazo || payload?.motivo || '')
+        }
+
+        const body = {
+          estado: nextStatus,
+          motivoRechazo: payload?.motivoRechazo || '',
+          observaciones: payload?.observaciones ?? ''
+        }
+
+        const candidatePaths = [
+          `/solicitudservicio/estado/${requestId}`,
+          `/solicitudservicio/${requestId}/estado`,
+          `/solicitudservicio/${requestId}`
+        ]
+
+        for (const path of candidatePaths) {
+          try {
+            const result = await jsonFetch(apiUrl(path), {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body)
+            })
+            await get().fetchServiceRequests()
+            return result
+          } catch {}
+        }
+
+        set((state) => ({
+          requests: state.requests.map((item) =>
+            item.idSolicitudServicio === requestId
+              ? {
+                  ...item,
+                  estado: nextStatus,
+                  observaciones: body.observaciones || item.observaciones,
+                  motivoRechazo: nextStatus === 'Rechazada' ? body.motivoRechazo : item.motivoRechazo
+                }
+              : item
+          )
+        }))
+
+        return true
+      },
+
+      fetchSocioServices: async (socioRef) => {
         try {
-          const data = await jsonFetch(apiUrl('/serviciosocio'))
-          const normalized = ensureArray(data).map(normalizeAssignment)
-          set({ serviceAssignments: normalized })
-          return normalized.filter((item) => String(item.socioUsuario) === String(socioUsuario))
+          const data = await jsonFetch(apiUrl(`/serviciosocio/${socioRef}`))
+          let servicesCatalog = get().servicesCatalog
+
+          if (!servicesCatalog.length) {
+            servicesCatalog = await get().fetchServicesCatalog()
+          }
+
+          const normalized = ensureArray(data).map((assignment) => normalizeAssignment(assignment, servicesCatalog))
+          set((state) => ({
+            serviceAssignments: [
+              ...state.serviceAssignments.filter(
+                (item) => String(item.socioUsuario) !== String(socioRef) && String(item.idSocio) !== String(socioRef)
+              ),
+              ...normalized
+            ]
+          }))
+          return normalized
         } catch {
           return get().serviceAssignments.filter(
-            (item) => String(item.socioUsuario) === String(socioUsuario)
+            (item) => String(item.socioUsuario) === String(socioRef) || String(item.idSocio) === String(socioRef)
           )
         }
       },
@@ -498,7 +892,13 @@ const useServiceWorkflowStore = create(
       fetchAllServiceAssignments: async () => {
         try {
           const data = await jsonFetch(apiUrl('/serviciosocio'))
-          const normalized = ensureArray(data).map(normalizeAssignment)
+          let servicesCatalog = get().servicesCatalog
+
+          if (!servicesCatalog.length) {
+            servicesCatalog = await get().fetchServicesCatalog()
+          }
+
+          const normalized = ensureArray(data).map((assignment) => normalizeAssignment(assignment, servicesCatalog))
           set({ serviceAssignments: normalized })
           return normalized
         } catch {
@@ -522,7 +922,10 @@ const useServiceWorkflowStore = create(
           const created = await jsonFetch(apiUrl('/medidor'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({
+              idServicioSocio: Number(payload.idServicioSocio),
+              idTipoMedidor: Number(payload.idTipoMedidor)
+            })
           })
           await get().fetchMeters()
           return created
@@ -540,8 +943,8 @@ const useServiceWorkflowStore = create(
             socioNombre: assignment.socioNombre,
             idServicio: assignment.idServicio,
             servicioNombre: assignment.servicioNombre,
-            TipoMedidor: payload.TipoMedidor,
-            FechaInstalacion: payload.FechaInstalacion,
+            TipoMedidor: `Tipo ${payload.idTipoMedidor}`,
+            FechaInstalacion: new Date().toISOString(),
             Estado: 'Activo'
           }
 
@@ -601,25 +1004,65 @@ const useServiceWorkflowStore = create(
         }
       },
 
-      fetchMeasurementsBySocio: async (socioUsuario) => {
+      fetchMeasurementsBySocio: async (socioRef) => {
         try {
-          const data = await jsonFetch(apiUrl(`/medicion/socio/${socioUsuario}`))
-          const normalized = ensureArray(data).map(normalizeMeasurement)
+          const data = await jsonFetch(apiUrl('/medicion'))
+          const normalized = withPreviousReadings(
+            ensureArray(data)
+              .map(normalizeMeasurement)
+              .filter((item) => String(item.idSocio) === String(socioRef))
+          )
           set({ measurements: normalized })
           return normalized
         } catch {
-          return get().measurements.filter((item) => String(item.socioUsuario) === String(socioUsuario))
+          try {
+            const data = await jsonFetch(apiUrl(`/medicion/socio/${socioRef}`))
+            const normalized = withPreviousReadings(ensureArray(data).map(normalizeMeasurement))
+            set({ measurements: normalized })
+            return normalized
+          } catch {
+            return get().measurements.filter(
+              (item) => String(item.socioUsuario) === String(socioRef) || String(item.idSocio) === String(socioRef)
+            )
+          }
+        }
+      },
+
+      fetchMeasurementTypes: async () => {
+        try {
+          const data = await jsonFetch(apiUrl('/tipolectura'))
+          const normalized = ensureArray(data)
+            .map(normalizeMeasurementType)
+            .filter((item) => item.idTipoLectura > 0)
+          set({ measurementTypes: normalized })
+          return normalized
+        } catch {
+          return get().measurementTypes
         }
       },
 
       fetchMeasurementsByMeter: async (meterId) => {
         try {
-          const data = await jsonFetch(apiUrl(`/medicion/medidor/${meterId}`))
-          const normalized = ensureArray(data).map(normalizeMeasurement)
-          set({ measurements: normalized })
-          return normalized.filter((item) => Number(item.idMedidor) === Number(meterId))
+          const data = await jsonFetch(apiUrl('/medicion'))
+          const filtered = withPreviousReadings(
+            ensureArray(data)
+              .map(normalizeMeasurement)
+              .filter((item) => Number(item.idMedidor) === Number(meterId))
+          )
+          set({ measurements: filtered })
+          return filtered
         } catch {
-          return get().measurements.filter((item) => Number(item.idMedidor) === Number(meterId))
+          try {
+            const data = await jsonFetch(apiUrl(`/medicion/medidor/${meterId}`))
+            const filtered = withPreviousReadings(ensureArray(data).map(normalizeMeasurement))
+            set({ measurements: filtered })
+            return filtered
+          } catch {
+            const targetMeter = get().meters.find((item) => Number(item.idMedidor) === Number(meterId))
+            return get().measurements.filter((item) =>
+              targetMeter ? String(item.NumeroMedidor) === String(targetMeter.NumeroMedidor) : Number(item.idMedidor) === Number(meterId)
+            )
+          }
         }
       },
 
@@ -628,7 +1071,13 @@ const useServiceWorkflowStore = create(
           const created = await jsonFetch(apiUrl('/medicion'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({
+              idMedidor: Number(payload.idMedidor),
+              idEmpleado: Number(payload.idEmpleado),
+              ValorLectura: Number(payload.LecturaActual),
+              FechaLectura: payload.FechaLectura,
+              idTipoLectura: Number(payload.idTipoLectura)
+            })
           })
           return created
         } catch {
@@ -649,6 +1098,7 @@ const useServiceWorkflowStore = create(
           const measurement = {
             idMedicion: nextId(get().measurements, 'idMedicion'),
             idMedidor: meter.idMedidor,
+            idSocio: meter.idSocio ?? null,
             NumeroMedidor: meter.NumeroMedidor,
             socioUsuario: meter.socioUsuario,
             socioNombre: meter.socioNombre,
@@ -657,8 +1107,9 @@ const useServiceWorkflowStore = create(
             LecturaAnterior: lastReading,
             LecturaActual: currentReading,
             Consumo: currentReading - lastReading,
-            TipoLectura: payload.TipoLectura,
-            EmpleadoUsuario: payload.EmpleadoUsuario
+            TipoLectura: payload.tipoLecturaNombre || `Tipo ${payload.idTipoLectura}`,
+            idEmpleado: Number(payload.idEmpleado),
+            EmpleadoUsuario: payload.empleadoNombre || payload.empleadoUsuario || ''
           }
 
           set((state) => ({
@@ -670,7 +1121,20 @@ const useServiceWorkflowStore = create(
       }
     }),
     {
-      name: 'cooperativa-service-workflow'
+      name: 'cooperativa-service-workflow',
+      version: 2,
+      migrate: (persistedState, version) => {
+        if (!persistedState) return persistedState
+
+        if (version < 2) {
+          return {
+            ...persistedState,
+            requests: []
+          }
+        }
+
+        return persistedState
+      }
     }
   )
 )

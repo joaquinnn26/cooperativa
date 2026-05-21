@@ -160,10 +160,13 @@ export function useEmpleados(autoLoad = true) {
     setLoading(true)
     try {
       const data = await jsonFetch(apiUrl('/empleado'))
-      setEmpleados(Array.isArray(data) ? data.map(normalizeEmpleado) : [])
+      const normalized = ensureArray(data).map(normalizeEmpleado)
+      setEmpleados(normalized)
+      return normalized
     } catch (error) {
       console.error('Error al obtener empleados', error)
       setEmpleados([])
+      return []
     } finally {
       setLoading(false)
     }
@@ -270,12 +273,16 @@ export function useEmpleados(autoLoad = true) {
 
   const editarEmpleado = useCallback(
     async (idEmpleado, payload) => {
-      await jsonFetch(apiUrl(`/empleado/${idEmpleado}`), {
+      const empleadoActualizado = await jsonFetch(apiUrl(`/empleado/${idEmpleado}`), {
         method: 'PUT',
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          idCargo: Number(payload.idCargo),
+          FechaDelInicio: payload.FechaDelInicio
+        })
       })
 
       await fetchEmpleados()
+      return empleadoActualizado
     },
     [fetchEmpleados]
   )

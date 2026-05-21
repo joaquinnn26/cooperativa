@@ -1,100 +1,523 @@
-import React, { useMemo, useState } from 'react'
-import { CheckCircle2, Filter } from 'lucide-react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { ChevronLeft, ChevronRight, ExternalLink, Filter, Receipt, Save } from 'lucide-react'
+import useAuthStore from '@/store/authStore.js'
+import useAppStore from '@/store/appStore.js'
+import useCooperativeStore from '@/store/cooperativeStore.js'
+import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
+import { useSocios } from '@/hooks/useSocios.js'
 import { formatDate } from '@/utils/formatDate.js'
 
-const mockFacturas = [
-  { id: 101, socio: 'Juan Pérez', servicio: 'Agua', periodo: 'Enero 2024', monto: 2500, vencimiento: '2024-02-15', estado: 'Pendiente' },
-  { id: 102, socio: 'María Gómez', servicio: 'Luz', periodo: 'Enero 2024', monto: 1800, vencimiento: '2024-02-18', estado: 'Pagada' },
-  { id: 103, socio: 'Carlos Ruiz', servicio: 'Agua', periodo: 'Enero 2024', monto: 2100, vencimiento: '2024-02-20', estado: 'Pendiente' }
-]
+const initialForm = {
+  idSocio: '',
+  idServicio: '',
+  amount: '',
+  dueDate: '',
+  paymentLink: '',
+  observations: ''
+}
+
+const PAGE_SIZE = 6
+
+function statusStyles(status) {
+  switch (status) {
+    case 'paid':
+      return 'bg-emerald-100 text-emerald-700'
+    case 'overdue':
+      return 'bg-red-100 text-red-700'
+    default:
+      return 'bg-amber-100 text-amber-700'
+  }
+}
+
+function statusLabel(status) {
+  switch (status) {
+    case 'paid':
+      return 'Pagado'
+    case 'overdue':
+      return 'Vencido'
+    default:
+      return 'Pendiente'
+  }
+}
+
+function buildManagementDraft(factura) {
+  return {
+    status: factura.status,
+    amount: String(factura.amount ?? ''),
+    dueDate: factura.dueDate ? String(factura.dueDate).slice(0, 10) : '',
+    paymentLink: factura.paymentLink || '',
+    observations: factura.observations || ''
+  }
+}
 
 export default function AdminFacturas() {
-  const [facturas, setFacturas] = useState(mockFacturas)
+  const addNotification = useAppStore((state) => state.addNotification)
+  const idEmpleado = useAuthStore((state) => state.idEmpleado)
+  const { fetchSocios } = useSocios(false)
+  const fetchSocioServices = useServiceWorkflowStore((state) => state.fetchSocioServices)
+  const fetchBills = useCooperativeStore((state) => state.fetchBills)
+  const createBill = useCooperativeStore((state) => state.createBill)
+  const updateBill = useCooperativeStore((state) => state.updateBill)
+  const updateBillStatus = useCooperativeStore((state) => state.updateBillStatus)
+
+  const [socios, setSocios] = useState([])
+  const [services, setServices] = useState([])
+  const [facturas, setFacturas] = useState([])
+  const [form, setForm] = useState(initialForm)
   const [filtro, setFiltro] = useState('Todas')
+  const [selectedBill, setSelectedBill] = useState(null)
+  const [managementForm, setManagementForm] = useState(null)
+  const [page, setPage] = useState(1)
+
+  const loadBills = async () => {
+    const data = await fetchBills()
+    setFacturas(data)
+    return data
+  }
+
+  useEffect(() => {
+    fetchSocios().then(setSocios)
+    loadBills()
+  }, [fetchSocios, fetchBills])
+
+  useEffect(() => {
+    if (!form.idSocio) {
+      setServices([])
+      return
+    }
+
+    fetchSocioServices(form.idSocio).then((data) => {
+      setServices(data)
+      setForm((prev) => ({
+        ...prev,
+        idServicio: data[0]?.idServicio != null ? String(data[0].idServicio) : ''
+      }))
+    })
+  }, [fetchSocioServices, form.idSocio])
+
+  const selectedSocio = useMemo(
+    () => socios.find((socio) => String(socio.idSocio) === String(form.idSocio)) ?? null,
+    [form.idSocio, socios]
+  )
+
+  const selectedService = useMemo(
+    () => services.find((service) => String(service.idServicio) === String(form.idServicio)) ?? null,
+    [form.idServicio, services]
+  )
+
+  const summary = useMemo(
+    () => ({
+      pending: facturas.filter((factura) => factura.status === 'pending').length,
+      overdue: facturas.filter((factura) => factura.status === 'overdue').length,
+      paid: facturas.filter((factura) => factura.status === 'paid').length
+    }),
+    [facturas]
+  )
 
   const filtered = useMemo(
-    () => (filtro === 'Todas' ? facturas : facturas.filter((f) => f.estado === filtro)),
+    () =>
+      filtro === 'Todas'
+        ? facturas
+        : filtro === 'Pagadas'
+          ? facturas.filter((factura) => factura.status === 'paid')
+          : filtro === 'Vencidas'
+            ? facturas.filter((factura) => factura.status === 'overdue')
+            : facturas.filter((factura) => factura.status === 'pending'),
     [facturas, filtro]
   )
 
-  const marcarPagada = (id) => {
-    setFacturas((prev) => prev.map((f) => (f.id === id ? { ...f, estado: 'Pagada' } : f)))
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+
+  const paginatedBills = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return filtered.slice(start, start + PAGE_SIZE)
+  }, [currentPage, filtered])
+
+  useEffect(() => {
+    setPage(1)
+  }, [filtro])
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    if (!selectedSocio || !selectedService || !form.amount || !form.dueDate || !idEmpleado) return
+
+    try {
+      await createBill({
+        idSocio: selectedSocio.idSocio,
+        idEmpleado: Number(idEmpleado),
+        idServicio: selectedService.idServicio,
+        amount: Number(form.amount),
+        dueDate: form.dueDate,
+        paymentLink: form.paymentLink,
+        observations: form.observations
+      })
+
+      setForm(initialForm)
+      setServices([])
+      await loadBills()
+      addNotification({
+        title: 'Factura creada',
+        message: 'La factura se registro correctamente.',
+        type: 'success'
+      })
+    } catch (error) {
+      addNotification({
+        title: 'Error',
+        message: error.message || 'No se pudo crear la factura.',
+        type: 'error'
+      })
+    }
+  }
+
+  const openBillManager = (factura) => {
+    setSelectedBill(factura)
+    setManagementForm(buildManagementDraft(factura))
+  }
+
+  const handleSaveBill = async () => {
+    if (!selectedBill || !managementForm) return
+
+    try {
+      await updateBill({
+        id: selectedBill.id,
+        idServicio: selectedBill.idServicio,
+        amount: Number(managementForm.amount),
+        dueDate: managementForm.dueDate,
+        paymentLink: managementForm.paymentLink,
+        observations: managementForm.observations
+      })
+
+      await updateBillStatus(
+        {
+          ...selectedBill,
+          amount: Number(managementForm.amount),
+          dueDate: managementForm.dueDate,
+          paymentLink: managementForm.paymentLink,
+          observations: managementForm.observations
+        },
+        managementForm.status
+      )
+
+      const refreshed = await loadBills()
+      const updatedBill = refreshed.find((item) => item.id === selectedBill.id) || null
+      setSelectedBill(updatedBill)
+      setManagementForm(updatedBill ? buildManagementDraft(updatedBill) : null)
+
+      addNotification({
+        title: 'Factura actualizada',
+        message: `La factura ${selectedBill.id} fue actualizada correctamente.`,
+        type: 'success'
+      })
+    } catch (error) {
+      addNotification({
+        title: 'Error',
+        message: error.message || 'No se pudo actualizar la factura.',
+        type: 'error'
+      })
+    }
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Facturación</h1>
-          <p className="text-gray-600">Genera y controla facturas de servicios</p>
+    <div className="mx-auto max-w-7xl space-y-6 px-4 py-8">
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="card">
+          <p className="text-sm text-gray-500">Pendientes</p>
+          <p className="mt-2 text-3xl font-bold text-amber-700">{summary.pending}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-gray-500" />
-          <select
-            value={filtro}
-            onChange={(e) => setFiltro(e.target.value)}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option>Todas</option>
-            <option>Pendiente</option>
-            <option>Pagada</option>
-          </select>
+        <div className="card">
+          <p className="text-sm text-gray-500">Vencidas</p>
+          <p className="mt-2 text-3xl font-bold text-red-700">{summary.overdue}</p>
+        </div>
+        <div className="card">
+          <p className="text-sm text-gray-500">Pagadas</p>
+          <p className="mt-2 text-3xl font-bold text-emerald-700">{summary.paid}</p>
         </div>
       </div>
 
-      <div className="card overflow-x-auto">
-        <table className="min-w-full text-sm text-left">
-          <thead className="bg-gray-100 text-gray-700 uppercase text-xs">
-            <tr>
-              <th className="px-4 py-3">ID</th>
-              <th className="px-4 py-3">Socio</th>
-              <th className="px-4 py-3">Servicio</th>
-              <th className="px-4 py-3">Período</th>
-              <th className="px-4 py-3">Vence</th>
-              <th className="px-4 py-3">Monto</th>
-              <th className="px-4 py-3 text-center">Estado</th>
-              <th className="px-4 py-3 text-center">Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((f) => (
-              <tr key={f.id} className="border-b hover:bg-gray-50">
-                <td className="px-4 py-3">{f.id}</td>
-                <td className="px-4 py-3">{f.socio}</td>
-                <td className="px-4 py-3">{f.servicio}</td>
-                <td className="px-4 py-3">{f.periodo}</td>
-                <td className="px-4 py-3">{formatDate(f.vencimiento, 'es-AR', { month: 'short' })}</td>
-                <td className="px-4 py-3">${f.monto}</td>
-                <td className="px-4 py-3 text-center">
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      f.estado === 'Pagada'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-yellow-100 text-yellow-700'
-                    }`}
+      <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+        <form onSubmit={handleSubmit} className="card space-y-5">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Nueva factura</h1>
+            <p className="mt-2 text-gray-600">Carga la factura una sola vez y luego gestiona su estado desde el panel de control.</p>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Destinatario</p>
+            <select
+              value={form.idSocio}
+              onChange={(event) => setForm((prev) => ({ ...prev, idSocio: event.target.value }))}
+              className="input-field"
+              required
+            >
+              <option value="">Seleccionar socio...</option>
+              {socios.map((socio) => (
+                <option key={socio.idSocio} value={socio.idSocio}>
+                  {socio.Persona?.Apellido}, {socio.Persona?.Nombre} - {socio.Persona?.Documento}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={form.idServicio}
+              onChange={(event) => setForm((prev) => ({ ...prev, idServicio: event.target.value }))}
+              className="input-field"
+              required
+              disabled={!services.length}
+            >
+              <option value="">Seleccionar servicio aprobado...</option>
+              {services.map((service) => (
+                <option key={`${service.idServicioSocio ?? service.idServicio}-${service.idServicio}`} value={service.idServicio}>
+                  {service.servicioNombre}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Datos de facturacion</p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.amount}
+                onChange={(event) => setForm((prev) => ({ ...prev, amount: event.target.value }))}
+                className="input-field"
+                placeholder="Monto total"
+                required
+              />
+              <input
+                type="date"
+                value={form.dueDate}
+                onChange={(event) => setForm((prev) => ({ ...prev, dueDate: event.target.value }))}
+                className="input-field"
+                required
+              />
+            </div>
+
+            <input
+              type="url"
+              value={form.paymentLink}
+              onChange={(event) => setForm((prev) => ({ ...prev, paymentLink: event.target.value }))}
+              className="input-field"
+              placeholder="Link de pago"
+            />
+
+            <textarea
+              value={form.observations}
+              onChange={(event) => setForm((prev) => ({ ...prev, observations: event.target.value }))}
+              className="input-field min-h-28"
+              placeholder="Observaciones"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={!idEmpleado}
+            className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Receipt className="mr-2 h-4 w-4" />
+            Crear factura
+          </button>
+
+          {!idEmpleado ? (
+            <p className="text-sm text-amber-700">
+              Debes iniciar sesion con un usuario que tenga `idEmpleado` para cargar facturas.
+            </p>
+          ) : null}
+        </form>
+
+        <div className="space-y-6">
+          <div className="card">
+            <div className="mb-4 flex items-center gap-2">
+              <Filter className="h-4 w-4 text-gray-500" />
+              <select value={filtro} onChange={(event) => setFiltro(event.target.value)} className="rounded border px-3 py-2 text-sm">
+                <option>Todas</option>
+                <option>Pendientes</option>
+                <option>Vencidas</option>
+                <option>Pagadas</option>
+              </select>
+              <p className="ml-auto text-sm text-gray-500">
+                {filtered.length} factura{filtered.length === 1 ? '' : 's'}
+              </p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-600">
+                  <tr>
+                    <th className="px-4 py-3">Socio</th>
+                    <th className="px-4 py-3">Servicio</th>
+                    <th className="px-4 py-3">Vence</th>
+                    <th className="px-4 py-3">Monto</th>
+                    <th className="px-4 py-3">Estado</th>
+                    <th className="px-4 py-3 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedBills.map((factura) => (
+                    <tr key={factura.id} className="border-t border-gray-100">
+                      <td className="px-4 py-3">{factura.socioNombre}</td>
+                      <td className="px-4 py-3">{factura.service}</td>
+                      <td className="px-4 py-3">{formatDate(factura.dueDate, 'es-AR')}</td>
+                      <td className="px-4 py-3">${Number(factura.amount).toLocaleString('es-AR')}</td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusStyles(factura.status)}`}>
+                          {statusLabel(factura.status)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-2">
+                          {factura.paymentLink ? (
+                            <a
+                              href={factura.paymentLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                            >
+                              <ExternalLink className="mr-1 h-4 w-4" />
+                              Link
+                            </a>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => openBillManager(factura)}
+                            className="inline-flex items-center rounded-lg bg-slate-800 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-900"
+                          >
+                            Gestionar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!filtered.length ? <p className="py-8 text-center text-gray-500">No hay facturas cargadas.</p> : null}
+            </div>
+            {filtered.length ? (
+              <div className="mt-5 flex flex-col gap-3 border-t border-gray-100 pt-4 md:flex-row md:items-center md:justify-between">
+                <p className="text-sm text-gray-500">
+                  Pagina {currentPage} de {totalPages}
+                </p>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {f.estado}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-center">
-                  {f.estado === 'Pendiente' ? (
-                    <button
-                      onClick={() => marcarPagada(f.id)}
-                      className="inline-flex items-center text-green-700 hover:text-green-900 font-semibold"
-                    >
-                      <CheckCircle2 className="w-4 h-4 mr-1" />
-                      Marcar pagada
-                    </button>
-                  ) : (
-                    <span className="text-gray-400 text-xs">Sin acción</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!filtered.length && <p className="text-center text-gray-500 py-6">No hay facturas.</p>}
+                    <ChevronLeft className="mr-1 h-4 w-4" />
+                    Anterior
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Siguiente
+                    <ChevronRight className="ml-1 h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
       </div>
+
+      {selectedBill && managementForm ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
+          <div className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Gestion de factura</h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  Factura #{selectedBill.id} · {selectedBill.socioNombre} · {selectedBill.service}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedBill(null)
+                  setManagementForm(null)
+                }}
+                className="text-sm font-semibold text-gray-500 hover:text-gray-700"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl bg-gray-50 p-4">
+                <p className="text-xs uppercase text-gray-500">Estado</p>
+                <select
+                  value={managementForm.status}
+                  onChange={(event) => setManagementForm((prev) => ({ ...prev, status: event.target.value }))}
+                  className="input-field mt-2"
+                >
+                  <option value="pending">Pendiente</option>
+                  <option value="paid">Pagado</option>
+                  <option value="overdue">Vencido</option>
+                </select>
+              </div>
+
+              <div className="rounded-xl bg-gray-50 p-4">
+                <p className="text-xs uppercase text-gray-500">Monto</p>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={managementForm.amount}
+                  onChange={(event) => setManagementForm((prev) => ({ ...prev, amount: event.target.value }))}
+                  className="input-field mt-2"
+                />
+              </div>
+
+              <div className="rounded-xl bg-gray-50 p-4">
+                <p className="text-xs uppercase text-gray-500">Vencimiento</p>
+                <input
+                  type="date"
+                  value={managementForm.dueDate}
+                  onChange={(event) => setManagementForm((prev) => ({ ...prev, dueDate: event.target.value }))}
+                  className="input-field mt-2"
+                />
+              </div>
+
+              <div className="rounded-xl bg-gray-50 p-4">
+                <p className="text-xs uppercase text-gray-500">Link de pago</p>
+                <input
+                  type="url"
+                  value={managementForm.paymentLink}
+                  onChange={(event) => setManagementForm((prev) => ({ ...prev, paymentLink: event.target.value }))}
+                  className="input-field mt-2"
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-xl bg-gray-50 p-4">
+              <p className="text-xs uppercase text-gray-500">Observaciones</p>
+              <textarea
+                value={managementForm.observations}
+                onChange={(event) => setManagementForm((prev) => ({ ...prev, observations: event.target.value }))}
+                className="input-field mt-2 min-h-28"
+              />
+            </div>
+
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={handleSaveBill}
+                className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                <Save className="mr-2 h-4 w-4" />
+                Guardar cambios
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
