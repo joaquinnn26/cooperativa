@@ -1,27 +1,84 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Droplet, ExternalLink, FilePlus2, Receipt, Settings, Zap } from 'lucide-react'
+import { AlertTriangle, Droplet, ExternalLink, FilePlus2, Gauge, Receipt, Settings, Zap } from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
 import useCooperativeStore from '@/store/cooperativeStore.js'
+import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
 import useAppStore from '@/store/appStore.js'
 import { useCurrentSocio } from '@/hooks/useCurrentSocio.js'
 import { formatDate } from '@/utils/formatDate.js'
+
+function normalizeServiceName(nombre) {
+  return String(nombre || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+}
+
+function serviceRequiresMeter(nombre) {
+  const normalized = normalizeServiceName(nombre)
+  return normalized === 'luz' || normalized === 'agua potable'
+}
+
+function serviceIcon(nombre) {
+  return normalizeServiceName(nombre).includes('agua') ? Droplet : Zap
+}
 
 export default function SocioDashboard() {
   const nombre = useAuthStore((state) => state.nombre)
   const usuario = useAuthStore((state) => state.usuario)
   const { socioId } = useCurrentSocio()
-  const fetchServices = useCooperativeStore((state) => state.fetchServices)
   const fetchBillsBySocio = useCooperativeStore((state) => state.fetchBillsBySocio)
+  const fetchSocioServices = useServiceWorkflowStore((state) => state.fetchSocioServices)
+  const fetchMeters = useServiceWorkflowStore((state) => state.fetchMeters)
+  const fetchMeasurementsBySocio = useServiceWorkflowStore((state) => state.fetchMeasurementsBySocio)
   const addNotification = useAppStore((state) => state.addNotification)
 
   const [services, setServices] = useState([])
   const [bills, setBills] = useState([])
 
   useEffect(() => {
-    fetchServices().then(setServices)
-    fetchBillsBySocio({ idSocio: socioId, usuario }).then(setBills)
-  }, [fetchBillsBySocio, fetchServices, socioId, usuario])
+    if (!socioId) return
+
+    const loadData = async () => {
+      const [servicesData, metersData, measurementsData, billsData] = await Promise.all([
+        fetchSocioServices(socioId),
+        fetchMeters(),
+        fetchMeasurementsBySocio(socioId),
+        fetchBillsBySocio({ idSocio: socioId, usuario })
+      ])
+
+      const enrichedServices = (servicesData || []).map((service) => {
+        const requiresMeter = serviceRequiresMeter(service.servicioNombre)
+        const matchedMeter = requiresMeter
+          ? (metersData || []).find(
+              (meter) =>
+                String(meter.idSocio) === String(socioId) &&
+                normalizeServiceName(meter.servicioNombre) === normalizeServiceName(service.servicioNombre)
+            )
+          : null
+
+        const serviceMeasurements = (measurementsData || []).filter(
+          (measurement) => normalizeServiceName(measurement.servicioNombre) === normalizeServiceName(service.servicioNombre)
+        )
+        const latestMeasurement = serviceMeasurements[0] || null
+
+        return {
+          ...service,
+          requiereMedidor: requiresMeter,
+          numeroMedidor: matchedMeter?.NumeroMedidor || '',
+          ultimaLectura: latestMeasurement?.LecturaActual ?? null,
+          ultimoConsumo: latestMeasurement?.Consumo ?? null
+        }
+      })
+
+      setServices(enrichedServices)
+      setBills(billsData || [])
+    }
+
+    loadData()
+  }, [fetchBillsBySocio, fetchMeasurementsBySocio, fetchMeters, fetchSocioServices, socioId, usuario])
 
   const pendingBills = useMemo(() => bills.filter((bill) => bill.status !== 'paid'), [bills])
 
@@ -45,53 +102,64 @@ export default function SocioDashboard() {
         <p className="text-lg text-gray-600">Bienvenido a tu panel de socio</p>
       </div>
 
-      <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-        {services.map((service) => (
-          <div key={service.id} className="card">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="flex items-center">
-                <div
-                  className={`mr-4 flex h-12 w-12 items-center justify-center rounded-full ${
-                    service.name === 'Agua' ? 'bg-blue-100' : 'bg-yellow-100'
-                  }`}
-                >
-                  {service.name === 'Agua' ? (
-                    <Droplet className="h-6 w-6 text-blue-600" />
-                  ) : (
-                    <Zap className="h-6 w-6 text-yellow-600" />
-                  )}
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900">{service.name}</h3>
-                  <p className="text-sm text-gray-600">Ultima lectura: {service.lastReading}</p>
-                </div>
-              </div>
-              <div
-                className={`rounded-full px-3 py-1 text-sm font-medium ${
-                  service.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                }`}
-              >
-                {service.status === 'active' ? 'Activo' : 'Inactivo'}
-              </div>
-            </div>
+      <div className="mb-8">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900">Mis servicios activos</h2>
+          <Link to="/socio/mis-servicios" className="font-medium text-blue-600 hover:text-blue-500">
+            Ver detalle
+          </Link>
+        </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-600">Consumo</p>
-                <p className="text-lg font-semibold text-gray-900">{service.consumption}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Monto</p>
-                <p className="text-lg font-semibold text-gray-900">{service.amount}</p>
-              </div>
-            </div>
+        {services.length ? (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            {services.map((service) => {
+              const Icon = serviceIcon(service.servicioNombre)
+              return (
+                <div key={service.idServicioSocio} className="card">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
+                        <Icon className="h-6 w-6 text-blue-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-semibold text-gray-900">{service.servicioNombre}</h3>
+                        <p className="text-sm text-gray-600">Tarifa base: ${Number(service.tarifa || 0).toLocaleString('es-AR')}</p>
+                      </div>
+                    </div>
+                    <div className="rounded-full px-3 py-1 text-sm font-medium bg-green-100 text-green-800">{service.estado}</div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-600">{service.requiereMedidor ? 'Medidor' : 'Modalidad'}</p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {service.requiereMedidor ? service.numeroMedidor || 'Pendiente instalacion' : 'Tarifa fija'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">{service.requiereMedidor ? 'Ultima lectura' : 'Ultimo consumo'}</p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {service.requiereMedidor
+                          ? service.ultimaLectura ?? 'Sin lecturas'
+                          : service.ultimoConsumo ?? 'No aplica'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
-        ))}
+        ) : (
+          <div className="card py-12 text-center">
+            <p className="text-lg font-medium text-gray-700">Todavia no tienes servicios activos.</p>
+            <p className="mt-2 text-gray-500">Cuando una solicitud sea aprobada, tus servicios apareceran aqui.</p>
+          </div>
+        )}
       </div>
 
       <div className="card mb-8">
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">Facturas Pendientes</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Facturas pendientes</h2>
           <Link to="/facturas" className="font-medium text-blue-600 hover:text-blue-500">
             Ver todas
           </Link>
@@ -101,12 +169,8 @@ export default function SocioDashboard() {
           {pendingBills.map((bill) => (
             <div key={bill.id} className="flex items-center justify-between rounded-lg bg-gray-50 p-4">
               <div className="flex items-center">
-                <div
-                  className={`mr-4 flex h-10 w-10 items-center justify-center rounded-full ${
-                    bill.service === 'Agua' ? 'bg-blue-100' : 'bg-yellow-100'
-                  }`}
-                >
-                  {bill.service === 'Agua' ? (
+                <div className="mr-4 flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+                  {normalizeServiceName(bill.service).includes('agua') ? (
                     <Droplet className="h-5 w-5 text-blue-600" />
                   ) : (
                     <Zap className="h-5 w-5 text-yellow-600" />
@@ -136,21 +200,21 @@ export default function SocioDashboard() {
       </div>
 
       <div className="card">
-        <h2 className="mb-6 text-2xl font-bold text-gray-900">Acciones Rapidas</h2>
+        <h2 className="mb-6 text-2xl font-bold text-gray-900">Acciones rapidas</h2>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <Link to="/socio/mis-servicios" className="flex items-center rounded-lg bg-blue-50 p-4 transition-colors hover:bg-blue-100">
             <Settings className="mr-4 h-8 w-8 text-blue-600" />
             <div>
-              <h3 className="font-semibold text-gray-900">Mis Servicios</h3>
-              <p className="text-sm text-gray-600">Gestionar servicios</p>
+              <h3 className="font-semibold text-gray-900">Mis servicios</h3>
+              <p className="text-sm text-gray-600">Estado, medidores y detalle</p>
             </div>
           </Link>
 
           <Link to="/socio/mis-mediciones" className="flex items-center rounded-lg bg-green-50 p-4 transition-colors hover:bg-green-100">
-            <Receipt className="mr-4 h-8 w-8 text-green-600" />
+            <Gauge className="mr-4 h-8 w-8 text-green-600" />
             <div>
-              <h3 className="font-semibold text-gray-900">Mis Mediciones</h3>
+              <h3 className="font-semibold text-gray-900">Mis mediciones</h3>
               <p className="text-sm text-gray-600">Ver historial y consumos</p>
             </div>
           </Link>
@@ -158,16 +222,16 @@ export default function SocioDashboard() {
           <Link to="/socio/reclamos" className="flex items-center rounded-lg bg-purple-50 p-4 transition-colors hover:bg-purple-100">
             <AlertTriangle className="mr-4 h-8 w-8 text-purple-600" />
             <div>
-              <h3 className="font-semibold text-gray-900">Mis Reclamos</h3>
-              <p className="text-sm text-gray-600">Visualiza o realiza tus reclamos aqui.</p>
+              <h3 className="font-semibold text-gray-900">Mis reclamos</h3>
+              <p className="text-sm text-gray-600">Consultas y reclamos</p>
             </div>
           </Link>
 
           <Link to="/socio/solicitudes-servicio" className="flex items-center rounded-lg bg-amber-50 p-4 transition-colors hover:bg-amber-100">
             <FilePlus2 className="mr-4 h-8 w-8 text-amber-600" />
             <div>
-              <h3 className="font-semibold text-gray-900">Solicitudes de Servicio</h3>
-              <p className="text-sm text-gray-600">Pedir altas y seguir el tramite.</p>
+              <h3 className="font-semibold text-gray-900">Solicitudes</h3>
+              <p className="text-sm text-gray-600">Pedir altas y seguir el tramite</p>
             </div>
           </Link>
         </div>

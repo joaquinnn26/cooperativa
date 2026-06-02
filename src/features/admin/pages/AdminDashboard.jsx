@@ -1,15 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   AlertCircle,
+  AlertTriangle,
   BarChart3,
   Briefcase,
   ClipboardList,
-  CreditCard,
   FileText,
   Megaphone,
   Receipt,
   Settings,
-  UserPlus,
   Users,
   Zap
 } from 'lucide-react'
@@ -39,6 +39,71 @@ async function fetchJson(path) {
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   return response.json()
 }
+
+const QUICK_MODULES = [
+  {
+    title: 'Socios',
+    description: 'Alta, edicion y estado de socios.',
+    to: '/admin/socios',
+    icon: Users,
+    bg: 'bg-blue-50',
+    color: 'text-blue-600'
+  },
+  {
+    title: 'Empleados',
+    description: 'Cargos, altas y bajas.',
+    to: '/admin/empleados',
+    icon: Briefcase,
+    bg: 'bg-amber-50',
+    color: 'text-amber-600'
+  },
+  {
+    title: 'Solicitudes',
+    description: 'Revisar tramites y documentos.',
+    to: '/admin/solicitudes-servicio',
+    icon: ClipboardList,
+    bg: 'bg-sky-50',
+    color: 'text-sky-600'
+  },
+  {
+    title: 'Facturas',
+    description: 'Cargar y gestionar estados.',
+    to: '/admin/facturas',
+    icon: Receipt,
+    bg: 'bg-indigo-50',
+    color: 'text-indigo-600'
+  },
+  {
+    title: 'Medidores',
+    description: 'Instalacion y control.',
+    to: '/admin/medidores',
+    icon: Zap,
+    bg: 'bg-yellow-50',
+    color: 'text-yellow-600'
+  },
+  {
+    title: 'Lecturas',
+    description: 'Registro de mediciones.',
+    to: '/admin/lecturas',
+    icon: BarChart3,
+    bg: 'bg-orange-50',
+    color: 'text-orange-600'
+  },
+  {
+    title: 'Reclamos',
+    description: 'Seguimiento de reclamos de socios.',
+    to: '/admin/reclamos',
+    icon: AlertTriangle,
+    bg: 'bg-red-50',
+    color: 'text-red-600'
+  }
+]
+
+const SECONDARY_MODULES = [
+  { title: 'Servicios', to: '/admin/servicios', icon: Settings },
+  { title: 'Requisitos', to: '/admin/requisitos-servicio', icon: FileText },
+  { title: 'Anuncios', to: '/admin/anuncios', icon: Megaphone }
+]
 
 export default function AdminDashboard() {
   const fetchBills = useCooperativeStore((state) => state.fetchBills)
@@ -80,10 +145,10 @@ export default function AdminDashboard() {
 
   const stats = useMemo(
     () => [
-      { label: 'Socios activos', value: statsData.sociosActivos, icon: Users, bgColor: 'bg-blue-100', iconColor: 'text-blue-600' },
-      { label: 'Servicios', value: statsData.servicios, icon: Settings, bgColor: 'bg-violet-100', iconColor: 'text-violet-600' },
-      { label: 'Solicitudes', value: statsData.solicitudes, icon: ClipboardList, bgColor: 'bg-sky-100', iconColor: 'text-sky-600' },
-      { label: 'Facturas pendientes', value: statsData.facturasPendientes, icon: Receipt, bgColor: 'bg-emerald-100', iconColor: 'text-emerald-600' }
+      { label: 'Socios activos', value: statsData.sociosActivos, color: 'text-blue-700', bg: 'bg-blue-50' },
+      { label: 'Servicios', value: statsData.servicios, color: 'text-violet-700', bg: 'bg-violet-50' },
+      { label: 'Solicitudes', value: statsData.solicitudes, color: 'text-sky-700', bg: 'bg-sky-50' },
+      { label: 'Facturas pendientes', value: statsData.facturasPendientes, color: 'text-emerald-700', bg: 'bg-emerald-50' }
     ],
     [statsData]
   )
@@ -91,140 +156,97 @@ export default function AdminDashboard() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
       <div className="mb-8">
-        <h1 className="mb-2 text-3xl font-bold text-gray-900">Panel de Administracion</h1>
-        <p className="text-lg text-gray-600">Resumen general y accesos a los modulos de gestion.</p>
+        <h1 className="mb-2 text-3xl font-bold text-gray-900">Panel de administracion</h1>
+        <p className="text-lg text-gray-600">Accesos principales y resumen general del sistema.</p>
       </div>
 
-      <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-4">
+      <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat) => (
-          <div className="card" key={stat.label}>
-            <div className="flex items-center">
-              <div className={`mr-4 flex h-12 w-12 items-center justify-center rounded-full ${stat.bgColor}`}>
-                <stat.icon className={`h-6 w-6 ${stat.iconColor}`} />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">{stat.label}</p>
-                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-              </div>
-            </div>
+          <div key={stat.label} className={`rounded-2xl border border-gray-200 ${stat.bg} p-5 shadow-sm`}>
+            <p className="text-sm text-gray-600">{stat.label}</p>
+            <p className={`mt-2 text-3xl font-bold ${stat.color}`}>{stat.value}</p>
           </div>
         ))}
       </div>
 
-      <div className="mb-8 grid grid-cols-1 gap-8 md:grid-cols-2">
-        <div className="card">
-          <h2 className="mb-6 text-xl font-bold text-gray-900">Socios y Empleados</h2>
-          <div className="space-y-4">
-            <a href="/admin/socios" className="flex items-center rounded-lg bg-blue-50 p-4 transition-colors hover:bg-blue-100">
-              <Users className="mr-4 h-8 w-8 text-blue-600" />
-              <div>
-                <h3 className="font-semibold text-gray-900">Gestionar socios</h3>
-                <p className="text-sm text-gray-600">Altas, bajas, edicion y estado.</p>
-              </div>
-            </a>
-            <a href="/admin/empleados" className="flex items-center rounded-lg bg-amber-50 p-4 transition-colors hover:bg-amber-100">
-              <Briefcase className="mr-4 h-8 w-8 text-amber-600" />
-              <div>
-                <h3 className="font-semibold text-gray-900">Gestionar empleados</h3>
-                <p className="text-sm text-gray-600">Cargos, altas y bajas.</p>
-              </div>
-            </a>
-          </div>
-        </div>
-
-        <div className="card">
-          <h2 className="mb-6 text-xl font-bold text-gray-900">Servicios y Lecturas</h2>
-          <div className="space-y-4">
-            <a href="/admin/servicios" className="flex items-center rounded-lg bg-violet-50 p-4 transition-colors hover:bg-violet-100">
-              <Settings className="mr-4 h-8 w-8 text-violet-600" />
-              <div>
-                <h3 className="font-semibold text-gray-900">Configurar servicios</h3>
-                <p className="text-sm text-gray-600">ABM de servicios y parametros.</p>
-              </div>
-            </a>
-            <a href="/admin/medidores" className="flex items-center rounded-lg bg-amber-50 p-4 transition-colors hover:bg-amber-100">
-              <Zap className="mr-4 h-8 w-8 text-amber-600" />
-              <div>
-                <h3 className="font-semibold text-gray-900">Gestionar medidores</h3>
-                <p className="text-sm text-gray-600">Instalacion y estado de medidores.</p>
-              </div>
-            </a>
-            <a href="/admin/lecturas" className="flex items-center rounded-lg bg-orange-50 p-4 transition-colors hover:bg-orange-100">
-              <BarChart3 className="mr-4 h-8 w-8 text-orange-600" />
-              <div>
-                <h3 className="font-semibold text-gray-900">Registrar lecturas</h3>
-                <p className="text-sm text-gray-600">Carga simple por socio, medidor y servicio.</p>
-              </div>
-            </a>
-          </div>
+      <div className="mb-8">
+        <h2 className="mb-4 text-2xl font-bold text-gray-900">Accesos principales</h2>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {QUICK_MODULES.map((module) => {
+            const Icon = module.icon
+            return (
+              <Link key={module.to} to={module.to} className={`rounded-2xl border border-gray-200 ${module.bg} p-5 transition-colors hover:border-gray-300 hover:bg-white`}>
+                <div className={`mb-4 inline-flex rounded-full p-3 ${module.bg}`}>
+                  <Icon className={`h-6 w-6 ${module.color}`} />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">{module.title}</h3>
+                <p className="mt-2 text-sm text-gray-600">{module.description}</p>
+              </Link>
+            )
+          })}
         </div>
       </div>
 
-      <div className="mb-8 grid grid-cols-1 gap-8 md:grid-cols-2">
+      <div className="mb-8 grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
         <div className="card">
-          <h2 className="mb-6 text-xl font-bold text-gray-900">Solicitudes y Documentos</h2>
-          <div className="space-y-4">
-            <a href="/admin/solicitudes-servicio" className="flex items-center rounded-lg bg-sky-50 p-4 transition-colors hover:bg-sky-100">
-              <ClipboardList className="mr-4 h-8 w-8 text-sky-600" />
+          <h2 className="mb-4 text-xl font-bold text-gray-900">Pendientes a revisar</h2>
+          <div className="space-y-3">
+            <div className="flex items-start justify-between rounded-xl bg-sky-50 p-4">
               <div>
-                <h3 className="font-semibold text-gray-900">Revisar solicitudes</h3>
-                <p className="text-sm text-gray-600">Aprobacion, rechazo y documentos cargados.</p>
+                <p className="font-semibold text-gray-900">Solicitudes de servicio</p>
+                <p className="text-sm text-gray-600">Tenes {statsData.solicitudes} solicitud(es) para revisar.</p>
               </div>
-            </a>
-            <a href="/admin/requisitos-servicio" className="flex items-center rounded-lg bg-violet-50 p-4 transition-colors hover:bg-violet-100">
-              <FileText className="mr-4 h-8 w-8 text-violet-600" />
+              <Link to="/admin/solicitudes-servicio" className="text-sm font-semibold text-sky-700 hover:text-sky-800">
+                Abrir
+              </Link>
+            </div>
+
+            <div className="flex items-start justify-between rounded-xl bg-emerald-50 p-4">
               <div>
-                <h3 className="font-semibold text-gray-900">Gestionar requisitos</h3>
-                <p className="text-sm text-gray-600">Requisitos por tipo de servicio.</p>
+                <p className="font-semibold text-gray-900">Facturas pendientes</p>
+                <p className="text-sm text-gray-600">Hay {statsData.facturasPendientes} factura(s) que requieren seguimiento.</p>
               </div>
-            </a>
+              <Link to="/admin/facturas" className="text-sm font-semibold text-emerald-700 hover:text-emerald-800">
+                Abrir
+              </Link>
+            </div>
+
+            <div className="flex items-start justify-between rounded-xl bg-red-50 p-4">
+              <div>
+                <p className="font-semibold text-gray-900">Reclamos activos</p>
+                <p className="text-sm text-gray-600">Actualmente hay {statsData.reclamosActivos} reclamo(s) registrados.</p>
+              </div>
+              <Link to="/admin/reclamos" className="text-sm font-semibold text-red-700 hover:text-red-800">
+                Abrir
+              </Link>
+            </div>
           </div>
         </div>
 
         <div className="card">
-          <h2 className="mb-6 text-xl font-bold text-gray-900">Facturacion y Comunicacion</h2>
-          <div className="space-y-4">
-            <a href="/admin/facturas" className="flex items-center rounded-lg bg-indigo-50 p-4 transition-colors hover:bg-indigo-100">
-              <Receipt className="mr-4 h-8 w-8 text-indigo-600" />
-              <div>
-                <h3 className="font-semibold text-gray-900">Cargar facturas</h3>
-                <p className="text-sm text-gray-600">Alta manual de facturas y link de pago.</p>
-              </div>
-            </a>
-            <a href="/admin/anuncios" className="flex items-center rounded-lg bg-pink-50 p-4 transition-colors hover:bg-pink-100">
-              <Megaphone className="mr-4 h-8 w-8 text-pink-600" />
-              <div>
-                <h3 className="font-semibold text-gray-900">Anuncios</h3>
-                <p className="text-sm text-gray-600">Comunicados visibles para socios.</p>
-              </div>
-            </a>
+          <h2 className="mb-4 text-xl font-bold text-gray-900">Otros accesos</h2>
+          <div className="space-y-3">
+            {SECONDARY_MODULES.map((item) => {
+              const Icon = item.icon
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className="flex items-center gap-3 rounded-xl border border-gray-200 px-4 py-3 text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  <Icon className="h-5 w-5 text-gray-500" />
+                  <span className="font-medium">{item.title}</span>
+                </Link>
+              )
+            })}
           </div>
-        </div>
-      </div>
 
-      <div className="card">
-        <h2 className="mb-4 text-xl font-bold text-gray-900">Indicadores rapidos</h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded-xl bg-red-50 p-4">
+          <div className="mt-6 rounded-xl bg-gray-50 p-4">
             <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-red-600" />
-              <p className="font-semibold text-gray-900">Reclamos activos</p>
+              <AlertCircle className="h-5 w-5 text-amber-600" />
+              <p className="font-semibold text-gray-900">Recordatorio</p>
             </div>
-            <p className="mt-2 text-2xl font-bold text-red-700">{statsData.reclamosActivos}</p>
-          </div>
-          <div className="rounded-xl bg-green-50 p-4">
-            <div className="flex items-center gap-3">
-              <CreditCard className="h-5 w-5 text-green-600" />
-              <p className="font-semibold text-gray-900">Facturas pendientes</p>
-            </div>
-            <p className="mt-2 text-2xl font-bold text-green-700">{statsData.facturasPendientes}</p>
-          </div>
-          <div className="rounded-xl bg-blue-50 p-4">
-            <div className="flex items-center gap-3">
-              <UserPlus className="h-5 w-5 text-blue-600" />
-              <p className="font-semibold text-gray-900">Socios activos</p>
-            </div>
-            <p className="mt-2 text-2xl font-bold text-blue-700">{statsData.sociosActivos}</p>
+            <p className="mt-2 text-sm text-gray-600">Usa este panel solo como punto de entrada. La gestion diaria conviene hacerla desde cada modulo.</p>
           </div>
         </div>
       </div>

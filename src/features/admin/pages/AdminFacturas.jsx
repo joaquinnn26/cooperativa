@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, ExternalLink, Filter, Receipt, Save } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ExternalLink, Filter, Receipt, Save, Search, X } from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
 import useAppStore from '@/store/appStore.js'
 import useCooperativeStore from '@/store/cooperativeStore.js'
@@ -68,6 +68,12 @@ export default function AdminFacturas() {
   const [selectedBill, setSelectedBill] = useState(null)
   const [managementForm, setManagementForm] = useState(null)
   const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+
+  const closeBillManager = () => {
+    setSelectedBill(null)
+    setManagementForm(null)
+  }
 
   const loadBills = async () => {
     const data = await fetchBills()
@@ -104,6 +110,10 @@ export default function AdminFacturas() {
     () => services.find((service) => String(service.idServicio) === String(form.idServicio)) ?? null,
     [form.idServicio, services]
   )
+  const selectedBillSocio = useMemo(
+    () => socios.find((socio) => String(socio.idSocio) === String(selectedBill?.idSocio)) ?? null,
+    [selectedBill?.idSocio, socios]
+  )
 
   const summary = useMemo(
     () => ({
@@ -114,16 +124,28 @@ export default function AdminFacturas() {
     [facturas]
   )
 
+  const searchedBills = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    if (!query) return facturas
+
+    return facturas.filter((factura) =>
+      [factura.socioNombre, factura.socioUsuario, factura.service, factura.period, factura.id]
+        .join(' ')
+        .toLowerCase()
+        .includes(query)
+    )
+  }, [facturas, search])
+
   const filtered = useMemo(
     () =>
       filtro === 'Todas'
-        ? facturas
+        ? searchedBills
         : filtro === 'Pagadas'
-          ? facturas.filter((factura) => factura.status === 'paid')
+          ? searchedBills.filter((factura) => factura.status === 'paid')
           : filtro === 'Vencidas'
-            ? facturas.filter((factura) => factura.status === 'overdue')
-            : facturas.filter((factura) => factura.status === 'pending'),
-    [facturas, filtro]
+            ? searchedBills.filter((factura) => factura.status === 'overdue')
+            : searchedBills.filter((factura) => factura.status === 'pending'),
+    [filtro, searchedBills]
   )
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -220,6 +242,11 @@ export default function AdminFacturas() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-8">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Gestion de facturas</h1>
+        <p className="mt-2 text-gray-600">Primero cargas una factura. Despues la buscas y gestionas su estado desde el listado.</p>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-3">
         <div className="card">
           <p className="text-sm text-gray-500">Pendientes</p>
@@ -238,8 +265,8 @@ export default function AdminFacturas() {
       <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <form onSubmit={handleSubmit} className="card space-y-5">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Nueva factura</h1>
-            <p className="mt-2 text-gray-600">Carga la factura una sola vez y luego gestiona su estado desde el panel de control.</p>
+            <h2 className="text-2xl font-bold text-gray-900">Nueva factura</h2>
+            <p className="mt-2 text-gray-600">Selecciona el socio, el servicio aprobado y completa los datos de cobro.</p>
           </div>
 
           <div className="space-y-3">
@@ -272,6 +299,12 @@ export default function AdminFacturas() {
                 </option>
               ))}
             </select>
+
+            {selectedSocio && !services.length ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Este socio todavia no tiene servicios aprobados para facturar.
+              </div>
+            ) : null}
           </div>
 
           <div className="space-y-3">
@@ -314,7 +347,7 @@ export default function AdminFacturas() {
 
           <button
             type="submit"
-            disabled={!idEmpleado}
+            disabled={!idEmpleado || !services.length}
             className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Receipt className="mr-2 h-4 w-4" />
@@ -330,20 +363,79 @@ export default function AdminFacturas() {
 
         <div className="space-y-6">
           <div className="card">
-            <div className="mb-4 flex items-center gap-2">
-              <Filter className="h-4 w-4 text-gray-500" />
-              <select value={filtro} onChange={(event) => setFiltro(event.target.value)} className="rounded border px-3 py-2 text-sm">
-                <option>Todas</option>
-                <option>Pendientes</option>
-                <option>Vencidas</option>
-                <option>Pagadas</option>
-              </select>
-              <p className="ml-auto text-sm text-gray-500">
+            <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Listado de facturas</h2>
+                <p className="text-sm text-gray-500">Busca una factura y usa “Gestionar” para cambiar estado, monto o vencimiento.</p>
+              </div>
+              <p className="text-sm text-gray-500">
                 {filtered.length} factura{filtered.length === 1 ? '' : 's'}
               </p>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="mb-4 grid gap-3 md:grid-cols-[1fr_auto]">
+              <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2">
+                <Search className="h-4 w-4 text-gray-400" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Buscar por socio, documento, servicio o numero..."
+                  className="w-full text-sm outline-none"
+                />
+              </label>
+
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-gray-500" />
+                <select value={filtro} onChange={(event) => setFiltro(event.target.value)} className="rounded border px-3 py-2 text-sm">
+                  <option>Todas</option>
+                  <option>Pendientes</option>
+                  <option>Vencidas</option>
+                  <option>Pagadas</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-4 md:hidden">
+              {paginatedBills.map((factura) => (
+                <div key={factura.id} className="rounded-2xl border border-gray-200 bg-white p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-gray-900">{factura.socioNombre}</p>
+                      <p className="text-sm text-gray-600">{factura.service}</p>
+                      <p className="text-xs text-gray-500">Vence: {formatDate(factura.dueDate, 'es-AR')}</p>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusStyles(factura.status)}`}>
+                      {statusLabel(factura.status)}
+                    </span>
+                  </div>
+                  <div className="mt-4 flex items-center justify-between">
+                    <p className="text-lg font-bold text-gray-900">${Number(factura.amount).toLocaleString('es-AR')}</p>
+                    <div className="flex gap-2">
+                      {factura.paymentLink ? (
+                        <a
+                          href={factura.paymentLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                        >
+                          <ExternalLink className="mr-1 h-4 w-4" />
+                          Link
+                        </a>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => openBillManager(factura)}
+                        className="inline-flex items-center rounded-lg bg-slate-800 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-900"
+                      >
+                        Gestionar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-600">
                   <tr>
@@ -393,7 +485,11 @@ export default function AdminFacturas() {
                   ))}
                 </tbody>
               </table>
-              {!filtered.length ? <p className="py-8 text-center text-gray-500">No hay facturas cargadas.</p> : null}
+              {!filtered.length ? (
+                <p className="py-8 text-center text-gray-500">
+                  {search ? 'No hay facturas que coincidan con la busqueda.' : 'No hay facturas cargadas.'}
+                </p>
+              ) : null}
             </div>
             {filtered.length ? (
               <div className="mt-5 flex flex-col gap-3 border-t border-gray-100 pt-4 md:flex-row md:items-center md:justify-between">
@@ -428,28 +524,59 @@ export default function AdminFacturas() {
       </div>
 
       {selectedBill && managementForm ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
-          <div className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-xl">
-            <div className="flex items-start justify-between gap-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/40 p-3 md:flex md:items-center md:justify-center md:p-4"
+          onClick={closeBillManager}
+        >
+          <div
+            className="mx-auto flex h-[calc(100vh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl md:h-auto md:max-h-[88vh]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-4 py-4 md:px-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">Gestion de factura</h2>
+                <h2 className="text-xl font-bold text-gray-900 md:text-2xl">Gestion de factura</h2>
                 <p className="mt-1 text-sm text-gray-600">
                   Factura #{selectedBill.id} · {selectedBill.socioNombre} · {selectedBill.service}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedBill(null)
-                  setManagementForm(null)
-                }}
-                className="text-sm font-semibold text-gray-500 hover:text-gray-700"
+                onClick={closeBillManager}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                aria-label="Cerrar modal"
               >
-                Cerrar
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6">
+              <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl bg-blue-50 p-4 md:col-span-2">
+                <p className="text-xs uppercase text-blue-700">Datos del socio</p>
+                <div className="mt-2 grid gap-3 md:grid-cols-2">
+                  <div>
+                    <p className="text-xs text-gray-500">Nombre</p>
+                    <p className="font-semibold text-gray-900">{selectedBillSocio?.Persona?.Nombre || selectedBill?.socioNombre || 'No informado'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Apellido</p>
+                    <p className="font-semibold text-gray-900">{selectedBillSocio?.Persona?.Apellido || ''}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Documento</p>
+                    <p className="font-semibold text-gray-900">{selectedBillSocio?.Persona?.Documento || selectedBill?.socioUsuario || 'No informado'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Telefono</p>
+                    <p className="font-semibold text-gray-900">{selectedBillSocio?.Persona?.Telefono || 'No informado'}</p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <p className="text-xs text-gray-500">Correo</p>
+                    <p className="font-semibold text-gray-900">{selectedBillSocio?.Persona?.Email || 'No informado'}</p>
+                  </div>
+                </div>
+              </div>
+
               <div className="rounded-xl bg-gray-50 p-4">
                 <p className="text-xs uppercase text-gray-500">Estado</p>
                 <select
@@ -496,16 +623,24 @@ export default function AdminFacturas() {
               </div>
             </div>
 
-            <div className="mt-4 rounded-xl bg-gray-50 p-4">
+              <div className="mt-4 rounded-xl bg-gray-50 p-4">
               <p className="text-xs uppercase text-gray-500">Observaciones</p>
               <textarea
                 value={managementForm.observations}
                 onChange={(event) => setManagementForm((prev) => ({ ...prev, observations: event.target.value }))}
                 className="input-field mt-2 min-h-28"
               />
+              </div>
             </div>
 
-            <div className="mt-5 flex justify-end">
+            <div className="flex justify-end gap-2 border-t border-gray-200 px-4 py-4 md:px-6">
+              <button
+                type="button"
+                onClick={closeBillManager}
+                className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
               <button
                 type="button"
                 onClick={handleSaveBill}

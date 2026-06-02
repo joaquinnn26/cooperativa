@@ -40,9 +40,7 @@ export default function Login() {
       })
 
       const rol = data.rol
-      const redirect =
-        location.state?.from?.pathname ||
-        (rol === 'Administrador' ? '/admin' : rol === 'Empleado' ? '/empleado' : '/socio')
+      const redirect = rol === 'Administrador' ? '/admin' : rol === 'Empleado' ? '/empleado' : '/socio'
 
       navigate(redirect, { replace: true })
     } catch (error) {

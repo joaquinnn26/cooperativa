@@ -910,8 +910,17 @@ const useServiceWorkflowStore = create(
         try {
           const data = await jsonFetch(apiUrl('/medidor'))
           const normalized = ensureArray(data).map(normalizeMeter)
-          set({ meters: normalized })
-          return normalized
+          const currentMeters = get().meters
+          const merged = [
+            ...normalized,
+            ...currentMeters.filter(
+              (existing) =>
+                existing.Estado === 'Inactivo' &&
+                !normalized.some((incoming) => Number(incoming.idMedidor) === Number(existing.idMedidor))
+            )
+          ]
+          set({ meters: merged })
+          return merged
         } catch {
           return get().meters
         }
@@ -999,6 +1008,21 @@ const useServiceWorkflowStore = create(
                 ? { ...item, Estado: item.Estado === 'Activo' ? 'Inactivo' : 'Activo' }
                 : item
             )
+          }))
+          return true
+        }
+      },
+
+      deleteMeter: async (meterId) => {
+        try {
+          const deleted = await jsonFetch(apiUrl(`/medidor/${meterId}`), {
+            method: 'DELETE'
+          })
+          await get().fetchMeters()
+          return deleted
+        } catch {
+          set((state) => ({
+            meters: state.meters.filter((item) => item.idMedidor !== meterId)
           }))
           return true
         }

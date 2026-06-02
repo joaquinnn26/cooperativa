@@ -19,6 +19,7 @@ import AdminFacturas from '@/features/admin/pages/AdminFacturas.jsx'
 import AdminServicios from '@/features/admin/pages/AdminServicios.jsx'
 import AdminPagos from '@/features/admin/pages/AdminPagos.jsx'
 import AdminAnuncios from '@/features/admin/pages/AdminAnuncios.jsx'
+import AdminReclamos from '@/features/admin/pages/AdminReclamos.jsx'
 import AdminReportes from '@/features/admin/pages/AdminReportes.jsx'
 import AdminLecturas from '@/features/admin/pages/AdminLecturas.jsx'
 import AdminSolicitudesServicio from '@/features/admin/pages/AdminSolicitudesServicio.jsx'
@@ -68,6 +69,7 @@ export default function App() {
           <Route path="/admin/servicios" element={<AdminServicios />} />
           <Route path="/admin/pagos" element={<AdminPagos />} />
           <Route path="/admin/anuncios" element={<AdminAnuncios />} />
+          <Route path="/admin/reclamos" element={<AdminReclamos />} />
           <Route path="/admin/reportes" element={<AdminReportes />} />
           <Route path="/admin/lecturas" element={<AdminLecturas />} />
           <Route path="/admin/solicitudes-servicio" element={<AdminSolicitudesServicio />} />
