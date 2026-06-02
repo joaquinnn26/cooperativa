@@ -104,7 +104,8 @@ const useAuthStore = create((set) => ({
         Documento: form.documento,
         Nombre: form.nombre,
         Apellido: form.apellido,
-        Email: form.email
+        Email: form.email,
+        Telefono: form.telefono
       })
     })
 
@@ -139,6 +140,26 @@ const useAuthStore = create((set) => ({
     }
 
     set({ idSocio: idSocio != null ? String(idSocio) : null })
+  },
+
+  updateProfileSession: ({ email, nombre, usuario } = {}) => {
+    if (email != null) {
+      localStorage.setItem('email', String(email))
+    }
+
+    if (nombre != null) {
+      localStorage.setItem('nombre', String(nombre))
+    }
+
+    if (usuario != null) {
+      localStorage.setItem('usuario', String(usuario))
+    }
+
+    set((state) => ({
+      email: email != null ? String(email) : state.email,
+      nombre: nombre != null ? String(nombre) : state.nombre,
+      usuario: usuario != null ? String(usuario) : state.usuario
+    }))
   },
 
   getAuthHeaders: () => {

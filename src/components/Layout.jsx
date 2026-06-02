@@ -11,6 +11,7 @@ import {
   Megaphone,
   Receipt,
   Settings,
+  UserCircle2,
   Users,
   Wrench,
   X,
@@ -79,6 +80,7 @@ function buildPanelSections(role, cargo) {
       items: [
         { to: '/socio', label: 'Panel principal', icon: Bell },
         { to: '/facturas', label: 'Mis facturas', icon: Receipt },
+        { to: '/socio/perfil', label: 'Mi perfil', icon: UserCircle2 },
         { to: '/socio/mis-servicios', label: 'Mis servicios', icon: Settings },
         { to: '/socio/mis-mediciones', label: 'Mis mediciones', icon: Gauge }
       ]
@@ -225,7 +227,7 @@ export default function Layout() {
         {usuario && isPanelRoute ? (
           <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] py-6">
             <aside className="hidden lg:block">
-              <div className="sticky top-24 space-y-4">
+              <div className="sticky top-24 max-h-[calc(100vh-7rem)] space-y-4 overflow-y-auto pr-2">
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
                   <p className="text-sm text-gray-500">Sesion activa</p>
                   <p className="mt-1 text-lg font-semibold text-gray-900">{nombre || usuario}</p>
@@ -293,7 +295,7 @@ export default function Layout() {
               </button>
             </div>
 
-            <div className="p-4 space-y-4">
+            <div className="max-h-[calc(100vh-5.5rem)] overflow-y-auto p-4 space-y-4">
               <Link
                 to={panelPath}
                 onClick={() => setMenuOpen(false)}

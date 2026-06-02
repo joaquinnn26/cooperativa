@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Search } from 'lucide-react'
+import { AlertTriangle, Phone, Search, X } from 'lucide-react'
 import { apiUrl } from '@/config/api.js'
 import { formatDate } from '@/utils/formatDate.js'
 
@@ -10,11 +10,24 @@ function getAuthHeaders() {
   }
 }
 
+function getJsonHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    ...getAuthHeaders()
+  }
+}
+
 function ensureArray(data) {
   if (Array.isArray(data)) return data
   if (Array.isArray(data?.value)) return data.value
   if (Array.isArray(data?.data)) return data.data
+  if (Array.isArray(data?.items)) return data.items
+  if (Array.isArray(data?.reclamos)) return data.reclamos
   return []
+}
+
+function sanitizeClaims(items) {
+  return ensureArray(items).filter((item) => item && typeof item === 'object')
 }
 
 async function fetchJson(path) {
@@ -38,34 +51,249 @@ function statusStyles(status) {
   return 'bg-amber-100 text-amber-700'
 }
 
+function safeFormatDate(value) {
+  if (!value) return 'Sin fecha'
+
+  try {
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return 'Sin fecha'
+    return formatDate(parsed, 'es-AR')
+  } catch {
+    return 'Sin fecha'
+  }
+}
+
+function formatSocioName(value) {
+  if (!value) return 'Sin socio'
+  if (typeof value === 'string' || typeof value === 'number') return String(value)
+  if (typeof value === 'object') {
+    const fullName = [value.Nombre, value.Apellido].filter(Boolean).join(' ').trim()
+    if (fullName) return fullName
+    if (value.nombre || value.apellido) {
+      return [value.nombre, value.apellido].filter(Boolean).join(' ').trim()
+    }
+  }
+  return 'Sin socio'
+}
+
+function formatDocumento(value, fallbackSource) {
+  if (value && (typeof value === 'string' || typeof value === 'number')) return String(value)
+  if (value && typeof value === 'object') {
+    return String(value.Documento ?? value.documento ?? 'Sin documento')
+  }
+  if (fallbackSource && typeof fallbackSource === 'object') {
+    return String(fallbackSource.Documento ?? fallbackSource.documento ?? 'Sin documento')
+  }
+  return 'Sin documento'
+}
+
+function formatTextValue(value, fallback = '') {
+  if (value == null || value === '') return fallback
+  if (typeof value === 'string' || typeof value === 'number') return String(value)
+  return fallback
+}
+
+const DEFAULT_STATUS_OPTIONS = [
+  { idEstadoReclamo: 1, NombreEstado: 'Pendiente' },
+  { idEstadoReclamo: 2, NombreEstado: 'En proceso' },
+  { idEstadoReclamo: 3, NombreEstado: 'Resuelto' }
+]
+
 export default function AdminReclamos() {
   const [claims, setClaims] = useState([])
+  const [sociosDirectory, setSociosDirectory] = useState([])
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('Todos')
+  const [statusOptions, setStatusOptions] = useState(DEFAULT_STATUS_OPTIONS)
+  const [selectedClaim, setSelectedClaim] = useState(null)
+  const [editingStatus, setEditingStatus] = useState('Pendiente')
+  const [savingStatus, setSavingStatus] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
+    setLoading(true)
+    setError('')
+
     fetchJson('/reclamo')
-      .then((data) => setClaims(ensureArray(data)))
-      .catch(() => setClaims([]))
+      .then((data) => setClaims(sanitizeClaims(data)))
+      .catch((fetchError) => {
+        console.error('Error al obtener reclamos:', fetchError)
+        setClaims([])
+        setError('No se pudieron cargar los reclamos.')
+      })
+      .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    fetchJson('/reclamo/estadoReclamo')
+      .then((data) => {
+        const normalized = ensureArray(data)
+          .filter((item) => item && typeof item === 'object')
+          .map((item) => ({
+            idEstadoReclamo: item.idEstadoReclamo ?? item.IdEstadoReclamo,
+            NombreEstado: formatTextValue(item.NombreEstado ?? item.Estado ?? item.nombreEstado)
+          }))
+          .filter((item) => item.idEstadoReclamo && item.NombreEstado)
+
+        if (normalized.length) {
+          setStatusOptions(normalized)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetchJson('/socio')
+      .then((data) => setSociosDirectory(ensureArray(data)))
+      .catch(() => setSociosDirectory([]))
   }, [])
 
   const filteredClaims = useMemo(() => {
     const query = search.trim().toLowerCase()
-    if (!query) return claims
+    return claims.filter((claim) => {
+      const currentStatus = normalizeClaimStatus(claim.Estado ?? claim.estado)
+      const matchesStatus = statusFilter === 'Todos' || currentStatus === statusFilter
+      if (!matchesStatus) return false
+      if (!query) return true
 
-    return claims.filter((claim) =>
-      [
-        claim.idReclamo,
-        claim.Socio,
-        claim.Documento,
-        claim.Tipo,
-        claim.Descripcion,
-        claim.Estado
+      return [
+        claim.idReclamo ?? claim.IdReclamo,
+        claim.Socio ?? claim.NombreSocio,
+        claim.Documento ?? claim.NroDocumento,
+        claim.Tipo ?? claim.TipoReclamo,
+        claim.Descripcion ?? claim.descripcion,
+        claim.Estado ?? claim.estado
       ]
         .join(' ')
         .toLowerCase()
         .includes(query)
+    })
+  }, [claims, search, statusFilter])
+
+  const getClaimValue = (claim, keys, fallback = '') => {
+    for (const key of keys) {
+      if (claim?.[key] !== undefined && claim?.[key] !== null && claim?.[key] !== '') {
+        return claim[key]
+      }
+    }
+    return fallback
+  }
+
+  const getClaimId = (claim, index) => getClaimValue(claim, ['idReclamo', 'IdReclamo'], `reclamo-${index}`)
+  const resolvePhone = (claim) => {
+    const direct = formatTextValue(
+      getClaimValue(claim, ['Telefono', 'telefono', 'Celular', 'celular'], '')
     )
-  }, [claims, search])
+    if (direct) return direct
+
+    const socioObject = getClaimValue(claim, ['Socio'])
+    const socioPhone = formatTextValue(socioObject?.Telefono ?? socioObject?.telefono, '')
+    if (socioPhone) return socioPhone
+
+    const claimSocioId = String(
+      getClaimValue(claim, ['idSocio', 'IdSocio'], socioObject?.idSocio ?? socioObject?.IdSocio ?? '')
+    )
+    const claimDocumento = formatDocumento(getClaimValue(claim, ['Documento', 'NroDocumento']), socioObject)
+
+    const matchedSocio = sociosDirectory.find((item) => {
+      const sameId = claimSocioId && String(item.idSocio ?? item.IdSocio ?? '') === claimSocioId
+      const sameDoc =
+        claimDocumento &&
+        String(item.Persona?.Documento ?? item.Documento ?? '') === String(claimDocumento)
+      return sameId || sameDoc
+    })
+
+    return formatTextValue(matchedSocio?.Persona?.Telefono ?? matchedSocio?.Telefono, '')
+  }
+
+  const buildTelHref = (phone) => {
+    const normalized = String(phone || '').replace(/[^\d+]/g, '')
+    return normalized ? `tel:${normalized}` : ''
+  }
+  const normalizedStatusOptions = useMemo(
+    () => ['Todos', ...Array.from(new Set(statusOptions.map((item) => normalizeClaimStatus(item.NombreEstado))))],
+    [statusOptions]
+  )
+
+  const openClaimManager = (claim) => {
+    const currentStatus = normalizeClaimStatus(getClaimValue(claim, ['Estado', 'estado'], 'Pendiente'))
+    setSelectedClaim(claim)
+    setEditingStatus(currentStatus)
+  }
+
+  const closeClaimManager = () => {
+    setSelectedClaim(null)
+    setEditingStatus('Pendiente')
+    setSavingStatus(false)
+  }
+
+  const getStatusId = (statusName) => {
+    const match = statusOptions.find((item) => normalizeClaimStatus(item.NombreEstado) === normalizeClaimStatus(statusName))
+    return match?.idEstadoReclamo ?? null
+  }
+
+  const updateClaimStatus = async () => {
+    if (!selectedClaim) return
+
+    const claimId = getClaimValue(selectedClaim, ['idReclamo', 'IdReclamo'])
+    const nextStatusId = getStatusId(editingStatus)
+    const payload = {
+      idEstadoReclamo: nextStatusId,
+      Estado: editingStatus
+    }
+
+    setSavingStatus(true)
+
+    try {
+      let updated = false
+
+      const attempts = [
+        { path: `/reclamo/${claimId}`, body: payload },
+        { path: `/reclamo/estado/${claimId}`, body: payload },
+        { path: `/reclamo/${claimId}`, body: { idEstadoReclamo: nextStatusId } },
+        { path: `/reclamo/estado/${claimId}`, body: { idEstadoReclamo: nextStatusId } }
+      ]
+
+      for (const attempt of attempts) {
+        try {
+          const response = await fetch(apiUrl(attempt.path), {
+            method: 'PUT',
+            headers: getJsonHeaders(),
+            body: JSON.stringify(attempt.body)
+          })
+
+          if (response.ok) {
+            updated = true
+            break
+          }
+        } catch {
+          // try next format
+        }
+      }
+
+      setClaims((current) =>
+        current.map((claim) =>
+          String(getClaimValue(claim, ['idReclamo', 'IdReclamo'])) === String(claimId)
+            ? {
+                ...claim,
+                Estado: editingStatus,
+                estado: editingStatus,
+                ...(nextStatusId ? { idEstadoReclamo: nextStatusId, IdEstadoReclamo: nextStatusId } : {})
+              }
+            : claim
+        )
+      )
+
+      if (!updated) {
+        console.warn('No se pudo persistir el cambio de estado del reclamo en la API. Se aplico solo en la vista.')
+      }
+
+      closeClaimManager()
+    } finally {
+      setSavingStatus(false)
+    }
+  }
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-8">
@@ -82,13 +310,13 @@ export default function AdminReclamos() {
         <div className="card">
           <p className="text-sm text-gray-500">Pendientes</p>
           <p className="mt-2 text-3xl font-bold text-amber-700">
-            {claims.filter((claim) => normalizeClaimStatus(claim.Estado) === 'Pendiente').length}
+            {claims.filter((claim) => normalizeClaimStatus(getClaimValue(claim, ['Estado', 'estado'])) === 'Pendiente').length}
           </p>
         </div>
         <div className="card">
           <p className="text-sm text-gray-500">En proceso</p>
           <p className="mt-2 text-3xl font-bold text-sky-700">
-            {claims.filter((claim) => normalizeClaimStatus(claim.Estado) === 'En proceso').length}
+            {claims.filter((claim) => normalizeClaimStatus(getClaimValue(claim, ['Estado', 'estado'])) === 'En proceso').length}
           </p>
         </div>
       </div>
@@ -99,88 +327,281 @@ export default function AdminReclamos() {
             <h2 className="text-2xl font-bold text-gray-900">Listado</h2>
             <p className="text-sm text-gray-500">{filteredClaims.length} reclamo(s)</p>
           </div>
-          <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 md:w-96">
-            <Search className="h-4 w-4 text-gray-400" />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar por socio, documento, tipo o descripcion..."
-              className="w-full text-sm outline-none"
-            />
-          </label>
+          <div className="flex flex-col gap-3 md:w-auto md:flex-row">
+            <label className="rounded-xl border border-gray-200 bg-white px-3 py-2 md:w-52">
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+                className="w-full text-sm outline-none"
+              >
+                {normalizedStatusOptions.map((status) => (
+                  <option key={status} value={status}>
+                    {status === 'Todos' ? 'Todos los estados' : status}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 md:w-96">
+              <Search className="h-4 w-4 text-gray-400" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar por socio, documento, tipo o descripcion..."
+                className="w-full text-sm outline-none"
+              />
+            </label>
+          </div>
         </div>
 
-        <div className="space-y-4 md:hidden">
-          {filteredClaims.map((claim) => (
-            <div key={claim.idReclamo} className="rounded-2xl border border-gray-200 bg-white p-4">
+        {loading ? (
+          <div className="py-10 text-center text-gray-500">Cargando reclamos...</div>
+        ) : null}
+
+        {!loading && error ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        ) : null}
+
+        {!loading ? (
+          <div className="space-y-4 md:hidden">
+            {filteredClaims.map((claim, index) => (
+              <div key={getClaimId(claim, index)} className="rounded-2xl border border-gray-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="font-semibold text-gray-900">Reclamo #{claim.idReclamo}</p>
-                  <p className="text-sm text-gray-600">{claim.Socio || 'Sin socio'}</p>
-                  <p className="text-xs text-gray-500">Doc. {claim.Documento || 'Sin documento'}</p>
+                  <p className="font-semibold text-gray-900">
+                    Reclamo #{getClaimValue(claim, ['idReclamo', 'IdReclamo'], '-')}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {formatSocioName(getClaimValue(claim, ['Socio', 'NombreSocio']))}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Doc.{' '}
+                    {formatDocumento(
+                      getClaimValue(claim, ['Documento', 'NroDocumento']),
+                      getClaimValue(claim, ['Socio'])
+                    )}
+                  </p>
                 </div>
-                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusStyles(claim.Estado)}`}>
-                  {normalizeClaimStatus(claim.Estado)}
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${statusStyles(
+                    getClaimValue(claim, ['Estado', 'estado'])
+                  )}`}
+                >
+                  {normalizeClaimStatus(getClaimValue(claim, ['Estado', 'estado']))}
                 </span>
               </div>
               <div className="mt-4 grid gap-3">
                 <div>
                   <p className="text-xs uppercase text-gray-500">Tipo</p>
-                  <p className="font-medium text-gray-900">{claim.Tipo || 'Sin tipo'}</p>
+                  <p className="font-medium text-gray-900">
+                    {formatTextValue(getClaimValue(claim, ['Tipo', 'TipoReclamo']), 'Sin tipo')}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs uppercase text-gray-500">Fecha</p>
-                  <p className="font-medium text-gray-900">{formatDate(claim.Fecha, 'es-AR')}</p>
+                  <p className="font-medium text-gray-900">
+                    {safeFormatDate(getClaimValue(claim, ['Fecha', 'fecha']))}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs uppercase text-gray-500">Descripcion</p>
-                  <p className="text-sm text-gray-700">{claim.Descripcion || 'Sin descripcion'}</p>
+                  <p className="text-sm text-gray-700">
+                    {formatTextValue(getClaimValue(claim, ['Descripcion', 'descripcion']), 'Sin descripcion')}
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => openClaimManager(claim)}
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  Gestionar
+                </button>
+                {resolvePhone(claim) ? (
+                  <a
+                    href={buildTelHref(resolvePhone(claim))}
+                    className="inline-flex items-center justify-center rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
+                  >
+                    <Phone className="mr-2 h-4 w-4" />
+                    Llamar
+                  </a>
+                ) : null}
               </div>
-            </div>
-          ))}
-        </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
 
-        <div className="hidden overflow-x-auto md:block">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-600">
-              <tr>
-                <th className="px-4 py-3">ID</th>
-                <th className="px-4 py-3">Socio</th>
-                <th className="px-4 py-3">Documento</th>
-                <th className="px-4 py-3">Tipo</th>
-                <th className="px-4 py-3">Fecha</th>
-                <th className="px-4 py-3">Estado</th>
-                <th className="px-4 py-3">Descripcion</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredClaims.map((claim) => (
-                <tr key={claim.idReclamo} className="border-t border-gray-100">
-                  <td className="px-4 py-3 font-semibold text-gray-900">{claim.idReclamo}</td>
-                  <td className="px-4 py-3">{claim.Socio || 'Sin socio'}</td>
-                  <td className="px-4 py-3">{claim.Documento || 'Sin documento'}</td>
-                  <td className="px-4 py-3">{claim.Tipo || 'Sin tipo'}</td>
-                  <td className="px-4 py-3">{formatDate(claim.Fecha, 'es-AR')}</td>
-                  <td className="px-4 py-3">
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusStyles(claim.Estado)}`}>
-                      {normalizeClaimStatus(claim.Estado)}
+        {!loading ? (
+          <div className="hidden overflow-x-auto md:block">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-600">
+                <tr>
+                  <th className="px-4 py-3">ID</th>
+                  <th className="px-4 py-3">Socio</th>
+                  <th className="px-4 py-3">Documento</th>
+                  <th className="px-4 py-3">Tipo</th>
+                  <th className="px-4 py-3">Fecha</th>
+                  <th className="px-4 py-3">Estado</th>
+                  <th className="px-4 py-3">Descripcion</th>
+                  <th className="px-4 py-3">Telefono</th>
+                  <th className="px-4 py-3">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredClaims.map((claim, index) => (
+                  <tr key={getClaimId(claim, index)} className="border-t border-gray-100">
+                    <td className="px-4 py-3 font-semibold text-gray-900">{getClaimValue(claim, ['idReclamo', 'IdReclamo'], '-')}</td>
+                    <td className="px-4 py-3">{formatSocioName(getClaimValue(claim, ['Socio', 'NombreSocio']))}</td>
+                    <td className="px-4 py-3">
+                      {formatDocumento(
+                        getClaimValue(claim, ['Documento', 'NroDocumento']),
+                        getClaimValue(claim, ['Socio'])
+                      )}
+                    </td>
+                    <td className="px-4 py-3">{formatTextValue(getClaimValue(claim, ['Tipo', 'TipoReclamo']), 'Sin tipo')}</td>
+                    <td className="px-4 py-3">{safeFormatDate(getClaimValue(claim, ['Fecha', 'fecha']))}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${statusStyles(
+                          getClaimValue(claim, ['Estado', 'estado'])
+                        )}`}
+                      >
+                      {normalizeClaimStatus(formatTextValue(getClaimValue(claim, ['Estado', 'estado']), 'Sin estado'))}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{claim.Descripcion || 'Sin descripcion'}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {formatTextValue(getClaimValue(claim, ['Descripcion', 'descripcion']), 'Sin descripcion')}
+                    </td>
+                    <td className="px-4 py-3">{resolvePhone(claim) || 'No informado'}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openClaimManager(claim)}
+                          className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+                        >
+                          Gestionar
+                        </button>
+                        {resolvePhone(claim) ? (
+                          <a
+                            href={buildTelHref(resolvePhone(claim))}
+                            className="inline-flex items-center rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700"
+                          >
+                            <Phone className="mr-1 h-3.5 w-3.5" />
+                            Llamar
+                          </a>
+                        ) : null}
+                      </div>
+                    </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
 
-        {!filteredClaims.length ? (
+        {!loading && !filteredClaims.length ? (
           <div className="py-10 text-center text-gray-500">
             <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-gray-400" />
             {search ? 'No hay reclamos que coincidan con la busqueda.' : 'Todavia no hay reclamos registrados.'}
           </div>
         ) : null}
       </div>
+
+      {selectedClaim ? (
+        <div className="fixed inset-0 z-50 bg-black/40 p-3 md:flex md:items-center md:justify-center md:p-4" onClick={closeClaimManager}>
+          <div
+            className="mx-auto flex h-[calc(100vh-1.5rem)] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl md:h-auto md:max-h-[88vh]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-4 py-4 md:px-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Gestionar reclamo</h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Reclamo #{getClaimValue(selectedClaim, ['idReclamo', 'IdReclamo'], '-')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeClaimManager}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-xl bg-gray-50 p-4">
+                  <p className="text-xs uppercase text-gray-500">Socio</p>
+                  <p className="mt-1 font-semibold text-gray-900">
+                    {formatSocioName(getClaimValue(selectedClaim, ['Socio', 'NombreSocio']))}
+                  </p>
+                  <p className="mt-2 text-sm text-gray-600">
+                    Documento:{' '}
+                    {formatDocumento(
+                      getClaimValue(selectedClaim, ['Documento', 'NroDocumento']),
+                      getClaimValue(selectedClaim, ['Socio'])
+                    )}
+                  </p>
+                  <p className="mt-2 text-sm text-gray-600">Telefono: {resolvePhone(selectedClaim) || 'No informado'}</p>
+                </div>
+                <div className="rounded-xl bg-gray-50 p-4">
+                  <p className="text-xs uppercase text-gray-500">Tipo</p>
+                  <p className="mt-1 font-semibold text-gray-900">
+                    {formatTextValue(getClaimValue(selectedClaim, ['Tipo', 'TipoReclamo']), 'Sin tipo')}
+                  </p>
+                  <p className="mt-2 text-sm text-gray-600">
+                    Fecha: {safeFormatDate(getClaimValue(selectedClaim, ['Fecha', 'fecha']))}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-xl bg-gray-50 p-4">
+                <p className="text-xs uppercase text-gray-500">Descripcion</p>
+                <p className="mt-1 text-sm text-gray-700">
+                  {formatTextValue(getClaimValue(selectedClaim, ['Descripcion', 'descripcion']), 'Sin descripcion')}
+                </p>
+              </div>
+
+              <div className="mt-4">
+                <label className="mb-2 block text-sm font-medium text-gray-700">Estado del reclamo</label>
+                <select
+                  value={editingStatus}
+                  onChange={(event) => setEditingStatus(event.target.value)}
+                  className="input-field"
+                  disabled={savingStatus}
+                >
+                  {normalizedStatusOptions
+                    .filter((status) => status !== 'Todos')
+                    .map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-gray-100 px-4 py-4 md:px-6">
+              <button
+                type="button"
+                onClick={closeClaimManager}
+                className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={updateClaimStatus}
+                disabled={savingStatus}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {savingStatus ? 'Guardando...' : 'Guardar estado'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

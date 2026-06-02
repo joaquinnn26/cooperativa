@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Droplet, ExternalLink, FilePlus2, Gauge, Receipt, Settings, Zap } from 'lucide-react'
+import { AlertTriangle, Droplet, ExternalLink, FilePlus2, Gauge, Receipt, Settings, UserCircle2, Zap } from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
 import useCooperativeStore from '@/store/cooperativeStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
@@ -203,6 +203,14 @@ export default function SocioDashboard() {
         <h2 className="mb-6 text-2xl font-bold text-gray-900">Acciones rapidas</h2>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <Link to="/socio/perfil" className="flex items-center rounded-lg bg-slate-50 p-4 transition-colors hover:bg-slate-100">
+            <UserCircle2 className="mr-4 h-8 w-8 text-slate-700" />
+            <div>
+              <h3 className="font-semibold text-gray-900">Mi perfil</h3>
+              <p className="text-sm text-gray-600">Telefono, direccion y contrasena</p>
+            </div>
+          </Link>
+
           <Link to="/socio/mis-servicios" className="flex items-center rounded-lg bg-blue-50 p-4 transition-colors hover:bg-blue-100">
             <Settings className="mr-4 h-8 w-8 text-blue-600" />
             <div>

@@ -1,8 +1,9 @@
 import React from 'react'
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from '@/components/Layout.jsx'
 import Home from '@/features/home/Home.jsx'
 import Login from '@/features/auth/pages/Login.jsx'
+import RecoverPassword from '@/features/auth/pages/RecoverPassword.jsx'
 import Register from '@/features/auth/pages/Register.jsx'
 import SocioDashboard from '@/features/socio/pages/SocioDashboard.jsx'
 import ReclamosList from '@/features/socio/pages/ReclamosList.jsx'
@@ -12,6 +13,7 @@ import SocioSolicitudServicioNueva from '@/features/socio/pages/SocioSolicitudSe
 import SocioServicios from '@/features/socio/pages/SocioServicios.jsx'
 import SocioMediciones from '@/features/socio/pages/SocioMediciones.jsx'
 import SocioFacturas from '@/features/socio/pages/SocioFacturas.jsx'
+import SocioPerfil from '@/features/socio/pages/SocioPerfil.jsx'
 import AdminDashboard from '@/features/admin/pages/AdminDashboard.jsx'
 import AdminSocios from '@/features/admin/pages/AdminSocios.jsx'
 import AdminEmpleados from '@/features/admin/pages/AdminEmpleados.jsx'
@@ -31,7 +33,39 @@ import EmpleadoSolicitudesTecnicas from '@/features/empleado/pages/EmpleadoSolic
 import HelpCenter from '@/features/help/pages/HelpCenter.jsx'
 import ProtectedRoute from '@/components/ProtectedRoute.jsx'
 import PublicOnlyRoute from '@/components/PublicOnlyRoute.jsx'
+import useAuthStore from '@/store/authStore.js'
+import { normalizeRole } from '@/utils/auth.js'
 import { Servicios, Contacto, Terminos, Guia, FAQ, NotFound } from '@/features/static/pages/StaticPage.jsx'
+
+function ReclamosRedirect() {
+  const rol = useAuthStore((state) => state.rol)
+  const normalizedRole = normalizeRole(rol)
+
+  if (normalizedRole === 'Administrador') {
+    return <Navigate to="/admin/reclamos" replace />
+  }
+
+  if (normalizedRole === 'Socio') {
+    return <Navigate to="/socio/reclamos" replace />
+  }
+
+  return <Navigate to="/login" replace />
+}
+
+function NuevoReclamoRedirect() {
+  const rol = useAuthStore((state) => state.rol)
+  const normalizedRole = normalizeRole(rol)
+
+  if (normalizedRole === 'Socio') {
+    return <Navigate to="/socio/reclamos/nuevo" replace />
+  }
+
+  if (normalizedRole === 'Administrador') {
+    return <Navigate to="/admin/reclamos" replace />
+  }
+
+  return <Navigate to="/login" replace />
+}
 
 export default function App() {
   return (
@@ -43,6 +77,9 @@ export default function App() {
         <Route path="/ayuda/faq" element={<FAQ />} />
         <Route path="/servicios" element={<Servicios />} />
         <Route path="/facturas" element={<SocioFacturas />} />
+        <Route path="/reclamos" element={<ReclamosRedirect />} />
+        <Route path="/reclamos/nuevo" element={<NuevoReclamoRedirect />} />
+        <Route path="/recuperar-contrasena" element={<RecoverPassword />} />
         <Route path="/contacto" element={<Contacto />} />
         <Route path="/terminos" element={<Terminos />} />
 
@@ -59,6 +96,7 @@ export default function App() {
           <Route path="/socio/solicitudes-servicio/nueva" element={<SocioSolicitudServicioNueva />} />
           <Route path="/socio/mis-servicios" element={<SocioServicios />} />
           <Route path="/socio/mis-mediciones" element={<SocioMediciones />} />
+          <Route path="/socio/perfil" element={<SocioPerfil />} />
         </Route>
 
         <Route element={<ProtectedRoute role="Admin" />}>

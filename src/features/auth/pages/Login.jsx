@@ -15,19 +15,18 @@ export default function Login() {
     password: '',
     remember: false
   })
-
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target
+  const handleChange = (event) => {
+    const { name, value, type, checked } = event.target
     setForm((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }))
   }
 
-  const handleLogin = async (e) => {
-    e.preventDefault()
+  const handleLogin = async (event) => {
+    event.preventDefault()
     setIsLoading(true)
 
     try {
@@ -35,18 +34,17 @@ export default function Login() {
 
       addNotification({
         title: 'Bienvenido',
-        message: data.mensaje || 'Has iniciado sesion correctamente',
+        message: data.mensaje || 'Has iniciado sesion correctamente.',
         type: 'success'
       })
 
       const rol = data.rol
       const redirect = rol === 'Administrador' ? '/admin' : rol === 'Empleado' ? '/empleado' : '/socio'
-
       navigate(redirect, { replace: true })
     } catch (error) {
       addNotification({
         title: 'Error',
-        message: error.message || 'Credenciales incorrectas',
+        message: error.message || 'Credenciales incorrectas.',
         type: 'error'
       })
     } finally {
@@ -55,13 +53,13 @@ export default function Login() {
   }
 
   return (
-    <div className="max-w-md mx-auto py-10 px-4">
+    <div className="mx-auto max-w-md px-4 py-10">
       <div className="card">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <LogIn className="w-8 h-8 text-white" />
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-600">
+            <LogIn className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Iniciar sesion</h1>
+          <h1 className="mb-2 text-2xl font-bold text-gray-900">Iniciar sesion</h1>
           <p className="text-gray-600">Accede a tu cuenta</p>
         </div>
 
@@ -73,7 +71,7 @@ export default function Login() {
 
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Correo electronico</label>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Correo electronico</label>
             <input
               name="email"
               value={form.email}
@@ -86,7 +84,7 @@ export default function Login() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Contrasena</label>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Contrasena</label>
             <input
               name="password"
               value={form.password}
@@ -96,6 +94,11 @@ export default function Login() {
               className="input-field"
               placeholder="Tu contrasena"
             />
+            <div className="mt-2 text-right">
+              <Link to="/recuperar-contrasena" className="text-sm font-medium text-blue-600 hover:text-blue-500">
+                Olvide mi contrasena
+              </Link>
+            </div>
           </div>
 
           <div className="flex items-center justify-start">
@@ -105,17 +108,13 @@ export default function Login() {
                 checked={form.remember}
                 onChange={handleChange}
                 type="checkbox"
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                className="h-4 w-4 rounded border-gray-300 text-blue-600"
               />
               <span className="ml-2">Recordarme</span>
             </label>
           </div>
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full btn-primary disabled:opacity-50"
-          >
+          <button type="submit" disabled={isLoading} className="w-full btn-primary disabled:opacity-50">
             {isLoading ? 'Iniciando sesion...' : 'Iniciar sesion'}
           </button>
         </form>
@@ -123,7 +122,7 @@ export default function Login() {
         <div className="mt-6 text-center">
           <p className="text-gray-600">
             No tienes cuenta?
-            <Link to="/register" className="text-blue-600 font-medium ml-1">
+            <Link to="/register" className="ml-1 font-medium text-blue-600">
               Registrate
             </Link>
           </p>
