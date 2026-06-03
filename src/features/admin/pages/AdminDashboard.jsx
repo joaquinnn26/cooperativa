@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   BarChart3,
   Briefcase,
+  CalendarCheck,
   ClipboardList,
   FileText,
   Megaphone,
@@ -28,7 +29,7 @@ function normalizeBoolean(value, fallback = true) {
   if (typeof value === 'number') return value === 1
   if (typeof value === 'string') {
     const normalized = value.trim().toLowerCase()
-    if (['true', '1', 'activo', 'si', 'sí'].includes(normalized)) return true
+    if (['true', '1', 'activo', 'si'].includes(normalized)) return true
     if (['false', '0', 'inactivo', 'no'].includes(normalized)) return false
   }
   return fallback
@@ -96,6 +97,14 @@ const QUICK_MODULES = [
     icon: AlertTriangle,
     bg: 'bg-red-50',
     color: 'text-red-600'
+  },
+  {
+    title: 'Turnos',
+    description: 'Aprobar o rechazar solicitudes.',
+    to: '/admin/turnos',
+    icon: CalendarCheck,
+    bg: 'bg-cyan-50',
+    color: 'text-cyan-600'
   }
 ]
 

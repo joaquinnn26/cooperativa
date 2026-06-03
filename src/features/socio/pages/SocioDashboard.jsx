@@ -1,6 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Droplet, ExternalLink, FilePlus2, Gauge, Receipt, Settings, UserCircle2, Zap } from 'lucide-react'
+import {
+  AlertTriangle,
+  CalendarCheck,
+  CalendarPlus,
+  Droplet,
+  ExternalLink,
+  FilePlus2,
+  Gauge,
+  Settings,
+  UserCircle2,
+  Zap
+} from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
 import useCooperativeStore from '@/store/cooperativeStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
@@ -240,6 +251,22 @@ export default function SocioDashboard() {
             <div>
               <h3 className="font-semibold text-gray-900">Solicitudes</h3>
               <p className="text-sm text-gray-600">Pedir altas y seguir el tramite</p>
+            </div>
+          </Link>
+
+          <Link to="/socio/turnos/nuevo" className="flex items-center rounded-lg bg-cyan-50 p-4 transition-colors hover:bg-cyan-100">
+            <CalendarPlus className="mr-4 h-8 w-8 text-cyan-600" />
+            <div>
+              <h3 className="font-semibold text-gray-900">Nuevo turno</h3>
+              <p className="text-sm text-gray-600">Solicitar atencion administrativa</p>
+            </div>
+          </Link>
+
+          <Link to="/socio/turnos" className="flex items-center rounded-lg bg-indigo-50 p-4 transition-colors hover:bg-indigo-100">
+            <CalendarCheck className="mr-4 h-8 w-8 text-indigo-600" />
+            <div>
+              <h3 className="font-semibold text-gray-900">Mis turnos</h3>
+              <p className="text-sm text-gray-600">Ver y aceptar propuestas</p>
             </div>
           </Link>
         </div>

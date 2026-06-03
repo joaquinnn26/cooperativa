@@ -14,6 +14,8 @@ import SocioServicios from '@/features/socio/pages/SocioServicios.jsx'
 import SocioMediciones from '@/features/socio/pages/SocioMediciones.jsx'
 import SocioFacturas from '@/features/socio/pages/SocioFacturas.jsx'
 import SocioPerfil from '@/features/socio/pages/SocioPerfil.jsx'
+import TurnoNuevo from '@/features/socio/pages/TurnoNuevo.jsx'
+import MisTurnos from '@/features/socio/pages/MisTurnos.jsx'
 import AdminDashboard from '@/features/admin/pages/AdminDashboard.jsx'
 import AdminSocios from '@/features/admin/pages/AdminSocios.jsx'
 import AdminEmpleados from '@/features/admin/pages/AdminEmpleados.jsx'
@@ -27,6 +29,7 @@ import AdminLecturas from '@/features/admin/pages/AdminLecturas.jsx'
 import AdminSolicitudesServicio from '@/features/admin/pages/AdminSolicitudesServicio.jsx'
 import AdminRequisitosServicio from '@/features/admin/pages/AdminRequisitosServicio.jsx'
 import AdminMedidores from '@/features/admin/pages/AdminMedidores.jsx'
+import AdminTurnos from '@/features/admin/pages/AdminTurnos.jsx'
 import EmpleadoDashboard from '@/features/empleado/pages/EmpleadoDashboard.jsx'
 import EmpleadoMediciones from '@/features/empleado/pages/EmpleadoMediciones.jsx'
 import EmpleadoSolicitudesTecnicas from '@/features/empleado/pages/EmpleadoSolicitudesTecnicas.jsx'
@@ -97,6 +100,8 @@ export default function App() {
           <Route path="/socio/mis-servicios" element={<SocioServicios />} />
           <Route path="/socio/mis-mediciones" element={<SocioMediciones />} />
           <Route path="/socio/perfil" element={<SocioPerfil />} />
+          <Route path="/socio/turnos" element={<MisTurnos />} />
+          <Route path="/socio/turnos/nuevo" element={<TurnoNuevo />} />
         </Route>
 
         <Route element={<ProtectedRoute role="Admin" />}>
@@ -113,6 +118,7 @@ export default function App() {
           <Route path="/admin/solicitudes-servicio" element={<AdminSolicitudesServicio />} />
           <Route path="/admin/requisitos-servicio" element={<AdminRequisitosServicio />} />
           <Route path="/admin/medidores" element={<AdminMedidores />} />
+          <Route path="/admin/turnos" element={<AdminTurnos />} />
         </Route>
 
         <Route element={<ProtectedRoute role="Empleado" />}>
