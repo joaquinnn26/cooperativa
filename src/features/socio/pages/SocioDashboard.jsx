@@ -36,6 +36,25 @@ function serviceIcon(nombre) {
   return normalizeServiceName(nombre).includes('agua') ? Droplet : Zap
 }
 
+function meterMatchesService(meter, service, socioId) {
+  const sameAssignment =
+    meter.idServicioSocio != null &&
+    service.idServicioSocio != null &&
+    String(meter.idServicioSocio) === String(service.idServicioSocio)
+
+  if (sameAssignment) return true
+
+  const sameSocio =
+    String(meter.idSocio || '') === String(service.idSocio || socioId || '') ||
+    (meter.socioUsuario && service.socioUsuario && String(meter.socioUsuario) === String(service.socioUsuario))
+
+  const sameService =
+    (meter.idServicio && service.idServicio && Number(meter.idServicio) === Number(service.idServicio)) ||
+    normalizeServiceName(meter.servicioNombre) === normalizeServiceName(service.servicioNombre)
+
+  return sameSocio && sameService
+}
+
 export default function SocioDashboard() {
   const nombre = useAuthStore((state) => state.nombre)
   const usuario = useAuthStore((state) => state.usuario)
@@ -43,6 +62,7 @@ export default function SocioDashboard() {
   const fetchBillsBySocio = useCooperativeStore((state) => state.fetchBillsBySocio)
   const fetchSocioServices = useServiceWorkflowStore((state) => state.fetchSocioServices)
   const fetchMeters = useServiceWorkflowStore((state) => state.fetchMeters)
+  const fetchMetersBySocio = useServiceWorkflowStore((state) => state.fetchMetersBySocio)
   const fetchMeasurementsBySocio = useServiceWorkflowStore((state) => state.fetchMeasurementsBySocio)
   const addNotification = useAppStore((state) => state.addNotification)
 
@@ -53,32 +73,34 @@ export default function SocioDashboard() {
     if (!socioId) return
 
     const loadData = async () => {
-      const [servicesData, metersData, measurementsData, billsData] = await Promise.all([
+      const [servicesData, measurementsData, billsData] = await Promise.all([
         fetchSocioServices(socioId),
-        fetchMeters(),
         fetchMeasurementsBySocio(socioId),
         fetchBillsBySocio({ idSocio: socioId, usuario })
       ])
+      const metersData = fetchMetersBySocio ? await fetchMetersBySocio(socioId) : await fetchMeters()
 
       const enrichedServices = (servicesData || []).map((service) => {
         const requiresMeter = serviceRequiresMeter(service.servicioNombre)
         const matchedMeter = requiresMeter
-          ? (metersData || []).find(
-              (meter) =>
-                String(meter.idSocio) === String(socioId) &&
-                normalizeServiceName(meter.servicioNombre) === normalizeServiceName(service.servicioNombre)
-            )
+          ? (metersData || []).find((meter) => meterMatchesService(meter, service, socioId))
           : null
 
-        const serviceMeasurements = (measurementsData || []).filter(
-          (measurement) => normalizeServiceName(measurement.servicioNombre) === normalizeServiceName(service.servicioNombre)
-        )
+        const serviceMeasurements = (measurementsData || []).filter((measurement) => {
+          const sameMeter =
+            matchedMeter?.NumeroMedidor &&
+            measurement.NumeroMedidor &&
+            String(measurement.NumeroMedidor) === String(matchedMeter.NumeroMedidor)
+          const sameService = normalizeServiceName(measurement.servicioNombre) === normalizeServiceName(service.servicioNombre)
+
+          return sameMeter || sameService
+        })
         const latestMeasurement = serviceMeasurements[0] || null
 
         return {
           ...service,
           requiereMedidor: requiresMeter,
-          numeroMedidor: matchedMeter?.NumeroMedidor || '',
+          numeroMedidor: matchedMeter?.NumeroMedidor || service.numeroMedidor || latestMeasurement?.NumeroMedidor || '',
           ultimaLectura: latestMeasurement?.LecturaActual ?? null,
           ultimoConsumo: latestMeasurement?.Consumo ?? null
         }
@@ -89,7 +111,7 @@ export default function SocioDashboard() {
     }
 
     loadData()
-  }, [fetchBillsBySocio, fetchMeasurementsBySocio, fetchMeters, fetchSocioServices, socioId, usuario])
+  }, [fetchBillsBySocio, fetchMeasurementsBySocio, fetchMeters, fetchMetersBySocio, fetchSocioServices, socioId, usuario])
 
   const pendingBills = useMemo(() => bills.filter((bill) => bill.status !== 'paid'), [bills])
 

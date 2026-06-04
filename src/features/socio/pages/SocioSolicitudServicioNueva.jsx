@@ -8,6 +8,26 @@ import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
 import { useCurrentSocio } from '@/hooks/useCurrentSocio.js'
 
 const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
+const CLOSED_REQUEST_STATUSES = new Set(['rechazada', 'rechazado', 'cancelada', 'cancelado'])
+const INACTIVE_SERVICE_STATUSES = new Set(['inactivo', 'inactiva', 'baja', 'cancelada', 'cancelado'])
+
+function normalizeStatus(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+}
+
+function isBlockingServiceAssignment(assignment) {
+  const status = normalizeStatus(assignment?.estado ?? assignment?.Estado ?? 'Activo')
+  return !INACTIVE_SERVICE_STATUSES.has(status)
+}
+
+function isBlockingServiceRequest(request) {
+  const status = normalizeStatus(request?.estado ?? request?.Estado ?? 'Pendiente')
+  return !CLOSED_REQUEST_STATUSES.has(status)
+}
 
 export default function SocioSolicitudServicioNueva() {
   const navigate = useNavigate()
@@ -17,9 +37,12 @@ export default function SocioSolicitudServicioNueva() {
   const addNotification = useAppStore((state) => state.addNotification)
   const fetchServicesCatalog = useServiceWorkflowStore((state) => state.fetchServicesCatalog)
   const fetchRequirementsByService = useServiceWorkflowStore((state) => state.fetchRequirementsByService)
+  const fetchSocioServices = useServiceWorkflowStore((state) => state.fetchSocioServices)
+  const fetchServiceRequestsBySocio = useServiceWorkflowStore((state) => state.fetchServiceRequestsBySocio)
   const createServiceRequest = useServiceWorkflowStore((state) => state.createServiceRequest)
 
   const [services, setServices] = useState([])
+  const [blockedServiceIds, setBlockedServiceIds] = useState([])
   const [requirements, setRequirements] = useState([])
   const [loadingServices, setLoadingServices] = useState(true)
   const [loadingRequirements, setLoadingRequirements] = useState(false)
@@ -34,23 +57,60 @@ export default function SocioSolicitudServicioNueva() {
   useEffect(() => {
     let cancelled = false
     setLoadingServices(true)
-    fetchServicesCatalog()
-      .then((data) => {
-        if (cancelled) return
-        const available = data.filter((item) => item.Activo)
-        setServices(available)
-        if (available.length) {
-          setForm((prev) => ({ ...prev, idServicio: String(available[0].idServicio) }))
+
+    async function loadAvailableServices() {
+      try {
+        const resolvedSocioId = socioId ?? (await resolveSocioId())
+
+        if (!resolvedSocioId) {
+          throw new Error('No se pudo identificar el socio actual.')
         }
-      })
-      .finally(() => {
+
+        const [catalog, currentServices, currentRequests] = await Promise.all([
+          fetchServicesCatalog(),
+          fetchSocioServices(resolvedSocioId),
+          fetchServiceRequestsBySocio(resolvedSocioId)
+        ])
+
+        if (cancelled) return
+
+        const blockedIds = new Set([
+          ...(currentServices || [])
+            .filter(isBlockingServiceAssignment)
+            .map((item) => String(item.idServicio)),
+          ...(currentRequests || [])
+            .filter(isBlockingServiceRequest)
+            .map((item) => String(item.idServicio))
+        ])
+        const available = (catalog || []).filter((item) => item.Activo && !blockedIds.has(String(item.idServicio)))
+
+        setBlockedServiceIds(Array.from(blockedIds))
+        setServices(available)
+        setError('')
+        setForm((prev) => {
+          const previousStillAvailable = available.some((item) => String(item.idServicio) === String(prev.idServicio))
+          return previousStillAvailable
+            ? prev
+            : { ...prev, idServicio: available.length ? String(available[0].idServicio) : '' }
+        })
+      } catch (loadError) {
+        if (cancelled) return
+        console.error('Error al cargar servicios disponibles', loadError)
+        setServices([])
+        setBlockedServiceIds([])
+        setForm((prev) => ({ ...prev, idServicio: '' }))
+        setError(loadError.message || 'No se pudieron cargar los servicios disponibles.')
+      } finally {
         if (!cancelled) setLoadingServices(false)
-      })
+      }
+    }
+
+    loadAvailableServices()
 
     return () => {
       cancelled = true
     }
-  }, [fetchServicesCatalog])
+  }, [fetchServiceRequestsBySocio, fetchServicesCatalog, fetchSocioServices, resolveSocioId, socioId])
 
   useEffect(() => {
     if (!form.idServicio) {
@@ -90,7 +150,8 @@ export default function SocioSolicitudServicioNueva() {
   )
 
   const missingFiles = requirements.filter((item) => !filesByRequirement[item.idRequisitoServicio])
-  const canSubmit = Boolean(form.idServicio && form.observaciones.trim() && !missingFiles.length)
+  const selectedServiceBlocked = blockedServiceIds.includes(String(form.idServicio))
+  const canSubmit = Boolean(form.idServicio && form.observaciones.trim() && !missingFiles.length && !selectedServiceBlocked)
 
   const handleFileChange = (requirementId, fileList) => {
     const file = Array.from(fileList || []).find((item) => ACCEPTED_TYPES.includes(item.type))
@@ -112,7 +173,11 @@ export default function SocioSolicitudServicioNueva() {
     const resolvedSocioId = socioId ?? (await resolveSocioId())
 
     if (!canSubmit || !resolvedSocioId) {
-      setError('Debes seleccionar un servicio, completar observaciones y adjuntar un archivo por requisito.')
+      setError(
+        selectedServiceBlocked
+          ? 'Ya tenes ese servicio activo o una solicitud en curso.'
+          : 'Debes seleccionar un servicio, completar observaciones y adjuntar un archivo por requisito.'
+      )
       return
     }
 
@@ -166,14 +231,24 @@ export default function SocioSolicitudServicioNueva() {
               value={form.idServicio}
               onChange={(event) => setForm((prev) => ({ ...prev, idServicio: event.target.value }))}
               className="input-field"
-              disabled={loadingServices}
+              disabled={loadingServices || !services.length}
             >
+              {!services.length ? (
+                <option value="">
+                  {loadingServices ? 'Cargando servicios...' : 'No hay servicios disponibles para solicitar'}
+                </option>
+              ) : null}
               {services.map((service) => (
                 <option key={service.idServicio} value={service.idServicio}>
                   {service.Nombre}
                 </option>
               ))}
             </select>
+            {!loadingServices && !services.length ? (
+              <p className="mt-2 text-sm text-gray-500">
+                Ya tenes activos o en tramite todos los servicios disponibles.
+              </p>
+            ) : null}
           </div>
 
           {selectedService ? (

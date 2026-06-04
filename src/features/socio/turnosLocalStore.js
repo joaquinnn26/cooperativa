@@ -1,5 +1,9 @@
 const STORAGE_KEY = 'turnosLocales'
 
+function pickFirst(...values) {
+  return values.find((value) => value !== undefined && value !== null && String(value).trim() !== '')
+}
+
 export function obtenerTurnosLocales() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
@@ -10,13 +14,29 @@ export function obtenerTurnosLocales() {
 
 export function guardarTurnoLocal(turno) {
   const turnos = obtenerTurnosLocales()
+  const idSocio = pickFirst(turno.idSocio, turno.IdSocio, turno.idsocio, '')
+  const socio =
+    pickFirst(turno.socio, turno.Socio, turno.socioNombre, turno.SocioNombre, localStorage.getItem('nombre')) ||
+    `Socio ${idSocio}`.trim()
+
   const nuevoTurno = {
     id: Date.now(),
-    socio: localStorage.getItem('usuario') || `Socio ${turno.idSocio ?? ''}`.trim(),
+    idSocio,
+    socio,
+    documentoSocio: pickFirst(
+      turno.documentoSocio,
+      turno.DocumentoSocio,
+      turno.socioDocumento,
+      turno.SocioDocumento,
+      localStorage.getItem('usuario'),
+      ''
+    ),
     fecha: turno.fecha || turno.Fecha,
     hora: turno.hora || turno.Hora,
     motivo: turno.motivo || turno.Motivo,
     estado: 'Pendiente',
+    fechaCreacion: new Date().toISOString(),
+    observacionAdmin: '',
     origen: 'local'
   }
 

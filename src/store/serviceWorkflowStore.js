@@ -3,6 +3,9 @@ import { persist } from 'zustand/middleware'
 import { apiUrl } from '@/config/api.js'
 
 const SERVICE_REQUEST_STATUSES = ['Pendiente', 'En revision', 'Aprobada', 'Cancelada', 'Rechazada']
+const CLOSED_SERVICE_REQUEST_STATUS_KEYS = new Set(['rechazada', 'rechazado', 'cancelada', 'cancelado'])
+const INACTIVE_SERVICE_ASSIGNMENT_STATUS_KEYS = new Set(['inactivo', 'inactiva', 'baja', 'cancelada', 'cancelado'])
+const DUPLICATE_SERVICE_REQUEST_MESSAGE = 'Ya tenes ese servicio activo o una solicitud en curso.'
 
 const mockServices = [
   {
@@ -112,6 +115,78 @@ function pickFirst(...values) {
   return values.find((value) => value !== undefined && value !== null)
 }
 
+function pickFirstFilled(...values) {
+  return values.find((value) => value !== undefined && value !== null && String(value).trim() !== '')
+}
+
+function primitiveValue(value) {
+  return value && typeof value === 'object' ? undefined : value
+}
+
+function normalizeWorkflowStatus(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+}
+
+function entityMatchesSocio(entity, socioRef, socioUsuario = '') {
+  const entitySocioId = pickFirst(entity?.idSocio, entity?.IdSocio, entity?.idsocio, null)
+  if (socioRef != null && entitySocioId != null && String(entitySocioId) === String(socioRef)) {
+    return true
+  }
+
+  const targetUsuario = String(socioUsuario || '').trim().toLowerCase()
+  const entityUsuario = String(
+    pickFirst(entity?.socioUsuario, entity?.SocioUsuario, entity?.usuario, entity?.Usuario, '')
+  )
+    .trim()
+    .toLowerCase()
+
+  return Boolean(targetUsuario && entityUsuario && entityUsuario === targetUsuario)
+}
+
+function entityMatchesService(entity, serviceId) {
+  const targetServiceId = Number(serviceId)
+  const entityServiceId = Number(pickFirst(entity?.idServicio, entity?.IdServicio, entity?.idservicio, 0))
+  return Number.isFinite(targetServiceId) && targetServiceId > 0 && entityServiceId === targetServiceId
+}
+
+function isBlockingServiceAssignment(assignment) {
+  const status = normalizeWorkflowStatus(
+    pickFirst(assignment?.estado, assignment?.Estado, assignment?.Activo === false ? 'Inactivo' : 'Activo')
+  )
+  return !INACTIVE_SERVICE_ASSIGNMENT_STATUS_KEYS.has(status)
+}
+
+function isBlockingServiceRequest(request) {
+  const status = normalizeWorkflowStatus(pickFirst(request?.estado, request?.Estado, 'Pendiente'))
+  return !CLOSED_SERVICE_REQUEST_STATUS_KEYS.has(status)
+}
+
+function findBlockingServiceRequest(payload, state) {
+  const socioRef = pickFirst(payload?.idSocio, null)
+  const socioUsuario = payload?.socioUsuario || ''
+  const serviceId = payload?.idServicio
+
+  const existingAssignment = state.serviceAssignments.find(
+    (item) =>
+      entityMatchesSocio(item, socioRef, socioUsuario) &&
+      entityMatchesService(item, serviceId) &&
+      isBlockingServiceAssignment(item)
+  )
+
+  if (existingAssignment) return existingAssignment
+
+  return state.requests.find(
+    (item) =>
+      entityMatchesSocio(item, socioRef, socioUsuario) &&
+      entityMatchesService(item, serviceId) &&
+      isBlockingServiceRequest(item)
+  )
+}
+
 function ensureArray(data) {
   if (Array.isArray(data)) return data
   if (Array.isArray(data?.$values)) return data.$values
@@ -122,15 +197,27 @@ function ensureArray(data) {
 }
 
 function resolveServiceName(entity) {
-  return pickFirst(
+  return pickFirstFilled(
     entity?.servicioNombre,
     entity?.ServicioNombre,
     entity?.Servicio?.Nombre,
     entity?.Servicio?.nombre,
+    entity?.Servicio?.Descripcion,
+    entity?.Servicio?.descripcion,
     entity?.servicio?.Nombre,
     entity?.servicio?.nombre,
-    entity?.Servicio,
-    entity?.servicio,
+    entity?.servicio?.Descripcion,
+    entity?.servicio?.descripcion,
+    entity?.ServicioSocio?.Servicio?.Nombre,
+    entity?.ServicioSocio?.Servicio?.nombre,
+    entity?.ServicioSocio?.servicio?.Nombre,
+    entity?.ServicioSocio?.servicio?.nombre,
+    entity?.servicioSocio?.Servicio?.Nombre,
+    entity?.servicioSocio?.Servicio?.nombre,
+    entity?.servicioSocio?.servicio?.Nombre,
+    entity?.servicioSocio?.servicio?.nombre,
+    primitiveValue(entity?.Servicio),
+    primitiveValue(entity?.servicio),
     entity?.NombreServicio,
     entity?.nombreServicio,
     'Servicio'
@@ -218,15 +305,29 @@ function resolveEmployeeName(entity) {
 }
 
 function resolveMeterNumber(entity) {
-  return pickFirst(
+  return pickFirstFilled(
     entity?.NumeroMedidor,
     entity?.numeroMedidor,
-    entity?.Medidor,
-    entity?.medidor,
+    entity?.NroMedidor,
+    entity?.nroMedidor,
+    entity?.CodigoMedidor,
+    entity?.codigoMedidor,
+    entity?.Medidor?.NumeroMedidor,
+    entity?.Medidor?.numeroMedidor,
+    entity?.Medidor?.NroMedidor,
+    entity?.Medidor?.nroMedidor,
+    entity?.Medidor?.CodigoMedidor,
+    entity?.Medidor?.codigoMedidor,
+    entity?.medidor?.numeroMedidor,
+    entity?.medidor?.NumeroMedidor,
+    entity?.medidor?.nroMedidor,
+    entity?.medidor?.NroMedidor,
+    entity?.medidor?.codigoMedidor,
+    entity?.medidor?.CodigoMedidor,
     entity?.Numero,
     entity?.numero,
-    entity?.Medidor?.NumeroMedidor,
-    entity?.medidor?.numeroMedidor,
+    primitiveValue(entity?.Medidor),
+    primitiveValue(entity?.medidor),
     ''
   )
 }
@@ -321,7 +422,9 @@ function normalizeAssignment(assignment, servicesCatalog = []) {
       assignment.IdSocio,
       assignment.idsocio,
       assignment.Socio?.idSocio,
+      assignment.Socio?.IdSocio,
       assignment.socio?.idSocio,
+      assignment.socio?.IdSocio,
       null
     ),
     socioUsuario: resolveSocioUsuario(assignment),
@@ -332,15 +435,33 @@ function normalizeAssignment(assignment, servicesCatalog = []) {
         assignment.IdServicio,
         assignment.idservicio,
         assignment.Servicio?.idServicio,
-        assignment.servicio?.idServicio
+        assignment.Servicio?.IdServicio,
+        assignment.servicio?.idServicio,
+        assignment.servicio?.IdServicio
       )
     ),
     servicioNombre: resolveServiceName(assignment),
     tarifa: Number(pickFirst(assignment.tarifa, assignment.Tarifa, assignment.tarifaBase, assignment.TarifaBase, 0)),
     estado: pickFirst(assignment.estado, assignment.Estado, assignment.Activo === false ? 'Inactivo' : 'Activo', 'Activo'),
-    idMedidor: pickFirst(assignment.idMedidor, assignment.IdMedidor, null),
-    numeroMedidor: pickFirst(assignment.numeroMedidor, assignment.NumeroMedidor, assignment.Numero, ''),
-    tipoMedidor: pickFirst(assignment.tipoMedidor, assignment.TipoMedidor, '')
+    idMedidor: pickFirst(
+      assignment.idMedidor,
+      assignment.IdMedidor,
+      assignment.Medidor?.idMedidor,
+      assignment.Medidor?.IdMedidor,
+      assignment.medidor?.idMedidor,
+      assignment.medidor?.IdMedidor,
+      null
+    ),
+    numeroMedidor: resolveMeterNumber(assignment),
+    tipoMedidor: pickFirst(
+      assignment.tipoMedidor,
+      assignment.TipoMedidor,
+      assignment.Medidor?.TipoMedidor,
+      assignment.Medidor?.tipoMedidor,
+      assignment.medidor?.TipoMedidor,
+      assignment.medidor?.tipoMedidor,
+      ''
+    )
   }
 }
 
@@ -352,7 +473,9 @@ function normalizeMeter(meter) {
       meter.idServicioSocio,
       meter.IdServicioSocio,
       meter.ServicioSocio?.idServicioSocio,
+      meter.ServicioSocio?.IdServicioSocio,
       meter.servicioSocio?.idServicioSocio,
+      meter.servicioSocio?.IdServicioSocio,
       null
     ),
     idSocio: pickFirst(
@@ -360,8 +483,13 @@ function normalizeMeter(meter) {
       meter.IdSocio,
       meter.idsocio,
       meter.ServicioSocio?.idSocio,
+      meter.ServicioSocio?.IdSocio,
       meter.servicioSocio?.idSocio,
+      meter.servicioSocio?.IdSocio,
       meter.ServicioSocio?.Socio?.idSocio,
+      meter.ServicioSocio?.Socio?.IdSocio,
+      meter.servicioSocio?.socio?.idSocio,
+      meter.servicioSocio?.socio?.IdSocio,
       null
     ),
     socioUsuario: resolveSocioUsuario(meter),
@@ -372,7 +500,13 @@ function normalizeMeter(meter) {
         meter.IdServicio,
         meter.idservicio,
         meter.ServicioSocio?.idServicio,
+        meter.ServicioSocio?.IdServicio,
         meter.servicioSocio?.idServicio,
+        meter.servicioSocio?.IdServicio,
+        meter.ServicioSocio?.Servicio?.idServicio,
+        meter.ServicioSocio?.Servicio?.IdServicio,
+        meter.servicioSocio?.servicio?.idServicio,
+        meter.servicioSocio?.servicio?.IdServicio,
         0
       )
     ),
@@ -612,6 +746,17 @@ const useServiceWorkflowStore = create(
       },
 
       createServiceRequest: async (payload) => {
+        if (payload.idSocio) {
+          await Promise.allSettled([
+            get().fetchSocioServices(payload.idSocio),
+            get().fetchServiceRequestsBySocio(payload.idSocio)
+          ])
+        }
+
+        if (findBlockingServiceRequest(payload, get())) {
+          throw new Error(DUPLICATE_SERVICE_REQUEST_MESSAGE)
+        }
+
         try {
           const created = await jsonFetch(apiUrl('/solicitudservicio'), {
             method: 'POST',
@@ -640,7 +785,16 @@ const useServiceWorkflowStore = create(
 
           await get().fetchServiceRequests()
           return created
-        } catch {
+        } catch (error) {
+          if (findBlockingServiceRequest(payload, get())) {
+            throw new Error(DUPLICATE_SERVICE_REQUEST_MESSAGE)
+          }
+
+          const errorMessage = String(error?.message || '')
+          if (/duplic|exist|activo|aprob/i.test(errorMessage)) {
+            throw new Error(DUPLICATE_SERVICE_REQUEST_MESSAGE)
+          }
+
           const service = get().servicesCatalog.find((item) => item.idServicio === Number(payload.idServicio))
           const documents = Object.entries(payload.filesByRequirement || {}).map(([idRequisitoServicio, file], index) => ({
             ...fileToMetadata(file, index),
@@ -717,17 +871,27 @@ const useServiceWorkflowStore = create(
       fetchServiceRequestsBySocio: async (idSocio) => {
         try {
           const data = await jsonFetch(apiUrl(`/solicitudservicio/socio/${idSocio}`))
-          const normalized = ensureArray(data).map((request) => ({
-            ...normalizeRequest(request),
-            documentos: ensureArray(pickFirst(request.Documentos, request.documentos, [])).map((document, index) => ({
-              id: pickFirst(document.idDocumentoSolicitud, document.IdDocumentoSolicitud, index),
-              nombre: pickFirst(document.NombreArchivo, document.nombreArchivo, 'Documento'),
-              ruta: pickFirst(document.RutaArchivo, document.rutaArchivo, ''),
-              tipo: pickFirst(document.TipoArchivo, document.tipoArchivo, ''),
-              fechaSubida: pickFirst(document.FechaSubida, document.fechaSubida, ''),
-              idRequisitoServicio: pickFirst(document.idRequisitoServicio, document.IdRequisitoServicio, null)
-            }))
-          }))
+          const numericSocioId = Number(idSocio)
+          const normalized = ensureArray(data).map((request) => {
+            const normalizedRequest = normalizeRequest(request)
+
+            return {
+              ...normalizedRequest,
+              idSocio: pickFirst(
+                normalizedRequest.idSocio,
+                Number.isFinite(numericSocioId) && numericSocioId > 0 ? numericSocioId : null
+              ),
+              socioUsuario: normalizedRequest.socioUsuario || (!Number.isFinite(numericSocioId) ? String(idSocio) : ''),
+              documentos: ensureArray(pickFirst(request.Documentos, request.documentos, [])).map((document, index) => ({
+                id: pickFirst(document.idDocumentoSolicitud, document.IdDocumentoSolicitud, index),
+                nombre: pickFirst(document.NombreArchivo, document.nombreArchivo, 'Documento'),
+                ruta: pickFirst(document.RutaArchivo, document.rutaArchivo, ''),
+                tipo: pickFirst(document.TipoArchivo, document.tipoArchivo, ''),
+                fechaSubida: pickFirst(document.FechaSubida, document.fechaSubida, ''),
+                idRequisitoServicio: pickFirst(document.idRequisitoServicio, document.IdRequisitoServicio, null)
+              }))
+            }
+          })
           set((state) => ({
             requests: [
               ...state.requests.filter((item) => String(item.idSocio) !== String(idSocio)),
@@ -872,7 +1036,19 @@ const useServiceWorkflowStore = create(
             servicesCatalog = await get().fetchServicesCatalog()
           }
 
-          const normalized = ensureArray(data).map((assignment) => normalizeAssignment(assignment, servicesCatalog))
+          const numericSocioId = Number(socioRef)
+          const normalized = ensureArray(data).map((assignment) => {
+            const normalizedAssignment = normalizeAssignment(assignment, servicesCatalog)
+
+            return {
+              ...normalizedAssignment,
+              idSocio: pickFirst(
+                normalizedAssignment.idSocio,
+                Number.isFinite(numericSocioId) && numericSocioId > 0 ? numericSocioId : null
+              ),
+              socioUsuario: normalizedAssignment.socioUsuario || (!Number.isFinite(numericSocioId) ? String(socioRef) : '')
+            }
+          })
           set((state) => ({
             serviceAssignments: [
               ...state.serviceAssignments.filter(
@@ -926,6 +1102,41 @@ const useServiceWorkflowStore = create(
         }
       },
 
+      fetchMetersBySocio: async (socioRef) => {
+        const candidatePaths = [
+          `/medidor/socio/${socioRef}`,
+          `/medidor/por-socio/${socioRef}`,
+          `/medidor/socios/${socioRef}`
+        ]
+
+        for (const path of candidatePaths) {
+          try {
+            const data = await jsonFetch(apiUrl(path))
+            const normalized = ensureArray(data).map(normalizeMeter)
+            set((state) => ({
+              meters: [
+                ...state.meters.filter(
+                  (meter) => String(meter.idSocio) !== String(socioRef) && String(meter.socioUsuario) !== String(socioRef)
+                ),
+                ...normalized
+              ]
+            }))
+            return normalized
+          } catch {}
+        }
+
+        try {
+          const allMeters = await get().fetchMeters()
+          return allMeters.filter(
+            (meter) => String(meter.idSocio) === String(socioRef) || String(meter.socioUsuario) === String(socioRef)
+          )
+        } catch {
+          return get().meters.filter(
+            (meter) => String(meter.idSocio) === String(socioRef) || String(meter.socioUsuario) === String(socioRef)
+          )
+        }
+      },
+
       createMeter: async (payload) => {
         try {
           const created = await jsonFetch(apiUrl('/medidor'), {
@@ -938,40 +1149,8 @@ const useServiceWorkflowStore = create(
           })
           await get().fetchMeters()
           return created
-        } catch {
-          const assignment = get().serviceAssignments.find(
-            (item) => item.idServicioSocio === Number(payload.idServicioSocio)
-          )
-          if (!assignment) throw new Error('ServicioSocio no encontrado.')
-
-          const meter = {
-            idMedidor: nextId(get().meters, 'idMedidor'),
-            NumeroMedidor: generateMeterNumber(get().meters),
-            idServicioSocio: assignment.idServicioSocio,
-            socioUsuario: assignment.socioUsuario,
-            socioNombre: assignment.socioNombre,
-            idServicio: assignment.idServicio,
-            servicioNombre: assignment.servicioNombre,
-            TipoMedidor: `Tipo ${payload.idTipoMedidor}`,
-            FechaInstalacion: new Date().toISOString(),
-            Estado: 'Activo'
-          }
-
-          set((state) => ({
-            meters: [meter, ...state.meters],
-            serviceAssignments: state.serviceAssignments.map((item) =>
-              item.idServicioSocio === assignment.idServicioSocio
-                ? {
-                    ...item,
-                    idMedidor: meter.idMedidor,
-                    numeroMedidor: meter.NumeroMedidor,
-                    tipoMedidor: meter.TipoMedidor
-                  }
-                : item
-            )
-          }))
-
-          return meter
+        } catch (error) {
+          throw new Error(error.message || 'No se pudo registrar el medidor en el servidor.')
         }
       },
 

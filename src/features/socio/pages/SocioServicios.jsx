@@ -21,26 +21,43 @@ function serviceIcon(nombre) {
   return normalizeServiceName(nombre).includes('agua') ? Droplet : Zap
 }
 
+function meterMatchesService(meter, service, socioId) {
+  const sameAssignment =
+    meter.idServicioSocio != null &&
+    service.idServicioSocio != null &&
+    String(meter.idServicioSocio) === String(service.idServicioSocio)
+
+  if (sameAssignment) return true
+
+  const sameSocio =
+    String(meter.idSocio || '') === String(service.idSocio || socioId || '') ||
+    (meter.socioUsuario && service.socioUsuario && String(meter.socioUsuario) === String(service.socioUsuario))
+
+  const sameService =
+    (meter.idServicio && service.idServicio && Number(meter.idServicio) === Number(service.idServicio)) ||
+    normalizeServiceName(meter.servicioNombre) === normalizeServiceName(service.servicioNombre)
+
+  return sameSocio && sameService
+}
+
 export default function SocioServicios() {
   const { socioId } = useCurrentSocio()
   const fetchSocioServices = useServiceWorkflowStore((state) => state.fetchSocioServices)
   const fetchMeters = useServiceWorkflowStore((state) => state.fetchMeters)
+  const fetchMetersBySocio = useServiceWorkflowStore((state) => state.fetchMetersBySocio)
   const [services, setServices] = useState([])
 
   useEffect(() => {
     if (!socioId) return
 
     const loadServices = async () => {
-      const [servicesData, metersData] = await Promise.all([fetchSocioServices(socioId), fetchMeters()])
+      const servicesData = await fetchSocioServices(socioId)
+      const metersData = fetchMetersBySocio ? await fetchMetersBySocio(socioId) : await fetchMeters()
 
       const enriched = (servicesData || []).map((service) => {
         const requiresMeter = serviceRequiresMeter(service.servicioNombre)
         const matchedMeter = requiresMeter
-          ? (metersData || []).find(
-              (meter) =>
-                String(meter.idSocio) === String(socioId) &&
-                normalizeServiceName(meter.servicioNombre) === normalizeServiceName(service.servicioNombre)
-            )
+          ? (metersData || []).find((meter) => meterMatchesService(meter, service, socioId))
           : null
 
         return {
@@ -55,7 +72,7 @@ export default function SocioServicios() {
     }
 
     loadServices()
-  }, [fetchMeters, fetchSocioServices, socioId])
+  }, [fetchMeters, fetchMetersBySocio, fetchSocioServices, socioId])
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
