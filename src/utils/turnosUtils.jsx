@@ -14,8 +14,8 @@ export const TURNOS_TIME_SLOTS = [
 ]
 
 export const DEFAULT_AVAILABILITY_DAYS = 12
-
-const CLOSED_STATUS_KEYS = new Set(['rechazado', 'rechazada', 'cancelado', 'cancelada'])
+export const TURNOS_REASON_MIN_LENGTH = 10
+export const TURNOS_REASON_MAX_LENGTH = 300
 
 export function ensureArray(data) {
   if (Array.isArray(data)) return data
@@ -36,6 +36,31 @@ export function normalizeText(value) {
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase()
+}
+
+export function sanitizePlainText(value) {
+  return String(value || '')
+    .replace(/[<>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+export function validateTurnoRequest({ fecha, hora, motivoDetalle, maxLength = TURNOS_REASON_MAX_LENGTH }) {
+  if (!fecha) return 'Selecciona un dia disponible.'
+  if (!hora) return 'Selecciona un horario disponible.'
+  if (!TURNOS_TIME_SLOTS.includes(hora)) return 'El horario seleccionado no pertenece a la agenda permitida.'
+  if (isPastDate(fecha) || isPastSlot(fecha, hora)) return 'El turno no puede quedar en una fecha u horario pasado.'
+  if (isWeekend(fecha)) return 'Los turnos presenciales solo se toman de lunes a viernes.'
+
+  const detalle = sanitizePlainText(motivoDetalle)
+  if (detalle.length < TURNOS_REASON_MIN_LENGTH) {
+    return `El detalle debe tener al menos ${TURNOS_REASON_MIN_LENGTH} caracteres.`
+  }
+  if (detalle.length > maxLength) {
+    return `El detalle no puede superar ${maxLength} caracteres.`
+  }
+
+  return ''
 }
 
 export function formatDateInput(date) {
@@ -160,10 +185,6 @@ export function normalizeTurno(turno) {
   }
 }
 
-export function isClosedTurno(turno) {
-  return CLOSED_STATUS_KEYS.has(normalizeText(turno?.estado ?? turno?.Estado))
-}
-
 export function normalizeAvailability(data) {
   return ensureArray(data)
     .map((day) => {
@@ -180,52 +201,6 @@ export function normalizeAvailability(data) {
       }
     })
     .filter((day) => day.fecha && !isPastDate(day.fecha) && !isWeekend(day.fecha))
-}
-
-export function buildLocalAvailability({ turnos = [], days = DEFAULT_AVAILABILITY_DAYS } = {}) {
-  const blockedByDate = new Map()
-
-  ensureArray(turnos)
-    .map(normalizeTurno)
-    .filter((turno) => !isClosedTurno(turno))
-    .forEach((turno) => {
-      const entries = [
-        [turno.fecha, turno.hora],
-        [turno.fechaPropuesta, turno.horaPropuesta]
-      ]
-
-      entries.forEach(([fecha, hora]) => {
-        if (!fecha || !hora) return
-        if (!blockedByDate.has(fecha)) blockedByDate.set(fecha, new Set())
-        blockedByDate.get(fecha).add(hora)
-      })
-    })
-
-  const result = []
-  const cursor = startOfToday()
-  let guard = 0
-
-  while (result.length < days && guard < days * 4) {
-    const fecha = formatDateInput(cursor)
-
-    if (!isWeekend(cursor)) {
-      const blockedSlots = blockedByDate.get(fecha) || new Set()
-      const horarios = TURNOS_TIME_SLOTS.filter(
-        (slot) => !blockedSlots.has(slot) && !isPastSlot(fecha, slot)
-      )
-
-      result.push({
-        fecha,
-        disponible: horarios.length > 0,
-        horarios
-      })
-    }
-
-    cursor.setDate(cursor.getDate() + 1)
-    guard += 1
-  }
-
-  return result
 }
 
 export function compareTurnos(a, b) {

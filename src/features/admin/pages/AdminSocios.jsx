@@ -5,6 +5,7 @@ import TablaSocios from '@/features/admin/components/socios/TablaSocios.jsx'
 import ModalCrearSocio from '@/features/admin/components/socios/ModalCrearSocio.jsx'
 import ModalEditarSocio from '@/features/admin/components/socios/ModalEditarSocio.jsx'
 import ModalEliminarSocio from '@/features/admin/components/socios/ModalEliminarSocio.jsx'
+import { showToast } from '@/utils/alerts.js'
 
 export default function AdminSocios() {
   const {
@@ -31,7 +32,12 @@ export default function AdminSocios() {
     [socios, search]
   )
 
-  const exportar = (tipo) => alert(`Exportar ${tipo} aún no implementado`)
+  const exportar = (tipo) =>
+    showToast({
+      title: 'Exportacion pendiente',
+      message: `Exportar ${tipo} aun no esta implementado.`,
+      type: 'info'
+    })
 
   const abrirEditar = (socio) => {
     setSocioSeleccionado(socio)
@@ -94,9 +100,6 @@ export default function AdminSocios() {
               onEliminar={abrirEliminar}
               onToggleEstado={(socio) => toggleEstadoSocio(socio.idSocio)}
             />
-            {!filtered.length && (
-              <p className="text-center text-gray-500 py-6">No hay socios que coincidan.</p>
-            )}
           </>
         )}
       </div>

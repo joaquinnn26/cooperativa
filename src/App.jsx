@@ -14,7 +14,6 @@ import SocioServicios from '@/features/socio/pages/SocioServicios.jsx'
 import SocioMediciones from '@/features/socio/pages/SocioMediciones.jsx'
 import SocioFacturas from '@/features/socio/pages/SocioFacturas.jsx'
 import SocioPerfil from '@/features/socio/pages/SocioPerfil.jsx'
-import TurnoNuevo from '@/features/socio/pages/TurnoNuevo.jsx'
 import MisTurnos from '@/features/socio/pages/MisTurnos.jsx'
 import AdminDashboard from '@/features/admin/pages/AdminDashboard.jsx'
 import AdminSocios from '@/features/admin/pages/AdminSocios.jsx'
@@ -101,7 +100,7 @@ export default function App() {
           <Route path="/socio/mis-mediciones" element={<SocioMediciones />} />
           <Route path="/socio/perfil" element={<SocioPerfil />} />
           <Route path="/socio/turnos" element={<MisTurnos />} />
-          <Route path="/socio/turnos/nuevo" element={<TurnoNuevo />} />
+          <Route path="/socio/turnos/nuevo" element={<Navigate to="/socio/turnos?nuevo=1" replace />} />
         </Route>
 
         <Route element={<ProtectedRoute role="Admin" />}>

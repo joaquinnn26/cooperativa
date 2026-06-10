@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useSocios } from '@/hooks/useSocios.js'
+import { showInfo, showToast } from '@/utils/alerts.js'
 
 export default function ModalCrearSocio({ show, onClose, onSaved }) {
   const { crearSocio } = useSocios(false)
@@ -23,9 +24,11 @@ export default function ModalCrearSocio({ show, onClose, onSaved }) {
     try {
       const socio = await crearSocio(form)
 
-      window.alert(
-        `Socio creado correctamente.\n\nUsuario: ${socio?.usuario ?? form.Documento}\nContrasena temporal: ${socio?.passwordTemporal ?? ''}`
-      )
+      await showInfo({
+        title: 'Socio creado',
+        message: `Usuario: ${socio?.usuario ?? form.Documento}\nContrasena temporal: ${socio?.passwordTemporal ?? ''}`,
+        type: 'success'
+      })
 
       setForm({
         Nombre: '',
@@ -40,7 +43,11 @@ export default function ModalCrearSocio({ show, onClose, onSaved }) {
       onClose()
     } catch (error) {
       console.error('Error al crear socio', error)
-      window.alert(`No se pudo crear el socio.\n\n${error.message}`)
+      showToast({
+        title: 'Error',
+        message: error.message || 'No se pudo crear el socio.',
+        type: 'error'
+      })
     }
   }
 

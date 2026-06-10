@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Droplet, Pencil, PlusCircle, ToggleRight, Trash2, Wifi, Wrench, X, Zap } from 'lucide-react'
 
 import { useServicios } from '@/hooks/useServicios.js'
+import { confirmAction, showToast } from '@/utils/alerts.js'
 
 const initialForm = {
   idServicio: null,
@@ -260,7 +261,13 @@ export default function AdminServicios() {
   }
 
   const handleDelete = async (servicio) => {
-    const confirmed = window.confirm(`¿Eliminar el servicio "${servicio.Nombre || servicio.nombre}"?`)
+    const confirmed = await confirmAction({
+      title: 'Eliminar servicio',
+      message: `Eliminar el servicio "${servicio.Nombre || servicio.nombre}"?`,
+      confirmButtonText: 'Eliminar',
+      type: 'warning',
+      danger: true
+    })
 
     if (!confirmed) return
 
@@ -268,9 +275,18 @@ export default function AdminServicios() {
 
     try {
       await eliminarServicio(servicio.idServicio)
+      showToast({
+        title: 'Servicio eliminado',
+        message: 'El servicio se elimino correctamente.',
+        type: 'success'
+      })
     } catch (error) {
       console.error('Error al eliminar servicio', error)
-      window.alert('No se pudo eliminar el servicio.')
+      showToast({
+        title: 'Error',
+        message: 'No se pudo eliminar el servicio.',
+        type: 'error'
+      })
     } finally {
       setDeletingId(null)
     }

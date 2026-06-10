@@ -2,11 +2,10 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { UserPlus } from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
-import useAppStore from '@/store/appStore.js'
+import { showInfo } from '@/utils/alerts.js'
 
 export default function Register() {
   const register = useAuthStore((state) => state.register)
-  const addNotification = useAppStore((state) => state.addNotification)
   const navigate = useNavigate()
 
   const [form, setForm] = useState({
@@ -29,15 +28,11 @@ export default function Register() {
     try {
       const data = await register(form)
 
-      window.alert(
-        `Registro exitoso.\n\nTus credenciales:\n\nUsuario: ${data.usuario}\nContrasena temporal: ${
-          data.passwordTemporal || ''
-        }\n\nGuarda esta informacion en un lugar seguro.`
-      )
-
-      addNotification({
+      await showInfo({
         title: 'Cuenta creada',
-        message: 'Registro exitoso, ya puedes usar el portal.',
+        message: `Tus credenciales:\n\nUsuario: ${data.usuario}\nContrasena temporal: ${
+          data.passwordTemporal || ''
+        }\n\nGuarda esta informacion en un lugar seguro.`,
         type: 'success'
       })
 

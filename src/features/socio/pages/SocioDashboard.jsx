@@ -2,14 +2,18 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   AlertTriangle,
+  ArrowUpRight,
+  Bell,
   CalendarCheck,
-  CalendarPlus,
+  ChevronRight,
+  CheckCircle2,
+  Clock3,
   Droplet,
   ExternalLink,
   FilePlus2,
   Gauge,
+  Receipt,
   Settings,
-  UserCircle2,
   Zap
 } from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
@@ -53,6 +57,17 @@ function meterMatchesService(meter, service, socioId) {
     normalizeServiceName(meter.servicioNombre) === normalizeServiceName(service.servicioNombre)
 
   return sameSocio && sameService
+}
+
+function alertToneClasses(tone) {
+  const tones = {
+    amber: 'border-amber-200 bg-amber-50 text-amber-900',
+    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+    indigo: 'border-indigo-200 bg-indigo-50 text-indigo-900',
+    slate: 'border-slate-200 bg-white text-slate-800'
+  }
+
+  return tones[tone] || tones.slate
 }
 
 export default function SocioDashboard() {
@@ -114,6 +129,108 @@ export default function SocioDashboard() {
   }, [fetchBillsBySocio, fetchMeasurementsBySocio, fetchMeters, fetchMetersBySocio, fetchSocioServices, socioId, usuario])
 
   const pendingBills = useMemo(() => bills.filter((bill) => bill.status !== 'paid'), [bills])
+  const totalPendingAmount = useMemo(
+    () => pendingBills.reduce((total, bill) => total + Number(bill.amount || 0), 0),
+    [pendingBills]
+  )
+  const nextDueBill = useMemo(
+    () =>
+      [...pendingBills].sort((a, b) => {
+        const firstDate = new Date(a.dueDate).getTime()
+        const secondDate = new Date(b.dueDate).getTime()
+        return firstDate - secondDate
+      })[0] || null,
+    [pendingBills]
+  )
+  const todayLabel = useMemo(() => formatDate(new Date(), 'es-AR', { weekday: 'long' }), [])
+
+  const dashboardAlerts = useMemo(() => {
+    const alerts = []
+
+    if (pendingBills.length) {
+      alerts.push({
+        title: 'Pago pendiente',
+        message: `${pendingBills.length} factura${pendingBills.length === 1 ? '' : 's'} por revisar.`,
+        tone: 'amber',
+        to: '/facturas',
+        icon: Receipt
+      })
+    } else {
+      alerts.push({
+        title: 'Cuenta al dia',
+        message: 'No hay facturas pendientes cargadas.',
+        tone: 'emerald',
+        to: '/facturas',
+        icon: CheckCircle2
+      })
+    }
+
+    alerts.push({
+      title: 'Turnos presenciales',
+      message: 'Modulo disponible para solicitudes y propuestas.',
+      tone: 'indigo',
+      to: '/socio/turnos',
+      icon: CalendarCheck
+    })
+
+    alerts.push({
+      title: 'Cortes de servicio',
+      message: 'No hay cortes informados para tus servicios activos.',
+      tone: 'slate',
+      to: '/ayuda',
+      icon: Bell
+    })
+
+    return alerts
+  }, [pendingBills.length])
+
+  const quickActions = useMemo(
+    () => [
+      {
+        to: '/facturas',
+        title: 'Facturas',
+        description: pendingBills.length ? `${pendingBills.length} pendiente${pendingBills.length === 1 ? '' : 's'}` : 'Sin pendientes',
+        icon: Receipt,
+        classes: 'border-amber-100 bg-amber-50 text-amber-700'
+      },
+      {
+        to: '/socio/turnos',
+        title: 'Turnos',
+        description: 'Solicitudes y propuestas',
+        icon: CalendarCheck,
+        classes: 'border-indigo-100 bg-indigo-50 text-indigo-700'
+      },
+      {
+        to: '/socio/solicitudes-servicio',
+        title: 'Solicitudes',
+        description: 'Altas y seguimiento',
+        icon: FilePlus2,
+        classes: 'border-amber-100 bg-amber-50 text-amber-700'
+      },
+      {
+        to: '/socio/reclamos',
+        title: 'Reclamos',
+        description: 'Atencion y seguimiento',
+        icon: AlertTriangle,
+        classes: 'border-rose-100 bg-rose-50 text-rose-700'
+      },
+      {
+        to: '/socio/mis-mediciones',
+        title: 'Mediciones',
+        description: 'Historial y consumos',
+        icon: Gauge,
+        classes: 'border-green-100 bg-green-50 text-green-700'
+      },
+      {
+        to: '/socio/mis-servicios',
+        title: 'Servicios',
+        description: 'Estado y medidores',
+        icon: Settings,
+        classes: 'border-slate-200 bg-slate-50 text-slate-700'
+      }
+    ],
+    [pendingBills.length]
+  )
 
   const openPaymentLink = (bill) => {
     if (!bill.paymentLink) {
@@ -128,170 +245,268 @@ export default function SocioDashboard() {
     window.open(bill.paymentLink, '_blank', 'noopener,noreferrer')
   }
 
+  const BillingStatusIcon = pendingBills.length ? AlertTriangle : CheckCircle2
+  const billingStatus = pendingBills.length
+    ? {
+        label: 'Requiere atencion',
+        title: `${pendingBills.length} factura${pendingBills.length === 1 ? '' : 's'} pendiente${pendingBills.length === 1 ? '' : 's'}`,
+        description: nextDueBill
+          ? `Vencimiento mas cercano: ${formatDate(nextDueBill.dueDate, 'es-AR')}`
+          : 'Hay facturas pendientes para revisar.',
+        amount: `$${totalPendingAmount.toLocaleString('es-AR')}`,
+        panel: 'border-amber-200 bg-amber-50',
+        icon: 'bg-amber-100 text-amber-700',
+        badge: 'bg-amber-100 text-amber-800',
+        titleColor: 'text-amber-950'
+      }
+    : {
+        label: 'Sin deuda',
+        title: 'Cuenta al dia',
+        description: 'No hay facturas pendientes cargadas.',
+        amount: '$0',
+        panel: 'border-emerald-200 bg-emerald-50',
+        icon: 'bg-emerald-100 text-emerald-700',
+        badge: 'bg-emerald-100 text-emerald-800',
+        titleColor: 'text-emerald-950'
+      }
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
-      <div className="mb-8">
-        <h1 className="mb-2 text-3xl font-bold text-gray-900">Hola, {nombre || usuario || 'socio'}!</h1>
-        <p className="text-lg text-gray-600">Bienvenido a tu panel de socio</p>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase text-gray-500">Portal del socio</p>
+          <h1 className="mt-1 text-3xl font-bold text-gray-900">Hola, {nombre || usuario || 'socio'}!</h1>
+        </div>
+        <div className="inline-flex w-fit items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 shadow-sm">
+          <Clock3 className="h-4 w-4 text-gray-400" />
+          <span className="capitalize">{todayLabel}</span>
+        </div>
       </div>
 
-      <div className="mb-8">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">Mis servicios activos</h2>
-          <Link to="/socio/mis-servicios" className="font-medium text-blue-600 hover:text-blue-500">
-            Ver detalle
-          </Link>
+      <section className="mb-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className={`rounded-lg border p-6 shadow-sm ${billingStatus.panel}`}>
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-lg ${billingStatus.icon}`}>
+                <BillingStatusIcon className="h-7 w-7" />
+              </div>
+
+              <div>
+                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${billingStatus.badge}`}>
+                  {billingStatus.label}
+                </span>
+                <h2 className={`mt-3 text-3xl font-bold ${billingStatus.titleColor}`}>{billingStatus.title}</h2>
+                <p className="mt-2 max-w-2xl text-sm text-gray-700">{billingStatus.description}</p>
+              </div>
+            </div>
+
+            <div className="border-t border-white/70 pt-4 lg:min-w-[220px] lg:border-l lg:border-t-0 lg:pl-6">
+              <p className="text-sm font-semibold uppercase text-gray-500">Total pendiente</p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">{billingStatus.amount}</p>
+              <Link
+                to="/facturas"
+                className="mt-4 inline-flex items-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
+              >
+                Ver facturas
+                <ArrowUpRight className="ml-2 h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-2 text-sm font-medium text-gray-700">
+              <Receipt className="h-4 w-4 text-amber-600" />
+              Facturas: <strong className="text-gray-900">{pendingBills.length}</strong>
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-2 text-sm font-medium text-gray-700">
+              <Settings className="h-4 w-4 text-cyan-700" />
+              Servicios: <strong className="text-gray-900">{services.length}</strong>
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-2 text-sm font-medium text-gray-700">
+              <Bell className="h-4 w-4 text-indigo-700" />
+              Avisos: <strong className="text-gray-900">{dashboardAlerts.length}</strong>
+            </span>
+          </div>
         </div>
 
-        {services.length ? (
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            {services.map((service) => {
-              const Icon = serviceIcon(service.servicioNombre)
-              return (
-                <div key={service.idServicioSocio} className="card">
-                  <div className="mb-4 flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
-                        <Icon className="h-6 w-6 text-blue-600" />
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-semibold text-gray-900">{service.servicioNombre}</h3>
-                        <p className="text-sm text-gray-600">Tarifa base: ${Number(service.tarifa || 0).toLocaleString('es-AR')}</p>
-                      </div>
-                    </div>
-                    <div className="rounded-full px-3 py-1 text-sm font-medium bg-green-100 text-green-800">{service.estado}</div>
-                  </div>
+        <aside className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+            <div className="flex items-center gap-2">
+              <Bell className="h-5 w-5 text-indigo-600" />
+              <h2 className="text-lg font-bold text-gray-900">Avisos</h2>
+            </div>
+            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
+              {dashboardAlerts.length}
+            </span>
+          </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-600">{service.requiereMedidor ? 'Medidor' : 'Modalidad'}</p>
-                      <p className="text-lg font-semibold text-gray-900">
-                        {service.requiereMedidor ? service.numeroMedidor || 'Pendiente instalacion' : 'Tarifa fija'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">{service.requiereMedidor ? 'Ultima lectura' : 'Ultimo consumo'}</p>
-                      <p className="text-lg font-semibold text-gray-900">
-                        {service.requiereMedidor
-                          ? service.ultimaLectura ?? 'Sin lecturas'
-                          : service.ultimoConsumo ?? 'No aplica'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+          <div className="divide-y divide-gray-100">
+            {dashboardAlerts.map((alert) => {
+              const Icon = alert.icon
+              return (
+                <Link key={alert.title} to={alert.to} className="flex items-start gap-3 p-4 transition hover:bg-gray-50">
+                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${alertToneClasses(alert.tone)}`}>
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-semibold text-gray-900">{alert.title}</span>
+                    <span className="mt-1 block text-sm text-gray-600">{alert.message}</span>
+                  </span>
+                  <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-gray-400" />
+                </Link>
               )
             })}
           </div>
-        ) : (
-          <div className="card py-12 text-center">
-            <p className="text-lg font-medium text-gray-700">Todavia no tienes servicios activos.</p>
-            <p className="mt-2 text-gray-500">Cuando una solicitud sea aprobada, tus servicios apareceran aqui.</p>
+        </aside>
+      </section>
+
+      <section className="mb-6">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-gray-900">Acciones rapidas</h2>
+        </div>
+
+        <nav className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+          {quickActions.map((action) => {
+            const Icon = action.icon
+            return (
+              <Link
+                key={action.to}
+                to={action.to}
+                className="group flex min-h-[112px] flex-col justify-between rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
+              >
+                <span className="flex w-full items-start justify-between gap-3">
+                  <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border ${action.classes}`}>
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-gray-300 transition group-hover:text-blue-500" />
+                </span>
+                <span className="mt-4 block min-w-0">
+                  <span className="block font-semibold leading-snug text-gray-900">{action.title}</span>
+                  <span className="mt-1 block text-sm leading-snug text-gray-600">{action.description}</span>
+                </span>
+              </Link>
+            )
+          })}
+        </nav>
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+        <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Facturas pendientes</h2>
+              <p className="text-sm text-gray-500">Prioriza vencimientos y pagos disponibles.</p>
+            </div>
+            <Link to="/facturas" className="text-sm font-semibold text-blue-600 hover:text-blue-500">
+              Ver todas
+            </Link>
           </div>
-        )}
-      </div>
 
-      <div className="card mb-8">
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">Facturas pendientes</h2>
-          <Link to="/facturas" className="font-medium text-blue-600 hover:text-blue-500">
-            Ver todas
-          </Link>
-        </div>
-
-        <div className="space-y-4">
-          {pendingBills.map((bill) => (
-            <div key={bill.id} className="flex items-center justify-between rounded-lg bg-gray-50 p-4">
-              <div className="flex items-center">
-                <div className="mr-4 flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
-                  {normalizeServiceName(bill.service).includes('agua') ? (
-                    <Droplet className="h-5 w-5 text-blue-600" />
-                  ) : (
-                    <Zap className="h-5 w-5 text-yellow-600" />
-                  )}
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">
-                    {bill.service} - {bill.period}
-                  </h3>
-                  <p className="text-sm text-gray-600">Vence: {formatDate(bill.dueDate, 'es-AR')}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-4">
-                <div className="text-right">
-                  <p className="font-semibold text-gray-900">${Number(bill.amount).toLocaleString('es-AR')}</p>
-                </div>
-                <button type="button" onClick={() => openPaymentLink(bill)} className="btn-primary text-sm">
-                  <ExternalLink className="mr-1 inline h-4 w-4" />
-                  Pagar
-                </button>
-              </div>
+          {pendingBills.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-sm">
+                <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                  <tr>
+                    <th className="px-5 py-3 font-semibold">Servicio</th>
+                    <th className="px-5 py-3 font-semibold">Periodo</th>
+                    <th className="px-5 py-3 font-semibold">Vencimiento</th>
+                    <th className="px-5 py-3 text-right font-semibold">Importe</th>
+                    <th className="px-5 py-3 text-right font-semibold">Pago</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {pendingBills.slice(0, 5).map((bill) => (
+                    <tr key={bill.id} className="bg-white">
+                      <td className="px-5 py-4">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100">
+                            {normalizeServiceName(bill.service).includes('agua') ? (
+                              <Droplet className="h-5 w-5 text-blue-600" />
+                            ) : (
+                              <Zap className="h-5 w-5 text-yellow-600" />
+                            )}
+                          </span>
+                          <span className="font-semibold text-gray-900">{bill.service}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-gray-600">{bill.period}</td>
+                      <td className="px-5 py-4 text-gray-600">{formatDate(bill.dueDate, 'es-AR')}</td>
+                      <td className="px-5 py-4 text-right font-semibold text-gray-900">
+                        ${Number(bill.amount || 0).toLocaleString('es-AR')}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() => openPaymentLink(bill)}
+                          className="inline-flex items-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                        >
+                          <ExternalLink className="mr-1 h-4 w-4" />
+                          Pagar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ))}
-          {!pendingBills.length ? <p className="text-sm text-gray-500">No tienes facturas pendientes.</p> : null}
-        </div>
-      </div>
+          ) : (
+            <div className="px-5 py-10 text-center">
+              <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
+              <p className="mt-3 font-medium text-gray-700">No tienes facturas pendientes.</p>
+              <p className="mt-1 text-sm text-gray-500">Cuando haya una boleta impaga, aparecera en este espacio.</p>
+            </div>
+          )}
+        </section>
 
-      <div className="card">
-        <h2 className="mb-6 text-2xl font-bold text-gray-900">Acciones rapidas</h2>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Link to="/socio/perfil" className="flex items-center rounded-lg bg-slate-50 p-4 transition-colors hover:bg-slate-100">
-            <UserCircle2 className="mr-4 h-8 w-8 text-slate-700" />
+        <aside className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
             <div>
-              <h3 className="font-semibold text-gray-900">Mi perfil</h3>
-              <p className="text-sm text-gray-600">Telefono, direccion y contrasena</p>
+              <h2 className="text-xl font-bold text-gray-900">Servicios activos</h2>
+              <p className="text-sm text-gray-500">Vista resumida de tus conexiones.</p>
             </div>
-          </Link>
+            <Link to="/socio/mis-servicios" className="text-sm font-semibold text-blue-600 hover:text-blue-500">
+              Ver detalle
+            </Link>
+          </div>
 
-          <Link to="/socio/mis-servicios" className="flex items-center rounded-lg bg-blue-50 p-4 transition-colors hover:bg-blue-100">
-            <Settings className="mr-4 h-8 w-8 text-blue-600" />
-            <div>
-              <h3 className="font-semibold text-gray-900">Mis servicios</h3>
-              <p className="text-sm text-gray-600">Estado, medidores y detalle</p>
+          {services.length ? (
+            <div className="divide-y divide-gray-100 px-5">
+              {services.slice(0, 4).map((service) => {
+                const Icon = serviceIcon(service.servicioNombre)
+                return (
+                  <div key={service.idServicioSocio} className="flex items-center justify-between gap-3 py-4">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100">
+                        <Icon className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="truncate font-semibold text-gray-900">{service.servicioNombre}</h3>
+                        <p className="truncate text-sm text-gray-600">
+                          {service.requiereMedidor
+                            ? `Medidor: ${service.numeroMedidor || 'pendiente'}`
+                            : 'Tarifa fija'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className="inline-flex rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-700">
+                        {service.estado}
+                      </span>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {service.requiereMedidor ? service.ultimaLectura ?? 'Sin lectura' : 'Sin medidor'}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-          </Link>
-
-          <Link to="/socio/mis-mediciones" className="flex items-center rounded-lg bg-green-50 p-4 transition-colors hover:bg-green-100">
-            <Gauge className="mr-4 h-8 w-8 text-green-600" />
-            <div>
-              <h3 className="font-semibold text-gray-900">Mis mediciones</h3>
-              <p className="text-sm text-gray-600">Ver historial y consumos</p>
+          ) : (
+            <div className="px-5 py-10 text-center">
+              <p className="font-medium text-gray-700">Todavia no tienes servicios activos.</p>
+              <p className="mt-1 text-sm text-gray-500">Cuando una solicitud sea aprobada, aparecera aqui.</p>
             </div>
-          </Link>
-
-          <Link to="/socio/reclamos" className="flex items-center rounded-lg bg-purple-50 p-4 transition-colors hover:bg-purple-100">
-            <AlertTriangle className="mr-4 h-8 w-8 text-purple-600" />
-            <div>
-              <h3 className="font-semibold text-gray-900">Mis reclamos</h3>
-              <p className="text-sm text-gray-600">Consultas y reclamos</p>
-            </div>
-          </Link>
-
-          <Link to="/socio/solicitudes-servicio" className="flex items-center rounded-lg bg-amber-50 p-4 transition-colors hover:bg-amber-100">
-            <FilePlus2 className="mr-4 h-8 w-8 text-amber-600" />
-            <div>
-              <h3 className="font-semibold text-gray-900">Solicitudes</h3>
-              <p className="text-sm text-gray-600">Pedir altas y seguir el tramite</p>
-            </div>
-          </Link>
-
-          <Link to="/socio/turnos/nuevo" className="flex items-center rounded-lg bg-cyan-50 p-4 transition-colors hover:bg-cyan-100">
-            <CalendarPlus className="mr-4 h-8 w-8 text-cyan-600" />
-            <div>
-              <h3 className="font-semibold text-gray-900">Nuevo turno</h3>
-              <p className="text-sm text-gray-600">Solicitar atencion administrativa</p>
-            </div>
-          </Link>
-
-          <Link to="/socio/turnos" className="flex items-center rounded-lg bg-indigo-50 p-4 transition-colors hover:bg-indigo-100">
-            <CalendarCheck className="mr-4 h-8 w-8 text-indigo-600" />
-            <div>
-              <h3 className="font-semibold text-gray-900">Mis turnos</h3>
-              <p className="text-sm text-gray-600">Ver y aceptar propuestas</p>
-            </div>
-          </Link>
-        </div>
+          )}
+        </aside>
       </div>
     </div>
   )

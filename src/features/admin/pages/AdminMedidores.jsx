@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Gauge, Pencil, Power, Search, Trash2, X } from 'lucide-react'
 import useAppStore from '@/store/appStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
+import { confirmAction } from '@/utils/alerts.js'
 import { formatDate } from '@/utils/formatDate.js'
 
 function normalizeServiceName(nombre) {
@@ -204,7 +205,13 @@ export default function AdminMedidores() {
   }
 
   const handleDeleteMeter = async (meter) => {
-    const confirmed = window.confirm(`Vas a eliminar el medidor ${meter.NumeroMedidor}. Esta accion puede ser irreversible.`)
+    const confirmed = await confirmAction({
+      title: 'Eliminar medidor',
+      message: `Vas a eliminar el medidor ${meter.NumeroMedidor}. Esta accion puede ser irreversible.`,
+      confirmButtonText: 'Eliminar',
+      type: 'warning',
+      danger: true
+    })
     if (!confirmed) return
 
     try {

@@ -6,6 +6,7 @@ import useCooperativeStore from '@/store/cooperativeStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
 import { useSocios } from '@/hooks/useSocios.js'
 import { formatDate } from '@/utils/formatDate.js'
+import { sanitizePlainText } from '@/utils/turnosUtils.jsx'
 
 const initialForm = {
   idSocio: '',
@@ -48,6 +49,47 @@ function buildManagementDraft(factura) {
     paymentLink: factura.paymentLink || '',
     observations: factura.observations || ''
   }
+}
+
+function isValidPaymentLink(value) {
+  if (!value) return true
+
+  try {
+    const url = new URL(value)
+    return ['http:', 'https:'].includes(url.protocol)
+  } catch {
+    return false
+  }
+}
+
+function isPastDate(dateValue) {
+  if (!dateValue) return true
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const selected = new Date(`${dateValue}T00:00:00`)
+  return Number.isNaN(selected.getTime()) || selected < today
+}
+
+function validateBillDraft(draft, { allowPastDueDate = false } = {}) {
+  const amount = Number(draft.amount)
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return 'El monto debe ser mayor a cero.'
+  }
+
+  if (!draft.dueDate) {
+    return 'La fecha de vencimiento es obligatoria.'
+  }
+
+  if (!allowPastDueDate && isPastDate(draft.dueDate)) {
+    return 'La fecha de vencimiento no puede ser anterior a hoy.'
+  }
+
+  if (!isValidPaymentLink(draft.paymentLink)) {
+    return 'El link de pago debe ser una URL http o https valida.'
+  }
+
+  return ''
 }
 
 export default function AdminFacturas() {
@@ -162,7 +204,25 @@ export default function AdminFacturas() {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
-    if (!selectedSocio || !selectedService || !form.amount || !form.dueDate || !idEmpleado) return
+
+    if (!selectedSocio || !selectedService || !idEmpleado) {
+      addNotification({
+        title: 'Faltan datos',
+        message: 'Selecciona socio, servicio y empleado antes de crear la factura.',
+        type: 'error'
+      })
+      return
+    }
+
+    const validationError = validateBillDraft(form)
+    if (validationError) {
+      addNotification({
+        title: 'Datos invalidos',
+        message: validationError,
+        type: 'error'
+      })
+      return
+    }
 
     try {
       await createBill({
@@ -171,8 +231,8 @@ export default function AdminFacturas() {
         idServicio: selectedService.idServicio,
         amount: Number(form.amount),
         dueDate: form.dueDate,
-        paymentLink: form.paymentLink,
-        observations: form.observations
+        paymentLink: form.paymentLink.trim(),
+        observations: sanitizePlainText(form.observations)
       })
 
       setForm(initialForm)
@@ -200,14 +260,27 @@ export default function AdminFacturas() {
   const handleSaveBill = async () => {
     if (!selectedBill || !managementForm) return
 
+    const validationError = validateBillDraft(managementForm, {
+      allowPastDueDate: managementForm.status === 'overdue'
+    })
+
+    if (validationError) {
+      addNotification({
+        title: 'Datos invalidos',
+        message: validationError,
+        type: 'error'
+      })
+      return
+    }
+
     try {
       await updateBill({
         id: selectedBill.id,
         idServicio: selectedBill.idServicio,
         amount: Number(managementForm.amount),
         dueDate: managementForm.dueDate,
-        paymentLink: managementForm.paymentLink,
-        observations: managementForm.observations
+        paymentLink: managementForm.paymentLink.trim(),
+        observations: sanitizePlainText(managementForm.observations)
       })
 
       await updateBillStatus(
@@ -215,8 +288,8 @@ export default function AdminFacturas() {
           ...selectedBill,
           amount: Number(managementForm.amount),
           dueDate: managementForm.dueDate,
-          paymentLink: managementForm.paymentLink,
-          observations: managementForm.observations
+          paymentLink: managementForm.paymentLink.trim(),
+          observations: sanitizePlainText(managementForm.observations)
         },
         managementForm.status
       )

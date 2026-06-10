@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   AlertTriangle,
   Bell,
+  CalendarClock,
   ClipboardList,
   Droplet,
   FilePlus2,
@@ -19,7 +20,6 @@ import {
 } from 'lucide-react'
 import useAuthStore from '../store/authStore.js'
 import AuthSessionManager from './AuthSessionManager.jsx'
-import NotificationStack from './NotificationStack.jsx'
 import { getDefaultRouteByRole, normalizeCargo, normalizeRole } from '@/utils/auth.js'
 
 function buildPanelSections(role, cargo) {
@@ -51,7 +51,8 @@ function buildPanelSections(role, cargo) {
         items: [
           { to: '/admin/facturas', label: 'Facturas', icon: Receipt },
           { to: '/admin/anuncios', label: 'Anuncios', icon: Megaphone },
-          { to: '/admin/reclamos', label: 'Reclamos', icon: AlertTriangle }
+          { to: '/admin/reclamos', label: 'Reclamos', icon: AlertTriangle },
+          { to: '/admin/turnos', label: 'Turnos', icon: CalendarClock }
         ]
       }
     ]
@@ -91,21 +92,27 @@ function buildPanelSections(role, cargo) {
         { to: '/socio/solicitudes-servicio', label: 'Solicitudes', icon: ClipboardList },
         { to: '/socio/solicitudes-servicio/nueva', label: 'Nuevo servicio', icon: FilePlus2 },
         { to: '/socio/reclamos', label: 'Mis reclamos', icon: AlertTriangle },
-        { to: '/socio/reclamos/nuevo', label: 'Nuevo reclamo', icon: AlertTriangle }
+        { to: '/socio/reclamos/nuevo', label: 'Nuevo reclamo', icon: AlertTriangle },
+        { to: '/socio/turnos', label: 'Mis turnos', icon: CalendarClock }
       ]
     }
   ]
 }
 
 function findCurrentLabel(sections, pathname) {
+  let bestMatch = null
+
   for (const section of sections) {
     for (const item of section.items) {
       if (pathname === item.to || pathname.startsWith(`${item.to}/`)) {
-        return item.label
+        if (!bestMatch || item.to.length > bestMatch.to.length) {
+          bestMatch = item
+        }
       }
     }
   }
-  return 'Panel'
+
+  return bestMatch?.label || 'Panel'
 }
 
 export default function Layout() {
@@ -383,8 +390,6 @@ export default function Layout() {
           </div>
         </div>
       </footer>
-
-      <NotificationStack />
     </div>
   )
 }

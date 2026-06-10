@@ -5,6 +5,7 @@ import TablaEmpleados from '@/features/admin/components/empleados/TablaEmpleados
 import ModalCrearEmpleado from '@/features/admin/components/empleados/ModalCrearEmpleado.jsx'
 import ModalEditarEmpleado from '@/features/admin/components/empleados/ModalEditarEmpleado.jsx'
 import ModalEliminarEmpleado from '@/features/admin/components/empleados/ModalEliminarEmpleado.jsx'
+import { showToast } from '@/utils/alerts.js'
 
 export default function AdminEmpleados() {
   const {
@@ -39,7 +40,12 @@ export default function AdminEmpleados() {
     )
   }, [empleados, search])
 
-  const exportar = (tipo) => alert(`Exportar ${tipo} aun no implementado`)
+  const exportar = (tipo) =>
+    showToast({
+      title: 'Exportacion pendiente',
+      message: `Exportar ${tipo} aun no esta implementado.`,
+      type: 'info'
+    })
 
   const abrirEditar = (empleado) => {
     setEmpleadoSeleccionado(empleado)
@@ -58,7 +64,11 @@ export default function AdminEmpleados() {
       setShowEliminar(false)
       setEmpleadoSeleccionado(null)
     } catch (error) {
-      window.alert(error.message || 'No se pudo eliminar el empleado.')
+      showToast({
+        title: 'Error',
+        message: error.message || 'No se pudo eliminar el empleado.',
+        type: 'error'
+      })
     }
   }
 

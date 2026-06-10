@@ -10,10 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tanstack/react-table": "^8.21.3",
     "lucide-react": "^0.397.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.3",
+    "recharts": "^3.8.1",
+    "sweetalert2": "^11.26.25",
     "zustand": "^4.5.2"
   },
   "devDependencies": {

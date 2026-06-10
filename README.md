@@ -1,126 +1,77 @@
 # Cooperativa Portal Web
 
-Portal web para cooperativa de agua y luz desarrollado con Nuxt 3.
+Portal web para una cooperativa de agua y luz desarrollado con React, Vite y Tailwind CSS.
 
-## Características
+## Tecnologias
 
-- 🎯 **Interfaz intuitiva** diseñada para personas mayores
-- 👥 **Dos tipos de usuarios**: Administradores y Socios
-- 📱 **Responsive design** que funciona en todos los dispositivos
-- 🎥 **Video tutorial** en la página de inicio
-- 📚 **Centro de ayuda** completo con guías paso a paso
-- 🔐 **Sistema de autenticación** seguro
-- 💳 **Gestión de facturas** y pagos
-- 📊 **Panel de administración** completo
+- React 18
+- Vite
+- Tailwind CSS
+- React Router DOM
+- Zustand
+- Lucide React
+- SweetAlert2
 
-## Estructura del Proyecto
+## Instalacion
 
-```
-cooperativa/
-├── assets/
-│   └── css/
-│       └── main.css          # Estilos principales con Tailwind
-├── components/               # Componentes reutilizables
-├── layouts/
-│   ├── default.vue          # Layout principal
-│   └── auth.vue             # Layout para páginas de autenticación
-├── middleware/
-│   ├── auth.ts              # Middleware de autenticación
-│   └── admin.ts             # Middleware de administrador
-├── pages/
-│   ├── index.vue            # Página de inicio
-│   ├── login.vue            # Página de login
-│   ├── register.vue         # Página de registro
-│   ├── socio/
-│   │   └── index.vue        # Dashboard del socio
-│   ├── admin/
-│   │   └── index.vue        # Dashboard del administrador
-│   └── ayuda/
-│       └── index.vue         # Centro de ayuda
-├── server/
-│   └── api/
-│       └── auth/
-│           ├── login.post.ts    # API de login
-│           └── register.post.ts # API de registro
-├── stores/
-│   ├── auth.ts              # Store de autenticación
-│   ├── app.ts                # Store de la aplicación
-│   └── cooperative.ts        # Store de datos de la cooperativa
-├── nuxt.config.ts           # Configuración de Nuxt
-└── package.json             # Dependencias del proyecto
-```
-
-## Tecnologías Utilizadas
-
-- **Nuxt 3** - Framework de Vue.js
-- **Tailwind CSS** - Framework de CSS
-- **Pinia** - Gestión de estado
-- **Lucide Vue** - Iconos
-- **TypeScript** - Tipado estático
-
-## Instalación
-
-1. Instalar dependencias:
 ```bash
 npm install
-```
-
-2. Ejecutar en modo desarrollo:
-```bash
 npm run dev
 ```
 
-3. Abrir en el navegador:
+URL local por defecto:
+
+```text
+http://localhost:5173
 ```
-http://localhost:3000
+
+## Scripts
+
+```bash
+npm run dev
+npm run build
+npm run preview
 ```
 
-## Usuarios de Prueba
+## Estructura principal
 
-### Socio
-- **Email**: socio@demo.com
-- **Contraseña**: 123456
+```text
+src/
+  App.jsx                         Rutas principales de la SPA
+  components/                     Componentes reutilizables
+  config/api.js                   Configuracion de URL de API
+  features/
+    socio/                        Pantallas, servicios y helpers del socio
+    admin/                        Pantallas y servicios del administrador
+    auth/                         Login, registro y recuperacion
+  hooks/                          Hooks reutilizables
+  store/                          Estado global con Zustand
+  utils/                          Utilidades generales
+```
 
-### Administrador
-- **Email**: admin@demo.com
-- **Contraseña**: 123456
+## Modulo de turnos
 
-## Características de Accesibilidad
+El flujo de turnos esta documentado en:
 
-- ✅ Texto grande y legible
-- ✅ Botones grandes y fáciles de presionar
-- ✅ Colores contrastantes
-- ✅ Navegación intuitiva
-- ✅ Iconos descriptivos
-- ✅ Guías paso a paso
-- ✅ Centro de ayuda completo
+```text
+docs/turnos-rubrica.md
+```
 
-## Funcionalidades por Usuario
+Archivos principales:
 
-### Para Socios
-- Ver servicios activos (agua y luz)
-- Consultar facturas pendientes
-- Pagar facturas en línea
-- Ver historial de pagos
-- Reportar problemas
-- Acceder al centro de ayuda
+- `src/features/socio/pages/MisTurnos.jsx`
+- `src/features/admin/pages/AdminTurnos.jsx`
+- `src/hooks/useTurnos.jsx`
+- `src/hooks/useAdminTurnos.jsx`
+- `src/utils/turnosUtils.jsx`
+- `src/store/turnosLocalStore.jsx`
 
-### Para Administradores
-- Gestionar socios
-- Configurar servicios
-- Registrar lecturas de medidores
-- Generar facturas
-- Gestionar pagos
-- Crear anuncios
-- Generar reportes
-- Ver actividad reciente
+## Resumen del flujo de turnos
 
-## Próximos Pasos
-
-- [ ] Implementar video tutorial real
-- [ ] Conectar con API real
-- [ ] Agregar más funcionalidades de pago
-- [ ] Implementar notificaciones push
-- [ ] Agregar más reportes y estadísticas
-- [ ] Optimizar para dispositivos móviles
-- [ ] Implementar sistema de tickets de soporte
+1. El socio entra a Mis turnos y abre el modal de nuevo turno.
+2. El sistema consulta disponibilidad dentro del modal.
+3. El formulario valida dia, horario y motivo.
+4. Se crea el turno en estado pendiente.
+5. El administrador puede aprobar, proponer otro horario o rechazar.
+6. Si hay propuesta, el socio puede aceptarla.
+7. La interfaz muestra busqueda, filtros, paginacion, modales, confirmaciones y notificaciones.
