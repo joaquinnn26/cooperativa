@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { apiUrl } from '@/config/api.js'
 import {
-  compareTurnos,
+  compareTurnosRecientes,
   ensureArray,
   normalizeTurno,
   sanitizePlainText
@@ -44,7 +44,7 @@ export const obtenerTodosLosTurnos = async () => {
   }
 
   const data = response.status === 204 ? [] : await response.json()
-  return ensureArray(data).map(normalizeTurno).sort(compareTurnos)
+  return ensureArray(data).map(normalizeTurno).sort(compareTurnosRecientes)
 }
 
 export const actualizarEstadoTurno = async (id, nuevoEstadoId, cambios = {}) => {

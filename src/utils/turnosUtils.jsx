@@ -211,6 +211,24 @@ export function compareTurnos(a, b) {
   return leftDate.localeCompare(rightDate)
 }
 
+export function compareTurnosRecientes(a, b) {
+  const left = normalizeTurno(a)
+  const right = normalizeTurno(b)
+  const leftDate = `${left.fecha || '0000-00-00'} ${left.hora || '00:00'}`
+  const rightDate = `${right.fecha || '0000-00-00'} ${right.hora || '00:00'}`
+  const dateComparison = rightDate.localeCompare(leftDate)
+
+  if (dateComparison !== 0) return dateComparison
+
+  const leftCreated = String(left.fechaCreacion || '')
+  const rightCreated = String(right.fechaCreacion || '')
+  const createdComparison = rightCreated.localeCompare(leftCreated)
+
+  if (createdComparison !== 0) return createdComparison
+
+  return Number(right.id || 0) - Number(left.id || 0)
+}
+
 export function statusStyles(status) {
   const normalized = normalizeText(status)
 

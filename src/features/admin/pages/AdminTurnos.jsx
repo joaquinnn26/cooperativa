@@ -53,6 +53,7 @@ export default function AdminTurnos() {
   const { actualizarEstadoTurno, obtenerTodosLosTurnos } = useAdminTurnos()
   const [turnos, setTurnos] = useState([])
   const [availability, setAvailability] = useState([])
+  const [availabilityLoading, setAvailabilityLoading] = useState(false)
   const [cargando, setCargando] = useState(true)
   const [updatingId, setUpdatingId] = useState(null)
   const [search, setSearch] = useState('')
@@ -73,13 +74,8 @@ export default function AdminTurnos() {
     try {
       const datos = await obtenerTodosLosTurnos()
       const normalized = (datos || []).map(normalizeTurno)
-      const disponibilidad = await obtenerDisponibilidadTurnos({
-        dias: DEFAULT_AVAILABILITY_DAYS,
-        turnosBase: normalized
-      })
 
       setTurnos(normalized)
-      setAvailability(disponibilidad)
     } catch (error) {
       addNotification({
         title: 'Error',
@@ -134,12 +130,6 @@ export default function AdminTurnos() {
     return filteredTurnos.slice(start, start + PAGE_SIZE)
   }, [currentPage, filteredTurnos])
 
-  const firstAvailableSlot = useMemo(() => {
-    const day = availability.find((item) => item.horarios.length)
-    if (!day) return null
-    return { fecha: day.fecha, hora: day.horarios[0] }
-  }, [availability])
-
   const proposingTurno = useMemo(
     () => turnos.find((turno) => turno.id === proposingId) || null,
     [proposingId, turnos]
@@ -155,6 +145,19 @@ export default function AdminTurnos() {
     [availability, proposalForm.fechaPropuesta]
   )
 
+  const urgentTurnos = useMemo(
+    () => turnos.filter((turno) => ['pendiente', 'propuesto'].includes(statusKey(turno.estado))),
+    [turnos]
+  )
+
+  const nextTurno = useMemo(
+    () =>
+      [...turnos]
+        .filter((turno) => ['pendiente', 'propuesto', 'aprobado', 'aceptado'].includes(statusKey(turno.estado)))
+        .sort((a, b) => `${a.fecha || ''} ${a.hora || ''}`.localeCompare(`${b.fecha || ''} ${b.hora || ''}`))[0] || null,
+    [turnos]
+  )
+
   useEffect(() => {
     setCurrentPage(1)
   }, [search, statusFilter])
@@ -163,15 +166,40 @@ export default function AdminTurnos() {
     if (currentPage > totalPages) setCurrentPage(totalPages)
   }, [currentPage, totalPages])
 
-  const openProposal = (turno) => {
+  const openProposal = async (turno) => {
     setRejectingId(null)
     setRejectReason('')
     setProposingId(turno.id)
+    setAvailability([])
     setProposalForm({
-      fechaPropuesta: firstAvailableSlot?.fecha || '',
-      horaPropuesta: firstAvailableSlot?.hora || '',
+      fechaPropuesta: '',
+      horaPropuesta: '',
       observacionAdmin: ''
     })
+
+    setAvailabilityLoading(true)
+    try {
+      const disponibilidad = await obtenerDisponibilidadTurnos({
+        dias: DEFAULT_AVAILABILITY_DAYS,
+        turnosBase: turnos
+      })
+      const firstSlot = disponibilidad.find((item) => item.horarios.length)
+
+      setAvailability(disponibilidad)
+      setProposalForm((prev) => ({
+        ...prev,
+        fechaPropuesta: firstSlot?.fecha || '',
+        horaPropuesta: firstSlot?.hora || ''
+      }))
+    } catch (error) {
+      addNotification({
+        title: 'Horarios no disponibles',
+        message: error.message || 'No se pudieron cargar los horarios disponibles.',
+        type: 'error'
+      })
+    } finally {
+      setAvailabilityLoading(false)
+    }
   }
 
   const openReject = (turno) => {
@@ -309,220 +337,262 @@ export default function AdminTurnos() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-8">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
+          <p className="text-sm font-semibold uppercase text-blue-600">Atencion presencial</p>
           <h1 className="text-3xl font-bold text-gray-900">Gestion de turnos presenciales</h1>
-          <p className="mt-2 text-gray-600">Revisa solicitudes de socios y administra horarios de atencion.</p>
+          <p className="mt-2 text-gray-600">Prioriza solicitudes pendientes, responde propuestas y confirma horarios.</p>
         </div>
-        <div className="rounded-full bg-blue-100 p-3 text-blue-700">
-          <CalendarCheck className="h-6 w-6" />
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="card">
-          <p className="text-sm text-gray-500">Total</p>
-          <p className="mt-2 text-3xl font-bold text-gray-900">{summary.total}</p>
-        </div>
-        <div className="card">
-          <p className="text-sm text-gray-500">Pendientes</p>
-          <p className="mt-2 text-3xl font-bold text-amber-700">{summary.pending}</p>
-        </div>
-        <div className="card">
-          <p className="text-sm text-gray-500">Propuestos</p>
-          <p className="mt-2 text-3xl font-bold text-blue-700">{summary.proposed}</p>
-        </div>
-        <div className="card">
-          <p className="text-sm text-gray-500">Confirmados</p>
-          <p className="mt-2 text-3xl font-bold text-emerald-700">{summary.confirmed}</p>
+        <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-blue-900">
+          <p className="text-xs font-semibold uppercase text-blue-700">Bandeja abierta</p>
+          <p className="mt-1 text-2xl font-bold">{urgentTurnos.length}</p>
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
-        <div className="space-y-4">
-          <div className="card space-y-3">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2">
-                <Search className="h-4 w-4 text-gray-400" />
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Buscar socio, documento, motivo..."
-                  className="w-full min-w-0 text-sm outline-none md:w-80"
-                />
-              </div>
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                className="input-field md:max-w-52"
-              >
-                {STATUS_FILTERS.map((status) => (
-                  <option key={status} value={status}>
-                    {status === 'Todos' ? 'Todos los estados' : status}
-                  </option>
-                ))}
-              </select>
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm text-gray-500">Total de turnos</p>
+              <p className="mt-2 text-3xl font-bold text-gray-900">{summary.total}</p>
             </div>
-            <p className="text-sm text-gray-500">
-              Mostrando {filteredTurnos.length} de {turnos.length} turnos.
+            <span className="rounded-lg bg-gray-100 p-2 text-gray-700">
+              <CalendarCheck className="h-5 w-5" />
+            </span>
+          </div>
+        </div>
+        <div className="rounded-lg border border-amber-100 bg-amber-50 p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm text-amber-800">Pendientes</p>
+              <p className="mt-2 text-3xl font-bold text-amber-700">{summary.pending}</p>
+            </div>
+            <span className="rounded-lg bg-white/80 p-2 text-amber-700">
+              <Clock3 className="h-5 w-5" />
+            </span>
+          </div>
+        </div>
+        <div className="rounded-lg border border-blue-100 bg-blue-50 p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm text-blue-800">Propuestos</p>
+              <p className="mt-2 text-3xl font-bold text-blue-700">{summary.proposed}</p>
+            </div>
+            <span className="rounded-lg bg-white/80 p-2 text-blue-700">
+              <Send className="h-5 w-5" />
+            </span>
+          </div>
+        </div>
+        <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm text-emerald-800">Confirmados</p>
+              <p className="mt-2 text-3xl font-bold text-emerald-700">{summary.confirmed}</p>
+            </div>
+            <span className="rounded-lg bg-white/80 p-2 text-emerald-700">
+              <CheckCircle2 className="h-5 w-5" />
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Bandeja de turnos</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              {urgentTurnos.length
+                ? `${urgentTurnos.length} turno${urgentTurnos.length === 1 ? '' : 's'} necesitan respuesta.`
+                : 'No hay turnos pendientes de respuesta.'}
             </p>
           </div>
 
-          {paginatedTurnos.map((turno) => (
-            <div key={turno.id} className="card">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <div className="rounded-lg bg-blue-100 p-2 text-blue-700">
-                      <CalendarClock className="h-5 w-5" />
+          <div className="grid gap-3 md:grid-cols-[minmax(240px,1fr)_220px] xl:min-w-[560px]">
+            <label className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2">
+              <Search className="h-4 w-4 text-gray-400" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar socio, documento, motivo..."
+                className="w-full min-w-0 text-sm outline-none"
+              />
+            </label>
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              className="input-field"
+            >
+              {STATUS_FILTERS.map((status) => (
+                <option key={status} value={status}>
+                  {status === 'Todos' ? 'Todos los estados' : status}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {nextTurno ? (
+          <div className="mt-5 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
+            <p className="text-xs font-semibold uppercase text-blue-700">Proximo turno en agenda</p>
+            <p className="mt-1 font-semibold text-gray-900">
+              {nextTurno.socio || `Socio ${nextTurno.idSocio}`} - {formatDateLong(nextTurno.fecha)} a las {nextTurno.hora} hs
+            </p>
+          </div>
+        ) : null}
+
+        <div className="mt-5 space-y-3">
+          {paginatedTurnos.map((turno) => {
+            const estado = statusKey(turno.estado)
+            const needsDecision = isPending(turno.estado)
+            const isProposed = estado === 'propuesto'
+
+            return (
+              <article
+                key={turno.id}
+                className={`rounded-lg border bg-white p-4 shadow-sm ${
+                  needsDecision
+                    ? 'border-amber-200'
+                    : isProposed
+                      ? 'border-blue-200'
+                      : 'border-gray-200'
+                }`}
+              >
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
+                  <div className="min-w-0">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <div className={`rounded-lg p-2 ${needsDecision ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                          <CalendarClock className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-lg font-semibold text-gray-900">{turno.socio || `Socio ${turno.idSocio}`}</h3>
+                          <p className="text-sm text-gray-500">
+                            {turno.documentoSocio ? `Doc. ${turno.documentoSocio}` : `ID socio ${turno.idSocio || '-'}`}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${statusStyles(turno.estado)}`}>
+                        {turno.estado}
+                      </span>
                     </div>
+
+                    <div className="mt-4 grid gap-3 lg:grid-cols-[260px_minmax(0,1fr)]">
+                      <div className="rounded-lg bg-gray-50 px-4 py-3">
+                        <p className="text-xs font-semibold uppercase text-gray-500">Solicitado</p>
+                        <p className="mt-1 font-semibold capitalize text-gray-900">
+                          {formatDateLong(turno.fecha)}
+                        </p>
+                        <p className="text-sm text-gray-600">{turno.hora} hs</p>
+                      </div>
+                      <div className="rounded-lg bg-gray-50 px-4 py-3">
+                        <p className="text-xs font-semibold uppercase text-gray-500">Motivo</p>
+                        <p className="mt-1 text-sm font-medium text-gray-900">{turno.motivo || 'Sin motivo informado'}</p>
+                      </div>
+                    </div>
+
+                    {turno.fechaPropuesta && turno.horaPropuesta ? (
+                      <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
+                        <p className="text-xs font-semibold uppercase text-blue-700">Propuesta enviada al socio</p>
+                        <p className="mt-1 font-semibold capitalize text-gray-900">
+                          {formatDateLong(turno.fechaPropuesta)} - {turno.horaPropuesta} hs
+                        </p>
+                        {turno.observacionAdmin ? <p className="mt-2 text-sm text-gray-600">{turno.observacionAdmin}</p> : null}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="flex flex-col justify-between gap-3 rounded-lg bg-gray-50 p-3">
                     <div>
-                      <h2 className="text-lg font-semibold text-gray-900">{turno.socio || `Socio ${turno.idSocio}`}</h2>
-                      <p className="text-sm text-gray-500">
-                        {turno.documentoSocio ? `Doc. ${turno.documentoSocio}` : `ID socio ${turno.idSocio || '-'}`}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                      <p className="text-xs uppercase text-gray-500">Solicitado</p>
-                      <p className="mt-1 font-semibold capitalize text-gray-900">
-                        {formatDateLong(turno.fecha)} - {turno.hora} hs
+                      <p className="text-xs font-semibold uppercase text-gray-500">Acciones</p>
+                      <p className="mt-1 text-sm text-gray-600">
+                        {needsDecision
+                          ? 'Responde la solicitud del socio.'
+                          : isProposed
+                            ? 'Esperando respuesta del socio.'
+                            : 'Sin acciones pendientes.'}
                       </p>
                     </div>
 
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                      <p className="text-xs uppercase text-gray-500">Motivo</p>
-                      <p className="mt-1 text-sm font-medium text-gray-900">{turno.motivo || 'Sin motivo informado'}</p>
-                    </div>
-                  </div>
-
-                  {turno.fechaPropuesta && turno.horaPropuesta ? (
-                    <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-                      <p className="text-xs uppercase text-blue-700">Propuesta enviada</p>
-                      <p className="mt-1 font-semibold capitalize text-gray-900">
-                        {formatDateLong(turno.fechaPropuesta)} - {turno.horaPropuesta} hs
-                      </p>
-                      {turno.observacionAdmin ? <p className="mt-2 text-sm text-gray-600">{turno.observacionAdmin}</p> : null}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="flex flex-col gap-3 lg:min-w-56 lg:items-end">
-                  <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusStyles(turno.estado)}`}>
-                    {turno.estado}
-                  </span>
-
-                  {isPending(turno.estado) ? (
-                    <div className="flex flex-wrap gap-2 lg:justify-end">
-                      <button
-                        type="button"
-                        onClick={() => handleApprove(turno)}
-                        disabled={updatingId === turno.id}
-                        className="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <CheckCircle2 className="mr-1 h-4 w-4" />
-                        Aprobar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openProposal(turno)}
-                        className="inline-flex items-center rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
-                      >
-                        <Clock3 className="mr-1 h-4 w-4" />
-                        Proponer
-                      </button>
+                    {needsDecision ? (
+                      <div className="grid gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleApprove(turno)}
+                          disabled={updatingId === turno.id}
+                          className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <CheckCircle2 className="mr-1 h-4 w-4" />
+                          Aprobar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openProposal(turno)}
+                          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                        >
+                          <Clock3 className="mr-1 h-4 w-4" />
+                          Proponer horario
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openReject(turno)}
+                          className="inline-flex items-center justify-center rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                        >
+                          <XCircle className="mr-1 h-4 w-4" />
+                          Rechazar
+                        </button>
+                      </div>
+                    ) : isOpenStatus(turno.estado) ? (
                       <button
                         type="button"
                         onClick={() => openReject(turno)}
-                        className="inline-flex items-center rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700"
+                        className="inline-flex items-center justify-center rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700"
                       >
                         <XCircle className="mr-1 h-4 w-4" />
                         Rechazar
                       </button>
-                    </div>
-                  ) : isOpenStatus(turno.estado) ? (
-                    <button
-                      type="button"
-                      onClick={() => openReject(turno)}
-                      className="inline-flex items-center rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700"
-                    >
-                      <XCircle className="mr-1 h-4 w-4" />
-                      Rechazar
-                    </button>
-                  ) : null}
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-            </div>
-          ))}
+              </article>
+            )
+          })}
 
           {!filteredTurnos.length ? (
-            <div className="card py-12 text-center text-gray-500">
+            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 py-12 text-center text-gray-500">
               {turnos.length ? 'No hay turnos que coincidan con el filtro.' : 'No hay turnos registrados.'}
-            </div>
-          ) : null}
-
-          {filteredTurnos.length > PAGE_SIZE ? (
-            <div className="card flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-gray-500">
-                Pagina {currentPage} de {totalPages}
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                  disabled={currentPage === 1}
-                  className="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <ChevronLeft className="mr-1 h-4 w-4" />
-                  Anterior
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                  disabled={currentPage === totalPages}
-                  className="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Siguiente
-                  <ChevronRight className="ml-1 h-4 w-4" />
-                </button>
-              </div>
             </div>
           ) : null}
         </div>
 
-        <aside className="card h-fit xl:sticky xl:top-24">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="rounded-lg bg-cyan-100 p-2 text-cyan-700">
-              <CalendarClock className="h-5 w-5" />
-            </div>
-            <h2 className="text-xl font-semibold text-gray-900">Disponibilidad</h2>
-          </div>
+        <div className="mt-5 flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-gray-500">
+            Mostrando {filteredTurnos.length} de {turnos.length} turnos. Pagina {currentPage} de {totalPages}
+          </p>
 
-          <div className="max-h-[620px] space-y-4 overflow-y-auto pr-2">
-            {availability.map((day) => (
-              <div key={day.fecha} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-semibold capitalize text-gray-900">{formatDateLabel(day.fecha)}</p>
-                  <span className="text-xs font-medium text-gray-500">{day.horarios.length} libres</span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {day.horarios.length ? (
-                    day.horarios.map((slot) => (
-                      <span key={slot} className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-gray-700 ring-1 ring-gray-200">
-                        {slot}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-sm text-gray-500">Sin horarios disponibles</span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </aside>
-      </div>
+          {filteredTurnos.length > PAGE_SIZE ? (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={currentPage === 1}
+                className="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ChevronLeft className="mr-1 h-4 w-4" />
+                Anterior
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={currentPage === totalPages}
+                className="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Siguiente
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </section>
 
       {proposingTurno ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -549,7 +619,7 @@ export default function AdminTurnos() {
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">Dia disponible</label>
+                <label className="mb-2 block text-sm font-medium text-gray-700">Dia para proponer</label>
                 <select
                   value={proposalForm.fechaPropuesta}
                   onChange={(event) => {
@@ -561,13 +631,17 @@ export default function AdminTurnos() {
                     }))
                   }}
                   className="input-field"
-                  disabled={updatingId === proposingTurno.id}
+                  disabled={updatingId === proposingTurno.id || availabilityLoading}
                 >
-                  {availability.map((day) => (
-                    <option key={day.fecha} value={day.fecha} disabled={!day.horarios.length}>
-                      {formatDateLabel(day.fecha)} - {day.horarios.length} horarios
-                    </option>
-                  ))}
+                  {availabilityLoading ? <option value="">Cargando horarios...</option> : null}
+                  {!availabilityLoading && !availability.length ? <option value="">Sin horarios para proponer</option> : null}
+                  {!availabilityLoading
+                    ? availability.map((day) => (
+                        <option key={day.fecha} value={day.fecha} disabled={!day.horarios.length}>
+                          {formatDateLabel(day.fecha)} - {day.horarios.length} horarios
+                        </option>
+                      ))
+                    : null}
                 </select>
               </div>
 
@@ -588,8 +662,12 @@ export default function AdminTurnos() {
             </div>
 
             <div className="mt-5">
-              <p className="mb-3 text-sm font-medium text-gray-700">Horarios disponibles</p>
-              {selectedProposalDay?.horarios?.length ? (
+              <p className="mb-3 text-sm font-medium text-gray-700">Horario para proponer</p>
+              {availabilityLoading ? (
+                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-sm text-gray-500">
+                  Cargando horarios para propuesta...
+                </div>
+              ) : selectedProposalDay?.horarios?.length ? (
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
                   {selectedProposalDay.horarios.map((slot) => (
                     <button
@@ -625,7 +703,7 @@ export default function AdminTurnos() {
               <button
                 type="button"
                 onClick={() => handleProposal(proposingTurno)}
-                disabled={updatingId === proposingTurno.id || !proposalForm.fechaPropuesta || !proposalForm.horaPropuesta}
+                disabled={updatingId === proposingTurno.id || availabilityLoading || !proposalForm.fechaPropuesta || !proposalForm.horaPropuesta}
                 className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Send className="mr-2 h-4 w-4" />
