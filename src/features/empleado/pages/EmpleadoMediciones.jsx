@@ -7,6 +7,7 @@ import { useCurrentEmpleado } from '@/hooks/useCurrentEmpleado.js'
 import { useEmpleados } from '@/hooks/useEmpleados.js'
 import { cargoMatches } from '@/utils/auth.js'
 import { formatDate } from '@/utils/formatDate.js'
+import { firstValidationError, isNonNegativeNumber, isPositiveNumber, isValidDate } from '@/utils/validation.js'
 
 const initialForm = {
   idMedidor: '',
@@ -165,6 +166,18 @@ export default function EmpleadoMediciones({ adminMode = false }) {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+
+    const validationError = firstValidationError([
+      !isPositiveNumber(form.idMedidor) ? 'Selecciona un medidor valido.' : '',
+      !isPositiveNumber(form.idTipoLectura) ? 'Selecciona un tipo de lectura valido.' : '',
+      !isValidDate(form.FechaLectura) ? 'La fecha de lectura es obligatoria y debe ser valida.' : '',
+      !isNonNegativeNumber(form.LecturaActual) ? 'La lectura actual debe ser un numero mayor o igual a cero.' : ''
+    ])
+
+    if (validationError) {
+      addNotification({ title: 'Datos invalidos', message: validationError, type: 'error' })
+      return
+    }
 
     try {
       const resolvedEmpleadoId = adminMode

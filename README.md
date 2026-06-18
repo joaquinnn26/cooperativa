@@ -57,6 +57,14 @@ El flujo de turnos esta documentado en:
 docs/turnos-rubrica.md
 ```
 
+## Entrega de casos borde
+
+El analisis integral de estados, excepciones, validaciones, pruebas y Sprint 4 se encuentra en:
+
+```text
+docs/encuentro-6-casos-borde/README.md
+```
+
 Archivos principales:
 
 - `src/features/socio/pages/MisTurnos.jsx`

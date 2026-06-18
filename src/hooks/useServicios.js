@@ -11,8 +11,8 @@ function getAuthHeaders() {
 
 async function jsonFetch(url, options = {}) {
   const res = await fetch(url, {
-    headers: { ...getAuthHeaders(), ...(options.headers || {}) },
-    ...options
+    ...options,
+    headers: { ...getAuthHeaders(), ...(options.headers || {}) }
   })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json()

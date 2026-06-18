@@ -75,6 +75,7 @@ export default function SocioDashboard() {
   const usuario = useAuthStore((state) => state.usuario)
   const { socioId } = useCurrentSocio()
   const fetchBillsBySocio = useCooperativeStore((state) => state.fetchBillsBySocio)
+  const fetchAnnouncements = useCooperativeStore((state) => state.fetchAnnouncements)
   const fetchSocioServices = useServiceWorkflowStore((state) => state.fetchSocioServices)
   const fetchMeters = useServiceWorkflowStore((state) => state.fetchMeters)
   const fetchMetersBySocio = useServiceWorkflowStore((state) => state.fetchMetersBySocio)
@@ -83,50 +84,67 @@ export default function SocioDashboard() {
 
   const [services, setServices] = useState([])
   const [bills, setBills] = useState([])
+  const [announcements, setAnnouncements] = useState([])
 
   useEffect(() => {
     if (!socioId) return
 
     const loadData = async () => {
-      const [servicesData, measurementsData, billsData] = await Promise.all([
-        fetchSocioServices(socioId),
-        fetchMeasurementsBySocio(socioId),
-        fetchBillsBySocio({ idSocio: socioId, usuario })
-      ])
-      const metersData = fetchMetersBySocio ? await fetchMetersBySocio(socioId) : await fetchMeters()
+      try {
+        const [servicesData, measurementsData, billsData, announcementsData] = await Promise.all([
+          fetchSocioServices(socioId),
+          fetchMeasurementsBySocio(socioId),
+          fetchBillsBySocio({ idSocio: socioId, usuario }),
+          fetchAnnouncements().catch(() => [])
+        ])
+        const metersData = fetchMetersBySocio ? await fetchMetersBySocio(socioId) : await fetchMeters()
 
-      const enrichedServices = (servicesData || []).map((service) => {
-        const requiresMeter = serviceRequiresMeter(service.servicioNombre)
-        const matchedMeter = requiresMeter
-          ? (metersData || []).find((meter) => meterMatchesService(meter, service, socioId))
-          : null
+        const enrichedServices = (servicesData || []).map((service) => {
+          const requiresMeter = serviceRequiresMeter(service.servicioNombre)
+          const matchedMeter = requiresMeter
+            ? (metersData || []).find((meter) => meterMatchesService(meter, service, socioId))
+            : null
 
-        const serviceMeasurements = (measurementsData || []).filter((measurement) => {
-          const sameMeter =
-            matchedMeter?.NumeroMedidor &&
-            measurement.NumeroMedidor &&
-            String(measurement.NumeroMedidor) === String(matchedMeter.NumeroMedidor)
-          const sameService = normalizeServiceName(measurement.servicioNombre) === normalizeServiceName(service.servicioNombre)
+          const serviceMeasurements = (measurementsData || []).filter((measurement) => {
+            const sameMeter =
+              matchedMeter?.NumeroMedidor &&
+              measurement.NumeroMedidor &&
+              String(measurement.NumeroMedidor) === String(matchedMeter.NumeroMedidor)
+            const sameService =
+              normalizeServiceName(measurement.servicioNombre) ===
+              normalizeServiceName(service.servicioNombre)
 
-          return sameMeter || sameService
+            return sameMeter || sameService
+          })
+          const latestMeasurement = serviceMeasurements[0] || null
+
+          return {
+            ...service,
+            requiereMedidor: requiresMeter,
+            numeroMedidor:
+              matchedMeter?.NumeroMedidor ||
+              service.numeroMedidor ||
+              latestMeasurement?.NumeroMedidor ||
+              '',
+            ultimaLectura: latestMeasurement?.LecturaActual ?? null,
+            ultimoConsumo: latestMeasurement?.Consumo ?? null
+          }
         })
-        const latestMeasurement = serviceMeasurements[0] || null
 
-        return {
-          ...service,
-          requiereMedidor: requiresMeter,
-          numeroMedidor: matchedMeter?.NumeroMedidor || service.numeroMedidor || latestMeasurement?.NumeroMedidor || '',
-          ultimaLectura: latestMeasurement?.LecturaActual ?? null,
-          ultimoConsumo: latestMeasurement?.Consumo ?? null
-        }
-      })
-
-      setServices(enrichedServices)
-      setBills(billsData || [])
+        setServices(enrichedServices)
+        setBills(billsData || [])
+        setAnnouncements(announcementsData || [])
+      } catch (error) {
+        addNotification({
+          title: 'No se pudo cargar el panel',
+          message: error.message || 'La API no esta disponible.',
+          type: 'error'
+        })
+      }
     }
 
     loadData()
-  }, [fetchBillsBySocio, fetchMeasurementsBySocio, fetchMeters, fetchMetersBySocio, fetchSocioServices, socioId, usuario])
+  }, [addNotification, fetchAnnouncements, fetchBillsBySocio, fetchMeasurementsBySocio, fetchMeters, fetchMetersBySocio, fetchSocioServices, socioId, usuario])
 
   const pendingBills = useMemo(() => bills.filter((bill) => bill.status !== 'paid'), [bills])
   const totalPendingAmount = useMemo(
@@ -145,7 +163,13 @@ export default function SocioDashboard() {
   const todayLabel = useMemo(() => formatDate(new Date(), 'es-AR', { weekday: 'long' }), [])
 
   const dashboardAlerts = useMemo(() => {
-    const alerts = []
+    const alerts = announcements.slice(0, 3).map((announcement) => ({
+      title: announcement.title,
+      message: announcement.content,
+      tone: announcement.priority === 'high' ? 'amber' : announcement.priority === 'low' ? 'emerald' : 'indigo',
+      to: '/socio',
+      icon: announcement.priority === 'high' ? AlertTriangle : Bell
+    }))
 
     if (pendingBills.length) {
       alerts.push({
@@ -182,7 +206,7 @@ export default function SocioDashboard() {
     })
 
     return alerts
-  }, [pendingBills.length])
+  }, [announcements, pendingBills.length])
 
   const quickActions = useMemo(
     () => [

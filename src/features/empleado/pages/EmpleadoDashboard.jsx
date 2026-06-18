@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { ClipboardList, ClipboardPenLine, Gauge } from 'lucide-react'
+import { ClipboardList, ClipboardPenLine, Gauge, MapPinned } from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
 import { cargoMatches } from '@/utils/auth.js'
 
@@ -22,15 +22,27 @@ export default function EmpleadoDashboard() {
 
       <div className="grid gap-4 md:grid-cols-2">
         {isLecturista ? (
-          <Link to="/empleado/mediciones" className="card flex items-center gap-4 hover:shadow-md transition-shadow">
-            <div className="rounded-full bg-blue-100 p-3 text-blue-700">
-              <ClipboardPenLine className="h-6 w-6" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">Cargar Mediciones</h2>
-              <p className="text-sm text-gray-600">Busca medidores, registra lecturas y consulta historial.</p>
-            </div>
-          </Link>
+          <>
+            <Link to="/empleado/hoja-ruta" className="card flex items-center gap-4 hover:shadow-md transition-shadow">
+              <div className="rounded-full bg-blue-100 p-3 text-blue-700">
+                <MapPinned className="h-6 w-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Mi hoja de ruta</h2>
+                <p className="text-sm text-gray-600">Inicia el recorrido, carga mediciones y firma al finalizar.</p>
+              </div>
+            </Link>
+
+            <Link to="/empleado/mediciones" className="card flex items-center gap-4 hover:shadow-md transition-shadow">
+              <div className="rounded-full bg-cyan-100 p-3 text-cyan-700">
+                <ClipboardPenLine className="h-6 w-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Carga manual</h2>
+                <p className="text-sm text-gray-600">Busca medidores y registra lecturas fuera de una ruta.</p>
+              </div>
+            </Link>
+          </>
         ) : null}
 
         {isTecnico ? (

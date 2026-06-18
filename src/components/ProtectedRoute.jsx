@@ -7,9 +7,13 @@ export default function ProtectedRoute({ role }) {
   const location = useLocation()
   const token = useAuthStore((state) => state.token)
   const rol = useAuthStore((state) => state.rol)
-  const usuario = useAuthStore((state) => state.usuario)
+  const sessionStatus = useAuthStore((state) => state.sessionStatus)
 
-  if (!hasActiveSession({ token, usuario })) {
+  if (sessionStatus === 'checking') {
+    return <div className="mx-auto max-w-6xl px-4 py-10 text-gray-600">Validando sesion...</div>
+  }
+
+  if (sessionStatus !== 'authenticated' || !hasActiveSession({ token })) {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
 

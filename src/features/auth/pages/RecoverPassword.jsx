@@ -3,55 +3,126 @@ import { Link } from 'react-router-dom'
 import { KeyRound } from 'lucide-react'
 import { apiUrl } from '@/config/api.js'
 import useAppStore from '@/store/appStore.js'
+import {
+  cleanText,
+  firstValidationError,
+  validateEmail,
+  validateRequired,
+  validateStrongPassword
+} from '@/utils/validation.js'
 
 async function tryRecoverPassword(email) {
-  const attempts = [
-    { path: '/auth/recuperar-contrasena', body: { email } },
-    { path: '/auth/forgot-password', body: { email } },
-    { path: '/auth/reset-password-request', body: { email } }
-  ]
+  const response = await fetch(apiUrl('/auth/recuperar-contrasena'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email })
+  })
 
-  for (const attempt of attempts) {
-    try {
-      const response = await fetch(apiUrl(attempt.path), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(attempt.body)
-      })
-
-      if (response.ok) {
-        return true
-      }
-    } catch {
-      // continue trying
-    }
+  const data = await response.json().catch(() => null)
+  if (!response.ok) {
+    throw new Error(data?.Message || data?.message || 'No se pudo iniciar la recuperacion.')
   }
 
-  throw new Error('Tu API todavia no tiene un endpoint de recuperacion de contrasena disponible.')
+  return data || {}
+}
+
+async function resetPassword(payload) {
+  const response = await fetch(apiUrl('/auth/restablecer-contrasena'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+
+  const data = await response.json().catch(() => null)
+  if (!response.ok) {
+    throw new Error(data?.Message || data?.message || 'No se pudo restablecer la contrasena.')
+  }
+
+  return data
 }
 
 export default function RecoverPassword() {
   const addNotification = useAppStore((state) => state.addNotification)
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => new URLSearchParams(window.location.search).get('email') || '')
   const [submitting, setSubmitting] = useState(false)
+  const [resetForm, setResetForm] = useState(() => ({
+    token: new URLSearchParams(window.location.search).get('token') || '',
+    nueva: '',
+    confirmar: ''
+  }))
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+
+    const validationError = validateEmail(email)
+    if (validationError) {
+      addNotification({ title: 'Datos invalidos', message: validationError, type: 'error' })
+      return
+    }
+
     setSubmitting(true)
 
     try {
-      await tryRecoverPassword(email.trim())
+      const result = await tryRecoverPassword(cleanText(email).toLowerCase())
+      if (result.resetToken) {
+        setResetForm((current) => ({ ...current, token: result.resetToken }))
+      }
       addNotification({
         title: 'Solicitud enviada',
-        message: 'Si el correo existe, recibiras instrucciones para recuperar tu contrasena.',
+        message: result.resetToken
+          ? 'Se genero un token de desarrollo. Completa el restablecimiento en esta pantalla.'
+          : 'Si el correo existe, recibiras instrucciones para recuperar tu contrasena.',
         type: 'success'
       })
     } catch (error) {
       addNotification({
         title: 'No disponible',
         message: error.message || 'No se pudo iniciar la recuperacion de contrasena.',
+        type: 'error'
+      })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleReset = async (event) => {
+    event.preventDefault()
+
+    const validationError = firstValidationError([
+      validateRequired(resetForm.token, 'El token'),
+      validateStrongPassword(resetForm.nueva, 'La nueva contrasena')
+    ])
+    if (validationError) {
+      addNotification({ title: 'Datos invalidos', message: validationError, type: 'error' })
+      return
+    }
+    if (resetForm.nueva !== resetForm.confirmar) {
+      addNotification({
+        title: 'Datos invalidos',
+        message: 'La nueva contrasena y la confirmacion no coinciden.',
+        type: 'error'
+      })
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      await resetPassword({
+        email: cleanText(email).toLowerCase(),
+        token: cleanText(resetForm.token),
+        passwordNueva: resetForm.nueva,
+        confirmarPassword: resetForm.confirmar
+      })
+      addNotification({
+        title: 'Contrasena actualizada',
+        message: 'Ya puedes iniciar sesion con tu nueva contrasena.',
+        type: 'success'
+      })
+      setResetForm({ token: '', nueva: '', confirmar: '' })
+    } catch (error) {
+      addNotification({
+        title: 'No se pudo restablecer',
+        message: error.message,
         type: 'error'
       })
     } finally {
@@ -85,6 +156,33 @@ export default function RecoverPassword() {
 
           <button type="submit" disabled={submitting} className="w-full btn-primary disabled:opacity-60">
             {submitting ? 'Enviando...' : 'Solicitar recuperacion'}
+          </button>
+        </form>
+
+        <form onSubmit={handleReset} className="mt-8 space-y-4 border-t border-gray-200 pt-6">
+          <h2 className="text-lg font-semibold text-gray-900">Ya tengo un token</h2>
+          <input
+            value={resetForm.token}
+            onChange={(event) => setResetForm((current) => ({ ...current, token: event.target.value }))}
+            className="input-field"
+            placeholder="Token de recuperacion"
+          />
+          <input
+            type="password"
+            value={resetForm.nueva}
+            onChange={(event) => setResetForm((current) => ({ ...current, nueva: event.target.value }))}
+            className="input-field"
+            placeholder="Nueva contrasena"
+          />
+          <input
+            type="password"
+            value={resetForm.confirmar}
+            onChange={(event) => setResetForm((current) => ({ ...current, confirmar: event.target.value }))}
+            className="input-field"
+            placeholder="Confirmar nueva contrasena"
+          />
+          <button type="submit" disabled={submitting} className="w-full btn-secondary disabled:opacity-60">
+            Restablecer contrasena
           </button>
         </form>
 

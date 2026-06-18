@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useEmpleados } from '@/hooks/useEmpleados.js'
+import { isPositiveNumber, isValidDate } from '@/utils/validation.js'
 
 const initialForm = {
   Nombre: '',
@@ -57,8 +58,13 @@ export default function ModalEditarEmpleado({ show, empleado, onClose, onRefresh
     }
 
     const idCargo = Number(form.idCargo)
-    if (Number.isNaN(idCargo)) {
+    if (!isPositiveNumber(idCargo)) {
       setError('El cargo seleccionado no es valido.')
+      return
+    }
+
+    if (!isValidDate(form.FechaDelInicio)) {
+      setError('La fecha de inicio no es valida.')
       return
     }
 

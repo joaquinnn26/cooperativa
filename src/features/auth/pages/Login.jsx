@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { LogIn } from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
 import useAppStore from '@/store/appStore.js'
+import { cleanText, firstValidationError, validateEmail, validateRequired } from '@/utils/validation.js'
 
 export default function Login() {
   const login = useAuthStore((state) => state.login)
@@ -27,10 +28,24 @@ export default function Login() {
 
   const handleLogin = async (event) => {
     event.preventDefault()
+
+    const validationError = firstValidationError([
+      validateEmail(form.email),
+      validateRequired(form.password, 'La contrasena')
+    ])
+
+    if (validationError) {
+      addNotification({ title: 'Datos invalidos', message: validationError, type: 'error' })
+      return
+    }
+
     setIsLoading(true)
 
     try {
-      const data = await login(form)
+      const data = await login({
+        ...form,
+        email: cleanText(form.email).toLowerCase()
+      })
 
       addNotification({
         title: 'Bienvenido',

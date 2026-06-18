@@ -1,16 +1,16 @@
 import { useMemo } from 'react'
 import { apiUrl } from '@/config/api.js'
 import {
-  DEFAULT_AVAILABILITY_DAYS,
-  ensureArray,
-  formatDateInput,
-  normalizeAvailability,
-  normalizeTurno,
-  sanitizePlainText,
-  validateTurnoRequest
+  DIAS_DISPONIBILIDAD_TURNOS,
+  asegurarArray,
+  formatearFechaInput,
+  limpiarTextoPlano,
+  normalizarDisponibilidad,
+  normalizarTurno,
+  validarSolicitudTurno
 } from '@/utils/turnosUtils.jsx'
 
-function getAuthHeaders() {
+function obtenerHeadersAuth() {
   const token = localStorage.getItem('token')
   return {
     'Content-Type': 'application/json',
@@ -18,68 +18,68 @@ function getAuthHeaders() {
   }
 }
 
-async function readError(response, fallbackMessage) {
-  const errorText = await response.text()
+async function leerError(respuesta, mensajeFallback) {
+  const textoError = await respuesta.text()
   try {
-    const data = JSON.parse(errorText)
-    return data?.message || data?.Message || errorText || fallbackMessage
+    const datos = JSON.parse(textoError)
+    return datos?.message || datos?.Message || textoError || mensajeFallback
   } catch {
-    return errorText || fallbackMessage
+    return textoError || mensajeFallback
   }
 }
 
-export const obtenerDisponibilidadTurnos = async ({ desde, dias = DEFAULT_AVAILABILITY_DAYS, turnosBase = [] } = {}) => {
-  const fechaDesde = desde || formatDateInput(new Date())
+export const obtenerDisponibilidadTurnos = async ({ desde, dias = DIAS_DISPONIBILIDAD_TURNOS } = {}) => {
+  const fechaDesde = desde || formatearFechaInput(new Date())
 
-  const response = await fetch(apiUrl(`/turnos/disponibilidad?desde=${fechaDesde}&dias=${dias}`), {
+  const respuesta = await fetch(apiUrl(`/turnos/disponibilidad?desde=${fechaDesde}&dias=${dias}`), {
     method: 'GET',
-    headers: getAuthHeaders()
+    headers: obtenerHeadersAuth()
   })
 
-  if (!response.ok) {
-    throw new Error(await readError(response, 'No se pudo obtener la disponibilidad de turnos'))
+  if (!respuesta.ok) {
+    throw new Error(await leerError(respuesta, 'No se pudo obtener la disponibilidad de turnos'))
   }
 
-  const data = response.status === 204 ? [] : await response.json()
-  return normalizeAvailability(data)
+  const datos = respuesta.status === 204 ? [] : await respuesta.json()
+  return normalizarDisponibilidad(datos)
 }
 
 export const crearTurno = async (datosTurno) => {
   const fecha = datosTurno?.fecha || datosTurno?.Fecha
   const hora = datosTurno?.hora || datosTurno?.Hora
-  const motivo = sanitizePlainText(datosTurno?.motivo || datosTurno?.Motivo)
-  const validationError = validateTurnoRequest({ fecha, hora, motivoDetalle: motivo, maxLength: 500 })
+  const motivo = limpiarTextoPlano(datosTurno?.motivo || datosTurno?.Motivo)
+  const errorValidacion = validarSolicitudTurno({ fecha, hora, motivoDetalle: motivo, maxLength: 500 })
 
   if (!datosTurno?.idSocio && !datosTurno?.IdSocio) {
     throw new Error('No se pudo identificar el socio del turno.')
   }
 
-  if (validationError) {
-    throw new Error(validationError)
+  if (errorValidacion) {
+    throw new Error(errorValidacion)
   }
 
-  const payload = {
+  const cuerpo = {
     ...datosTurno,
-    socioNombre: sanitizePlainText(datosTurno?.socioNombre || datosTurno?.SocioNombre),
-    SocioNombre: sanitizePlainText(datosTurno?.SocioNombre || datosTurno?.socioNombre),
-    socioDocumento: sanitizePlainText(datosTurno?.socioDocumento || datosTurno?.SocioDocumento),
-    SocioDocumento: sanitizePlainText(datosTurno?.SocioDocumento || datosTurno?.socioDocumento),
+    socioNombre: limpiarTextoPlano(datosTurno?.socioNombre || datosTurno?.SocioNombre),
+    SocioNombre: limpiarTextoPlano(datosTurno?.SocioNombre || datosTurno?.socioNombre),
+    socioDocumento: limpiarTextoPlano(datosTurno?.socioDocumento || datosTurno?.SocioDocumento),
+    SocioDocumento: limpiarTextoPlano(datosTurno?.SocioDocumento || datosTurno?.socioDocumento),
     motivo,
     Motivo: motivo
   }
 
-  const response = await fetch(apiUrl('/turnos'), {
+  const respuesta = await fetch(apiUrl('/turnos'), {
     method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify(payload)
+    headers: obtenerHeadersAuth(),
+    body: JSON.stringify(cuerpo)
   })
 
-  if (!response.ok) {
-    throw new Error(await readError(response, 'No se pudo crear el turno'))
+  if (!respuesta.ok) {
+    throw new Error(await leerError(respuesta, 'No se pudo crear el turno'))
   }
 
-  const data = response.status === 204 ? payload : await response.json()
-  return normalizeTurno(data)
+  const datos = respuesta.status === 204 ? cuerpo : await respuesta.json()
+  return normalizarTurno(datos)
 }
 
 export const obtenerTurnosPorSocio = async (idSocio) => {
@@ -87,35 +87,53 @@ export const obtenerTurnosPorSocio = async (idSocio) => {
     throw new Error('No se pudo identificar el socio para cargar sus turnos.')
   }
 
-  const response = await fetch(apiUrl(`/turnos/socio/${idSocio}`), {
+  const respuesta = await fetch(apiUrl(`/turnos/socio/${idSocio}`), {
     method: 'GET',
-    headers: getAuthHeaders()
+    headers: obtenerHeadersAuth()
   })
 
-  if (!response.ok) {
-    throw new Error(await readError(response, 'Error al obtener los turnos del socio'))
+  if (!respuesta.ok) {
+    throw new Error(await leerError(respuesta, 'Error al obtener los turnos del socio'))
   }
 
-  const data = response.status === 204 ? [] : await response.json()
-  return ensureArray(data).map(normalizeTurno)
+  const datos = respuesta.status === 204 ? [] : await respuesta.json()
+  return asegurarArray(datos).map(normalizarTurno)
 }
 
-export const aceptarPropuestaBackend = async (idTurno) => {
+export const aceptarPropuestaTurno = async (idTurno) => {
   if (!idTurno) {
     throw new Error('No se pudo identificar el turno a confirmar.')
   }
 
-  const response = await fetch(apiUrl(`/turnos/${idTurno}/aceptar-propuesta`), {
+  const respuesta = await fetch(apiUrl(`/turnos/${idTurno}/aceptar-propuesta`), {
     method: 'PUT',
-    headers: getAuthHeaders()
+    headers: obtenerHeadersAuth()
   })
 
-  if (!response.ok) {
-    throw new Error(await readError(response, 'No se pudo aceptar la propuesta'))
+  if (!respuesta.ok) {
+    throw new Error(await leerError(respuesta, 'No se pudo aceptar la propuesta'))
   }
 
-  const data = response.status === 204 ? null : await response.json()
-  return data ? normalizeTurno(data) : null
+  const datos = respuesta.status === 204 ? null : await respuesta.json()
+  return datos ? normalizarTurno(datos) : null
+}
+
+export const cancelarTurno = async (idTurno) => {
+  if (!idTurno) {
+    throw new Error('No se pudo identificar el turno a cancelar.')
+  }
+
+  const respuesta = await fetch(apiUrl(`/turnos/${idTurno}/cancelar`), {
+    method: 'PUT',
+    headers: obtenerHeadersAuth()
+  })
+
+  if (!respuesta.ok) {
+    throw new Error(await leerError(respuesta, 'No se pudo cancelar el turno'))
+  }
+
+  const datos = respuesta.status === 204 ? null : await respuesta.json()
+  return datos ? normalizarTurno(datos) : true
 }
 
 export function useTurnos() {
@@ -124,7 +142,8 @@ export function useTurnos() {
       obtenerDisponibilidadTurnos,
       crearTurno,
       obtenerTurnosPorSocio,
-      aceptarPropuestaBackend
+      aceptarPropuestaTurno,
+      cancelarTurno
     }),
     []
   )

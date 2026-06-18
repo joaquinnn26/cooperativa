@@ -6,9 +6,13 @@ import { getDefaultRouteByRole, hasActiveSession } from '@/utils/auth.js'
 export default function PublicOnlyRoute() {
   const token = useAuthStore((state) => state.token)
   const rol = useAuthStore((state) => state.rol)
-  const usuario = useAuthStore((state) => state.usuario)
+  const sessionStatus = useAuthStore((state) => state.sessionStatus)
 
-  if (hasActiveSession({ token, usuario })) {
+  if (sessionStatus === 'checking') {
+    return <div className="mx-auto max-w-md px-4 py-10 text-gray-600">Validando sesion...</div>
+  }
+
+  if (sessionStatus === 'authenticated' && hasActiveSession({ token })) {
     return <Navigate to={getDefaultRouteByRole(rol)} replace />
   }
 

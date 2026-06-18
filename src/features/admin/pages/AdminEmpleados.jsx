@@ -125,9 +125,6 @@ export default function AdminEmpleados() {
               onEliminar={abrirEliminar}
               onToggleEstado={(empleado) => toggleEstadoEmpleado(empleado.idEmpleado)}
             />
-            {!filtered.length ? (
-              <p className="py-6 text-center text-gray-500">No hay empleados que coincidan.</p>
-            ) : null}
           </>
         )}
       </div>

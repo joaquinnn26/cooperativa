@@ -1,9 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, ClipboardList, Eye, Search, XCircle } from 'lucide-react'
+import {
+  CheckCircle2,
+  ClipboardList,
+  ExternalLink,
+  FileText,
+  Filter,
+  Loader2,
+  Search,
+  XCircle
+} from 'lucide-react'
 import { API_SERVER_URL } from '@/config/api.js'
 import useAppStore from '@/store/appStore.js'
 import useServiceWorkflowStore, { SERVICE_REQUEST_STATUSES } from '@/store/serviceWorkflowStore.js'
 import { formatDate } from '@/utils/formatDate.js'
+
+const STATUS_FILTERS = ['Todas', 'Pendiente', 'En revision', 'Aprobada', 'Rechazada', 'Cancelada']
 
 function statusColor(estado) {
   switch (estado) {
@@ -20,10 +31,37 @@ function statusColor(estado) {
   }
 }
 
+function statusPriority(estado) {
+  if (estado === 'Pendiente') return 0
+  if (estado === 'En revision') return 1
+  if (estado === 'Aprobada') return 2
+  if (estado === 'Rechazada') return 3
+  return 4
+}
+
 function documentUrl(path) {
   if (!path) return ''
   if (/^https?:\/\//i.test(path)) return path
   return `${API_SERVER_URL}${path.startsWith('/') ? path : `/${path}`}`
+}
+
+function documentLabel(documento, index) {
+  return documento.nombre || documento.NombreArchivo || documento.tipo || `Documento ${index + 1}`
+}
+
+function requestSearchText(request) {
+  return [
+    request.socioNombre,
+    request.socioUsuario,
+    request.servicioNombre,
+    request.estado,
+    request.direccion,
+    request.observaciones,
+    request.motivoRechazo
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
 }
 
 export default function AdminSolicitudesServicio() {
@@ -34,48 +72,81 @@ export default function AdminSolicitudesServicio() {
   const updateServiceRequestStatus = useServiceWorkflowStore((state) => state.updateServiceRequestStatus)
 
   const [requests, setRequests] = useState([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [selectedRequest, setSelectedRequest] = useState(null)
+  const [statusFilter, setStatusFilter] = useState('Pendiente')
+  const [selectedRequestId, setSelectedRequestId] = useState(null)
   const [rejectingRequest, setRejectingRequest] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
-  const [statusByRequest, setStatusByRequest] = useState({})
+  const [nextStatus, setNextStatus] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const loadRequests = async () => {
-    const data = await fetchServiceRequests()
-    setRequests(data)
+    setLoading(true)
+    try {
+      const data = await fetchServiceRequests()
+      setRequests(data || [])
+      return data || []
+    } catch (error) {
+      addNotification({
+        title: 'Error',
+        message: error.message || 'No se pudieron cargar las solicitudes.',
+        type: 'error'
+      })
+      return []
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
     loadRequests()
   }, [fetchServiceRequests])
 
-  useEffect(() => {
-    setStatusByRequest((prev) =>
-      requests.reduce((acc, request) => {
-        acc[request.idSolicitudServicio] = prev[request.idSolicitudServicio] || request.estado
+  const summary = useMemo(
+    () =>
+      STATUS_FILTERS.slice(1).reduce((acc, status) => {
+        acc[status] = requests.filter((request) => request.estado === status).length
         return acc
-      }, {})
-    )
-  }, [requests])
+      }, {}),
+    [requests]
+  )
 
   const filteredRequests = useMemo(() => {
-    const query = search.toLowerCase()
-    return requests.filter((request) =>
-      [
-        request.socioNombre,
-        request.socioUsuario,
-        request.servicioNombre,
-        request.estado,
-        request.observaciones
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(query)
-    )
-  }, [requests, search])
+    const query = search.trim().toLowerCase()
 
-  const handleApprove = async (request) => {
+    return requests
+      .filter((request) => statusFilter === 'Todas' || request.estado === statusFilter)
+      .filter((request) => !query || requestSearchText(request).includes(query))
+      .sort((a, b) => {
+        const priority = statusPriority(a.estado) - statusPriority(b.estado)
+        if (priority !== 0) return priority
+        return new Date(b.fechaSolicitud).getTime() - new Date(a.fechaSolicitud).getTime()
+      })
+  }, [requests, search, statusFilter])
+
+  const selectedRequest = useMemo(
+    () =>
+      requests.find((request) => String(request.idSolicitudServicio) === String(selectedRequestId)) ||
+      filteredRequests[0] ||
+      null,
+    [filteredRequests, requests, selectedRequestId]
+  )
+
+  useEffect(() => {
+    if (!selectedRequest) {
+      setSelectedRequestId(null)
+      setNextStatus('')
+      return
+    }
+
+    setSelectedRequestId(selectedRequest.idSolicitudServicio)
+    setNextStatus(selectedRequest.estado)
+  }, [selectedRequest?.idSolicitudServicio, selectedRequest?.estado])
+
+  const handleApprove = async (request = selectedRequest) => {
+    if (!request) return
+    setSaving(true)
     try {
       await approveServiceRequest(request.idSolicitudServicio)
       addNotification({
@@ -90,12 +161,15 @@ export default function AdminSolicitudesServicio() {
         message: error.message || 'No se pudo aprobar la solicitud.',
         type: 'error'
       })
+    } finally {
+      setSaving(false)
     }
   }
 
   const handleReject = async () => {
     if (!rejectingRequest || !rejectReason.trim()) return
 
+    setSaving(true)
     try {
       await rejectServiceRequest(rejectingRequest.idSolicitudServicio, rejectReason.trim())
       addNotification({
@@ -112,29 +186,30 @@ export default function AdminSolicitudesServicio() {
         message: error.message || 'No se pudo rechazar la solicitud.',
         type: 'error'
       })
+    } finally {
+      setSaving(false)
     }
   }
 
-  const handleStatusUpdate = async (request) => {
-    const nextStatus = statusByRequest[request.idSolicitudServicio] || request.estado
-
-    if (nextStatus === request.estado) return
+  const handleStatusUpdate = async () => {
+    if (!selectedRequest || !nextStatus || nextStatus === selectedRequest.estado) return
 
     if (nextStatus === 'Rechazada') {
-      setRejectingRequest(request)
+      setRejectingRequest(selectedRequest)
       return
     }
 
+    setSaving(true)
     try {
       if (nextStatus === 'Aprobada') {
-        await approveServiceRequest(request.idSolicitudServicio)
+        await approveServiceRequest(selectedRequest.idSolicitudServicio)
       } else {
-        await updateServiceRequestStatus(request.idSolicitudServicio, { estado: nextStatus })
+        await updateServiceRequestStatus(selectedRequest.idSolicitudServicio, { estado: nextStatus })
       }
 
       addNotification({
         title: 'Estado actualizado',
-        message: `La solicitud de ${request.socioNombre} quedo en estado ${nextStatus}.`,
+        message: `La solicitud de ${selectedRequest.socioNombre} quedo en estado ${nextStatus}.`,
         type: 'success'
       })
       await loadRequests()
@@ -144,202 +219,264 @@ export default function AdminSolicitudesServicio() {
         message: error.message || 'No se pudo actualizar el estado.',
         type: 'error'
       })
+    } finally {
+      setSaving(false)
     }
   }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
-      <div className="mb-8 flex items-start justify-between gap-4">
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Gestion de Solicitudes</h1>
-          <p className="mt-2 text-gray-600">Carga el estado de cada solicitud y revisa la documentacion cargada.</p>
+          <h1 className="text-3xl font-bold text-gray-900">Revision de solicitudes</h1>
+          <p className="mt-2 text-gray-600">Controla datos, documentacion y estado de cada pedido de servicio.</p>
         </div>
         <div className="rounded-full bg-sky-100 p-3 text-sky-700">
           <ClipboardList className="h-6 w-6" />
         </div>
       </div>
 
-      <div className="mb-4 flex items-center gap-2 rounded-xl border bg-white px-4 py-3 md:max-w-md">
-        <Search className="h-4 w-4 text-gray-500" />
-        <input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Buscar por socio, servicio o estado..."
-          className="w-full text-sm outline-none"
-        />
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {STATUS_FILTERS.slice(1).map((status) => (
+          <button
+            key={status}
+            type="button"
+            onClick={() => setStatusFilter(status)}
+            className={`rounded-lg border px-4 py-3 text-left transition ${
+              statusFilter === status ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white hover:bg-gray-50'
+            }`}
+          >
+            <p className="text-xs font-semibold uppercase text-gray-500">{status}</p>
+            <p className="mt-1 text-2xl font-bold text-gray-900">{summary[status] || 0}</p>
+          </button>
+        ))}
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <table className="min-w-full text-sm text-left">
-          <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-600">
-            <tr>
-              <th className="px-4 py-3">Socio</th>
-              <th className="px-4 py-3">Servicio</th>
-              <th className="px-4 py-3">Fecha</th>
-              <th className="px-4 py-3">Estado</th>
-              <th className="px-4 py-3">Direccion</th>
-              <th className="px-4 py-3">Documentos</th>
-              <th className="px-4 py-3 text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRequests.map((request) => {
-              return (
-                <tr key={request.idSolicitudServicio} className="border-t border-gray-100">
-                  <td className="px-4 py-4">
-                    <p className="font-semibold text-gray-900">{request.socioNombre}</p>
-                    <p className="text-xs text-gray-500">{request.socioUsuario}</p>
-                  </td>
-                  <td className="px-4 py-4">
-                    <p className="font-medium text-gray-900">{request.servicioNombre}</p>
-                    <p className="text-xs text-gray-500 line-clamp-1">{request.observaciones}</p>
-                  </td>
-                  <td className="px-4 py-4 text-gray-600">{formatDate(request.fechaSolicitud, 'es-AR')}</td>
-                  <td className="px-4 py-4">
-                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusColor(request.estado)}`}>
-                      {request.estado}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-gray-600">{request.direccion}</td>
-                  <td className="px-4 py-4">{request.documentos.length}</td>
-                  <td className="px-4 py-4">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedRequest(request)}
-                        className="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                      >
-                        <Eye className="mr-1 h-4 w-4" />
-                        Ver
-                      </button>
-                      <select
-                        value={statusByRequest[request.idSolicitudServicio] || request.estado}
-                        onChange={(event) =>
-                          setStatusByRequest((prev) => ({
-                            ...prev,
-                            [request.idSolicitudServicio]: event.target.value
-                          }))
-                        }
-                        className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700"
-                      >
-                        {SERVICE_REQUEST_STATUSES.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => handleStatusUpdate(request)}
-                        className="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
-                      >
-                        <CheckCircle2 className="mr-1 h-4 w-4" />
-                        Guardar estado
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setStatusByRequest((prev) => ({
-                            ...prev,
-                            [request.idSolicitudServicio]: 'Rechazada'
-                          }))
-                          setRejectingRequest(request)
-                        }}
-                        className="inline-flex items-center rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700"
-                      >
-                        <XCircle className="mr-1 h-4 w-4" />
-                        Rechazar
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 lg:max-w-xl">
+          <Search className="h-4 w-4 text-gray-500" />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Buscar por socio, documento, servicio, estado o direccion..."
+            className="w-full min-w-0 text-sm outline-none"
+          />
+        </div>
 
-        {!filteredRequests.length ? (
-          <div className="py-12 text-center text-gray-500">No hay solicitudes para mostrar.</div>
-        ) : null}
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-gray-500" />
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700"
+          >
+            {STATUS_FILTERS.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {selectedRequest ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
-          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
-            <div className="mb-5 flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">{selectedRequest.servicioNombre}</h2>
-                <p className="text-gray-600">{selectedRequest.socioNombre}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedRequest(null)}
-                className="text-sm font-semibold text-gray-500 hover:text-gray-700"
-              >
-                Cerrar
-              </button>
-            </div>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_430px]">
+        <section className="rounded-lg border border-gray-200 bg-white">
+          <div className="border-b border-gray-100 px-4 py-3">
+            <p className="text-sm font-semibold text-gray-900">
+              {filteredRequests.length} solicitud{filteredRequests.length === 1 ? '' : 'es'}
+            </p>
+          </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-xl bg-gray-50 p-4">
-                <p className="text-xs uppercase text-gray-500">Fecha</p>
-                <p className="mt-1 font-medium text-gray-900">{formatDate(selectedRequest.fechaSolicitud, 'es-AR')}</p>
-              </div>
-              <div className="rounded-xl bg-gray-50 p-4">
-                <p className="text-xs uppercase text-gray-500">Estado</p>
-                <p className="mt-1 font-medium text-gray-900">{selectedRequest.estado}</p>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-xl bg-gray-50 p-4">
-              <p className="text-xs uppercase text-gray-500">Direccion</p>
-              <p className="mt-1 text-gray-800">{selectedRequest.direccion}</p>
-            </div>
-
-            <div className="mt-4 rounded-xl bg-gray-50 p-4">
-              <p className="text-xs uppercase text-gray-500">Observaciones</p>
-              <p className="mt-1 text-gray-800">{selectedRequest.observaciones}</p>
-            </div>
-
-            {selectedRequest.motivoRechazo ? (
-              <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
-                <p className="text-xs uppercase">Motivo rechazo</p>
-                <p className="mt-1">{selectedRequest.motivoRechazo}</p>
+          <div className="divide-y divide-gray-100">
+            {loading ? (
+              <div className="flex items-center gap-2 px-4 py-10 text-sm text-gray-500">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Cargando solicitudes...
               </div>
             ) : null}
 
-            <div className="mt-4 rounded-xl bg-gray-50 p-4">
-              <p className="text-xs uppercase text-gray-500">Documentos</p>
-              <div className="mt-2 space-y-2">
-                {selectedRequest.documentos.map((documento) => (
-                  <div key={documento.id} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-800">
-                    <span>{documento.nombre}</span>
-                    {documento.ruta ? (
-                      <a
-                        href={documentUrl(documento.ruta)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-                      >
-                        Abrir
-                      </a>
-                    ) : (
-                      <span className="text-xs text-gray-400">Sin enlace</span>
-                    )}
-                  </div>
-                ))}
-                {!selectedRequest.documentos.length ? (
-                  <p className="text-sm text-gray-500">No hay documentos.</p>
-                ) : null}
-              </div>
-            </div>
+            {!loading &&
+              filteredRequests.map((request) => {
+                const selected = String(request.idSolicitudServicio) === String(selectedRequest?.idSolicitudServicio)
+                return (
+                  <button
+                    key={request.idSolicitudServicio}
+                    type="button"
+                    onClick={() => setSelectedRequestId(request.idSolicitudServicio)}
+                    className={`block w-full px-4 py-4 text-left transition ${
+                      selected ? 'bg-blue-50' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-gray-900">{request.socioNombre || 'Socio sin nombre'}</p>
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusColor(request.estado)}`}>
+                            {request.estado}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm text-gray-600">
+                          {request.servicioNombre} · Doc. {request.socioUsuario || 'No informado'}
+                        </p>
+                        <p className="mt-1 line-clamp-2 text-sm text-gray-500">{request.observaciones || 'Sin observaciones'}</p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 text-xs text-gray-500 xl:justify-end">
+                        <span>{formatDate(request.fechaSolicitud, 'es-AR')}</span>
+                        <span className="inline-flex items-center gap-1">
+                          <FileText className="h-3.5 w-3.5" />
+                          {request.documentos.length}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+
+            {!loading && !filteredRequests.length ? (
+              <div className="px-4 py-12 text-center text-sm text-gray-500">No hay solicitudes para mostrar.</div>
+            ) : null}
           </div>
-        </div>
-      ) : null}
+        </section>
+
+        <aside className="rounded-lg border border-gray-200 bg-white">
+          {selectedRequest ? (
+            <>
+              <div className="border-b border-gray-100 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold uppercase text-blue-600">Solicitud #{selectedRequest.idSolicitudServicio}</p>
+                    <h2 className="mt-1 text-2xl font-bold text-gray-900">{selectedRequest.servicioNombre}</h2>
+                    <p className="mt-1 text-sm text-gray-600">{selectedRequest.socioNombre} · {selectedRequest.socioUsuario}</p>
+                  </div>
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusColor(selectedRequest.estado)}`}>
+                    {selectedRequest.estado}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-4 p-5">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-lg bg-gray-50 p-3">
+                    <p className="text-xs uppercase text-gray-500">Fecha</p>
+                    <p className="mt-1 font-medium text-gray-900">{formatDate(selectedRequest.fechaSolicitud, 'es-AR')}</p>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 p-3">
+                    <p className="text-xs uppercase text-gray-500">Documentos</p>
+                    <p className="mt-1 font-medium text-gray-900">{selectedRequest.documentos.length}</p>
+                  </div>
+                </div>
+
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs uppercase text-gray-500">Direccion</p>
+                  <p className="mt-1 text-sm text-gray-800">{selectedRequest.direccion || 'No informada'}</p>
+                </div>
+
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs uppercase text-gray-500">Observaciones</p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-gray-800">{selectedRequest.observaciones || 'Sin observaciones'}</p>
+                </div>
+
+                {selectedRequest.motivoRechazo ? (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    <p className="text-xs font-semibold uppercase">Motivo rechazo</p>
+                    <p className="mt-1">{selectedRequest.motivoRechazo}</p>
+                  </div>
+                ) : null}
+
+                <div className="rounded-lg border border-gray-200">
+                  <div className="border-b border-gray-100 px-3 py-2">
+                    <p className="text-sm font-semibold text-gray-900">Documentacion</p>
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {selectedRequest.documentos.map((documento, index) => {
+                      const href = documentUrl(documento.ruta || documento.RutaArchivo)
+                      return (
+                        <div key={documento.id || `${documentLabel(documento, index)}-${index}`} className="flex items-center justify-between gap-3 px-3 py-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-gray-900">{documentLabel(documento, index)}</p>
+                            <p className="text-xs text-gray-500">{documento.tipo || documento.TipoArchivo || 'Archivo'}</p>
+                          </div>
+                          {href ? (
+                            <a
+                              href={href}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                            >
+                              <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                              Abrir
+                            </a>
+                          ) : (
+                            <span className="text-xs text-gray-400">Sin enlace</span>
+                          )}
+                        </div>
+                      )
+                    })}
+
+                    {!selectedRequest.documentos.length ? (
+                      <div className="px-3 py-5 text-sm text-gray-500">No hay documentos cargados.</div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-gray-200 p-3">
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">Cambiar estado</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={nextStatus}
+                      onChange={(event) => setNextStatus(event.target.value)}
+                      className="input-field"
+                      disabled={saving}
+                    >
+                      {SERVICE_REQUEST_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleStatusUpdate}
+                      disabled={saving || nextStatus === selectedRequest.estado}
+                      className="inline-flex items-center rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Guardar
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => handleApprove()}
+                    disabled={saving || selectedRequest.estado === 'Aprobada'}
+                    className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Aprobar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRejectingRequest(selectedRequest)}
+                    disabled={saving || selectedRequest.estado === 'Rechazada'}
+                    className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Rechazar
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="p-8 text-center text-sm text-gray-500">Selecciona una solicitud para revisar sus datos.</div>
+          )}
+        </aside>
+      </div>
 
       {rejectingRequest ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
             <h2 className="text-2xl font-bold text-gray-900">Rechazar solicitud</h2>
             <p className="mt-2 text-gray-600">
               Indica el motivo de rechazo para {rejectingRequest.socioNombre}.
@@ -360,16 +497,17 @@ export default function AdminSolicitudesServicio() {
                   setRejectReason('')
                 }}
                 className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-200"
+                disabled={saving}
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={handleReject}
-                disabled={!rejectReason.trim()}
+                disabled={saving || !rejectReason.trim()}
                 className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Confirmar rechazo
+                {saving ? 'Rechazando...' : 'Confirmar rechazo'}
               </button>
             </div>
           </div>

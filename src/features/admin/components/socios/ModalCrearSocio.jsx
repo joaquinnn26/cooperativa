@@ -1,6 +1,17 @@
 import React, { useState } from 'react'
 import { useSocios } from '@/hooks/useSocios.js'
 import { showInfo, showToast } from '@/utils/alerts.js'
+import {
+  firstValidationError,
+  isBlank,
+  isValidAddress,
+  isValidHouseNumber,
+  sanitizePersonPayload,
+  validateDocument,
+  validateEmail,
+  validatePersonName,
+  validatePhone
+} from '@/utils/validation.js'
 
 export default function ModalCrearSocio({ show, onClose, onSaved }) {
   const { crearSocio } = useSocios(false)
@@ -21,8 +32,24 @@ export default function ModalCrearSocio({ show, onClose, onSaved }) {
 
   const submit = async (e) => {
     e.preventDefault()
+    const sanitized = sanitizePersonPayload(form)
+    const validationError = firstValidationError([
+      validatePersonName(sanitized.Nombre, 'El nombre'),
+      validatePersonName(sanitized.Apellido, 'El apellido'),
+      validateDocument(sanitized.Documento),
+      validatePhone(sanitized.Telefono),
+      validateEmail(sanitized.Email),
+      !isBlank(sanitized.Calle) && !isValidAddress(sanitized.Calle) ? 'La calle contiene caracteres invalidos.' : '',
+      !isBlank(sanitized.Numero) && !isValidHouseNumber(sanitized.Numero) ? 'El numero de domicilio debe ser numerico.' : ''
+    ])
+
+    if (validationError) {
+      showToast({ title: 'Datos invalidos', message: validationError, type: 'error' })
+      return
+    }
+
     try {
-      const socio = await crearSocio(form)
+      const socio = await crearSocio(sanitized)
 
       await showInfo({
         title: 'Socio creado',

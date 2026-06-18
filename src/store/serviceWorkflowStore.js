@@ -62,6 +62,7 @@ const mockRequests = []
 const mockAssignments = []
 const mockMeters = []
 const mockMeasurements = []
+const mockMeasurementRoutes = []
 const mockMeasurementTypes = [
   { idTipoLectura: 1, Nombre: 'Lectura normal' },
   { idTipoLectura: 2, Nombre: 'Lectura estimada' },
@@ -78,13 +79,13 @@ function getAuthHeaders(extraHeaders = {}) {
 
 async function jsonFetch(url, options = {}) {
   const res = await fetch(url, {
-    headers: getAuthHeaders(options.headers || {}),
-    ...options
+    ...options,
+    headers: getAuthHeaders(options.headers || {})
   })
 
   if (!res.ok) {
     const errorText = await res.text()
-    throw new Error(errorText || `HTTP ${res.status}`)
+    throw new Error(parseErrorMessage(errorText) || `HTTP ${res.status}`)
   }
 
   if (res.status === 204) return null
@@ -104,7 +105,7 @@ async function formDataFetch(url, formData, options = {}) {
 
   if (!res.ok) {
     const errorText = await res.text()
-    throw new Error(errorText || `HTTP ${res.status}`)
+    throw new Error(parseErrorMessage(errorText) || `HTTP ${res.status}`)
   }
 
   if (res.status === 204) return null
@@ -117,6 +118,31 @@ function pickFirst(...values) {
 
 function pickFirstFilled(...values) {
   return values.find((value) => value !== undefined && value !== null && String(value).trim() !== '')
+}
+
+function parseErrorMessage(errorText) {
+  if (!errorText) return ''
+
+  try {
+    const parsed = JSON.parse(errorText)
+    return parsed.Message || parsed.message || parsed.error || errorText
+  } catch {
+    return errorText
+  }
+}
+
+function stripHtml(value) {
+  return String(value || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function normalizeActiveStatus(value) {
+  const clean = stripHtml(value).toLowerCase()
+  if (['true', '1', 'activo', 'activa', 'activado', 'si', 'sí'].includes(clean)) return 'Activo'
+  if (['false', '0', 'inactivo', 'inactiva', 'desactivado', 'no'].includes(clean)) return 'Inactivo'
+  return stripHtml(value) || 'Activo'
 }
 
 function primitiveValue(value) {
@@ -513,7 +539,7 @@ function normalizeMeter(meter) {
     servicioNombre: resolveServiceName(meter),
     TipoMedidor: pickFirst(meter.TipoMedidor, meter.tipoMedidor, meter.Tipo, 'General'),
     FechaInstalacion: pickFirst(meter.FechaInstalacion, meter.fechaInstalacion, new Date().toISOString()),
-    Estado: pickFirst(meter.Estado, meter.estado, meter.Activo === false ? 'Inactivo' : 'Activo', 'Activo')
+    Estado: normalizeActiveStatus(meter.Activo === false ? 'Inactivo' : pickFirst(meter.Estado, meter.estado, meter.Activo, 'Activo'))
   }
 }
 
@@ -629,6 +655,32 @@ function generateMeterNumber(meters) {
   return `MED-${lastNumeric + 1}`
 }
 
+function normalizeMeasurementRoute(route) {
+  const items = ensureArray(route?.items || route?.medidores || route?.Meters).map((item, index) => ({
+    idMedidor: Number(pickFirst(item.idMedidor, item.IdMedidor, item.id, item.Medidor?.idMedidor, 0)),
+    orden: Number(pickFirst(item.orden, item.Orden, index + 1)),
+    estado: pickFirst(item.estado, item.Estado, 'Pendiente'),
+    lecturaActual: pickFirst(item.lecturaActual, item.LecturaActual, ''),
+    idMedicion: pickFirst(item.idMedicion, item.IdMedicion, null),
+    fechaMedicion: pickFirst(item.fechaMedicion, item.FechaMedicion, null),
+    observacion: pickFirst(item.observacion, item.Observacion, '')
+  }))
+
+  return {
+    idRutaMedicion: pickFirst(route?.idRutaMedicion, route?.IdRutaMedicion, route?.id, route?.Id),
+    nombre: pickFirst(route?.nombre, route?.Nombre, 'Hoja de ruta'),
+    fecha: pickFirst(route?.fecha, route?.Fecha, new Date().toISOString().slice(0, 10)),
+    idEmpleado: Number(pickFirst(route?.idEmpleado, route?.IdEmpleado, 0)),
+    empleadoNombre: pickFirst(route?.empleadoNombre, route?.EmpleadoNombre, ''),
+    estado: pickFirst(route?.estado, route?.Estado, 'Pendiente'),
+    creadaEn: pickFirst(route?.creadaEn, route?.CreadaEn, new Date().toISOString()),
+    iniciadaEn: pickFirst(route?.iniciadaEn, route?.IniciadaEn, null),
+    finalizadaEn: pickFirst(route?.finalizadaEn, route?.FinalizadaEn, null),
+    firmaDigital: pickFirst(route?.firmaDigital, route?.FirmaDigital, ''),
+    items: items.sort((a, b) => a.orden - b.orden)
+  }
+}
+
 const useServiceWorkflowStore = create(
   persist(
     (set, get) => ({
@@ -638,6 +690,7 @@ const useServiceWorkflowStore = create(
       serviceAssignments: mockAssignments,
       meters: mockMeters,
       measurements: mockMeasurements,
+      measurementRoutes: mockMeasurementRoutes,
       measurementTypes: mockMeasurementTypes,
 
       fetchServicesCatalog: async () => {
@@ -1082,7 +1135,7 @@ const useServiceWorkflowStore = create(
         }
       },
 
-      fetchMeters: async () => {
+      fetchMeters: async ({ throwOnError = false } = {}) => {
         try {
           const data = await jsonFetch(apiUrl('/medidor'))
           const normalized = ensureArray(data).map(normalizeMeter)
@@ -1097,44 +1150,28 @@ const useServiceWorkflowStore = create(
           ]
           set({ meters: merged })
           return merged
-        } catch {
+        } catch (error) {
+          if (throwOnError) throw error
           return get().meters
         }
       },
 
       fetchMetersBySocio: async (socioRef) => {
-        const candidatePaths = [
-          `/medidor/socio/${socioRef}`,
-          `/medidor/por-socio/${socioRef}`,
-          `/medidor/socios/${socioRef}`
-        ]
+        if (!socioRef) throw new Error('No se pudo identificar el socio.')
 
-        for (const path of candidatePaths) {
-          try {
-            const data = await jsonFetch(apiUrl(path))
-            const normalized = ensureArray(data).map(normalizeMeter)
-            set((state) => ({
-              meters: [
-                ...state.meters.filter(
-                  (meter) => String(meter.idSocio) !== String(socioRef) && String(meter.socioUsuario) !== String(socioRef)
-                ),
-                ...normalized
-              ]
-            }))
-            return normalized
-          } catch {}
-        }
-
-        try {
-          const allMeters = await get().fetchMeters()
-          return allMeters.filter(
-            (meter) => String(meter.idSocio) === String(socioRef) || String(meter.socioUsuario) === String(socioRef)
-          )
-        } catch {
-          return get().meters.filter(
-            (meter) => String(meter.idSocio) === String(socioRef) || String(meter.socioUsuario) === String(socioRef)
-          )
-        }
+        const data = await jsonFetch(apiUrl(`/medidor/socio/${socioRef}`))
+        const normalized = ensureArray(data).map(normalizeMeter)
+        set((state) => ({
+          meters: [
+            ...state.meters.filter(
+              (meter) =>
+                String(meter.idSocio) !== String(socioRef) &&
+                String(meter.socioUsuario) !== String(socioRef)
+            ),
+            ...normalized
+          ]
+        }))
+        return normalized
       },
 
       createMeter: async (payload) => {
@@ -1283,7 +1320,8 @@ const useServiceWorkflowStore = create(
             })
           })
           return created
-        } catch {
+        } catch (error) {
+          throw error
           const meter = get().meters.find((item) => item.idMedidor === Number(payload.idMedidor))
           if (!meter) throw new Error('Medidor no encontrado.')
 
@@ -1321,22 +1359,327 @@ const useServiceWorkflowStore = create(
 
           return measurement
         }
+      },
+
+      fetchMeasurementRoutes: async ({ throwOnError = false } = {}) => {
+        try {
+          const data = await jsonFetch(apiUrl('/rutas-medicion'))
+          const normalized = ensureArray(data).map(normalizeMeasurementRoute)
+          set({ measurementRoutes: normalized })
+          return normalized
+        } catch (error) {
+          if (throwOnError) throw error
+          return get().measurementRoutes.map(normalizeMeasurementRoute)
+        }
+      },
+
+      fetchMeasurementRoutesByEmployee: async (employeeId) => {
+        try {
+          const data = await jsonFetch(apiUrl(`/rutas-medicion/empleado/${employeeId}`))
+          const normalized = ensureArray(data).map(normalizeMeasurementRoute)
+          set((state) => ({
+            measurementRoutes: [
+              ...state.measurementRoutes.filter((route) => String(route.idEmpleado) !== String(employeeId)),
+              ...normalized
+            ]
+          }))
+          return normalized
+        } catch {
+          return get()
+            .measurementRoutes
+            .map(normalizeMeasurementRoute)
+            .filter((route) => String(route.idEmpleado) === String(employeeId))
+        }
+      },
+
+      createMeasurementRoute: async (payload) => {
+        const selectedMeters = ensureArray(payload?.meters)
+          .map((meter, index) => ({
+            idMedidor: Number(pickFirst(meter.idMedidor, meter.IdMedidor, meter.id, meter)),
+            orden: index + 1,
+            estado: 'Pendiente',
+            lecturaActual: '',
+            idMedicion: null,
+            fechaMedicion: null,
+            observacion: ''
+          }))
+          .filter((item) => item.idMedidor > 0)
+
+        if (!payload?.idEmpleado) {
+          throw new Error('Selecciona un lecturista para asignar la hoja de ruta.')
+        }
+
+        if (!selectedMeters.length) {
+          throw new Error('Selecciona al menos un medidor activo.')
+        }
+
+        try {
+          const created = await jsonFetch(apiUrl('/rutas-medicion'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              IdEmpleado: Number(payload.idEmpleado),
+              Nombre: payload.nombre || `Ruta de mediciones ${new Date().toLocaleDateString('es-AR')}`,
+              Fecha: payload.fecha || new Date().toISOString().slice(0, 10),
+              Medidores: selectedMeters.map((item) => item.idMedidor),
+              Observacion: payload.observacion || ''
+            })
+          })
+          const normalized = normalizeMeasurementRoute(created)
+          set((state) => ({
+            measurementRoutes: [
+              normalized,
+              ...state.measurementRoutes.filter((route) => String(route.idRutaMedicion) !== String(normalized.idRutaMedicion))
+            ]
+          }))
+          return normalized
+        } catch (error) {
+          if (!String(error.message || '').includes('Failed to fetch')) {
+            throw error
+          }
+          throw new Error('La API no esta disponible. La hoja de ruta no fue creada.')
+        }
+
+        const route = normalizeMeasurementRoute({
+          idRutaMedicion: nextId(get().measurementRoutes, 'idRutaMedicion'),
+          nombre: payload.nombre || `Ruta de mediciones ${new Date().toLocaleDateString('es-AR')}`,
+          fecha: payload.fecha || new Date().toISOString().slice(0, 10),
+          idEmpleado: Number(payload.idEmpleado),
+          empleadoNombre: payload.empleadoNombre || '',
+          estado: 'Pendiente',
+          creadaEn: new Date().toISOString(),
+          items: selectedMeters
+        })
+
+        set((state) => ({
+          measurementRoutes: [route, ...state.measurementRoutes]
+        }))
+
+        return route
+      },
+
+      startMeasurementRoute: async (routeId) => {
+        try {
+          const updated = await jsonFetch(apiUrl(`/rutas-medicion/${routeId}/iniciar`), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' }
+          })
+          const normalized = normalizeMeasurementRoute(updated)
+          set((state) => ({
+            measurementRoutes: state.measurementRoutes.map((route) =>
+              String(route.idRutaMedicion) === String(routeId) ? normalized : route
+            )
+          }))
+          return normalized
+        } catch (error) {
+          if (!String(error.message || '').includes('Failed to fetch')) {
+            throw error
+          }
+          throw new Error('La API no esta disponible. La hoja de ruta no fue iniciada.')
+        }
+
+        let updatedRoute = null
+
+        set((state) => ({
+          measurementRoutes: state.measurementRoutes.map((route) => {
+            if (String(route.idRutaMedicion) !== String(routeId)) return route
+            updatedRoute = normalizeMeasurementRoute({
+              ...route,
+              estado: 'En curso',
+              iniciadaEn: route.iniciadaEn || new Date().toISOString()
+            })
+            return updatedRoute
+          })
+        }))
+
+        return updatedRoute
+      },
+
+      saveMeasurementRouteReading: async (routeId, meterId, payload) => {
+        try {
+          const updated = await jsonFetch(apiUrl(`/rutas-medicion/${routeId}/detalle/${meterId}/lectura`), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              IdEmpleado: Number(payload.idEmpleado),
+              IdTipoLectura: Number(payload.idTipoLectura),
+              LecturaActual: Number(payload.lecturaActual),
+              FechaLectura: payload.fechaLectura || new Date().toISOString().slice(0, 10),
+              Observacion: payload.observacion || '',
+              Latitud: payload.latitud ?? null,
+              Longitud: payload.longitud ?? null,
+              FotoMedidorUrl: payload.fotoMedidorUrl || ''
+            })
+          })
+          const normalized = normalizeMeasurementRoute(updated)
+          set((state) => ({
+            measurementRoutes: state.measurementRoutes.map((route) =>
+              String(route.idRutaMedicion) === String(routeId) ? normalized : route
+            )
+          }))
+          return normalized
+        } catch (error) {
+          if (!String(error.message || '').includes('Failed to fetch')) {
+            throw error
+          }
+          throw new Error('La API no esta disponible. La lectura no fue registrada.')
+        }
+
+        const measurement = await get().createMeasurement({
+          idMedidor: Number(meterId),
+          idEmpleado: Number(payload.idEmpleado),
+          idTipoLectura: Number(payload.idTipoLectura),
+          FechaLectura: payload.fechaLectura || new Date().toISOString().slice(0, 10),
+          LecturaActual: Number(payload.lecturaActual),
+          tipoLecturaNombre: payload.tipoLecturaNombre,
+          empleadoUsuario: payload.empleadoUsuario,
+          empleadoNombre: payload.empleadoNombre
+        })
+
+        return get().updateMeasurementRouteItem(routeId, meterId, {
+          estado: 'Medido',
+          lecturaActual: Number(payload.lecturaActual),
+          idMedicion: measurement?.idMedicion || measurement?.IdMedicion || null,
+          fechaMedicion: new Date().toISOString(),
+          observacion: payload.observacion || ''
+        })
+      },
+
+      updateMeasurementRouteItem: async (routeId, meterId, payload) => {
+        try {
+          if (payload.estado && payload.estado !== 'Medido') {
+            const updated = await jsonFetch(apiUrl(`/rutas-medicion/${routeId}/detalle/${meterId}/estado`), {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                Estado: payload.estado,
+                Observacion: payload.observacion || ''
+              })
+            })
+            const normalized = normalizeMeasurementRoute(updated)
+            set((state) => ({
+              measurementRoutes: state.measurementRoutes.map((route) =>
+                String(route.idRutaMedicion) === String(routeId) ? normalized : route
+              )
+            }))
+            return normalized
+          }
+        } catch (error) {
+          if (!String(error.message || '').includes('Failed to fetch')) {
+            throw error
+          }
+          throw new Error('La API no esta disponible. El estado no fue actualizado.')
+        }
+
+        let updatedRoute = null
+
+        set((state) => ({
+          measurementRoutes: state.measurementRoutes.map((route) => {
+            if (String(route.idRutaMedicion) !== String(routeId)) return route
+
+            updatedRoute = normalizeMeasurementRoute({
+              ...route,
+              estado: route.estado === 'Pendiente' ? 'En curso' : route.estado,
+              iniciadaEn: route.iniciadaEn || new Date().toISOString(),
+              items: route.items.map((item) =>
+                String(item.idMedidor) === String(meterId)
+                  ? {
+                      ...item,
+                      estado: payload.estado || 'Medido',
+                      lecturaActual: payload.lecturaActual ?? item.lecturaActual,
+                      idMedicion: payload.idMedicion ?? item.idMedicion,
+                      fechaMedicion: payload.fechaMedicion || new Date().toISOString(),
+                      observacion: payload.observacion ?? item.observacion
+                    }
+                  : item
+              )
+            })
+
+            return updatedRoute
+          })
+        }))
+
+        return updatedRoute
+      },
+
+      completeMeasurementRoute: async (routeId, payload = {}) => {
+        try {
+          const updated = await jsonFetch(apiUrl(`/rutas-medicion/${routeId}/finalizar`), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              FirmaBase64: payload.firmaDigital || payload.FirmaBase64 || '',
+              Observacion: payload.observacion || ''
+            })
+          })
+          const normalized = normalizeMeasurementRoute(updated)
+          set((state) => ({
+            measurementRoutes: state.measurementRoutes.map((route) =>
+              String(route.idRutaMedicion) === String(routeId) ? normalized : route
+            )
+          }))
+          return normalized
+        } catch (error) {
+          if (!String(error.message || '').includes('Failed to fetch')) {
+            throw error
+          }
+          throw new Error('La API no esta disponible. La hoja de ruta no fue finalizada.')
+        }
+
+        const currentRoute = get().measurementRoutes.find((route) => String(route.idRutaMedicion) === String(routeId))
+        if (!currentRoute) {
+          throw new Error('Hoja de ruta no encontrada.')
+        }
+
+        const normalizedRoute = normalizeMeasurementRoute(currentRoute)
+        const pendingItems = normalizedRoute.items.filter((item) => item.estado !== 'Medido')
+
+        if (pendingItems.length) {
+          throw new Error('Todavia quedan medidores sin cargar.')
+        }
+
+        if (!payload.firmaDigital) {
+          throw new Error('Agrega la firma digital antes de cerrar la hoja de ruta.')
+        }
+
+        const updatedRoute = normalizeMeasurementRoute({
+          ...normalizedRoute,
+          estado: 'Finalizada',
+          finalizadaEn: new Date().toISOString(),
+          firmaDigital: payload.firmaDigital
+        })
+
+        set((state) => ({
+          measurementRoutes: state.measurementRoutes.map((route) =>
+            String(route.idRutaMedicion) === String(routeId) ? updatedRoute : route
+          )
+        }))
+
+        return updatedRoute
       }
     }),
     {
       name: 'cooperativa-service-workflow',
-      version: 2,
+      version: 3,
       migrate: (persistedState, version) => {
         if (!persistedState) return persistedState
+        let nextState = persistedState
 
         if (version < 2) {
-          return {
-            ...persistedState,
+          nextState = {
+            ...nextState,
             requests: []
           }
         }
 
-        return persistedState
+        if (version < 3) {
+          nextState = {
+            ...nextState,
+            measurementRoutes: []
+          }
+        }
+
+        return nextState
       }
     }
   )

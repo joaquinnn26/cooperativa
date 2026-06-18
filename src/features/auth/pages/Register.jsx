@@ -2,10 +2,20 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { UserPlus } from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
+import useAppStore from '@/store/appStore.js'
 import { showInfo } from '@/utils/alerts.js'
+import {
+  cleanText,
+  firstValidationError,
+  validateDocument,
+  validateEmail,
+  validatePersonName,
+  validatePhone
+} from '@/utils/validation.js'
 
 export default function Register() {
   const register = useAuthStore((state) => state.register)
+  const addNotification = useAppStore((state) => state.addNotification)
   const navigate = useNavigate()
 
   const [form, setForm] = useState({
@@ -25,8 +35,29 @@ export default function Register() {
   const handleSubmit = async (event) => {
     event.preventDefault()
 
+    const validationError = firstValidationError([
+      validateDocument(form.documento),
+      validatePersonName(form.nombre, 'El nombre'),
+      validatePersonName(form.apellido, 'El apellido'),
+      validatePhone(form.telefono),
+      validateEmail(form.email),
+      !form.accept ? 'Debes aceptar los terminos y condiciones.' : ''
+    ])
+
+    if (validationError) {
+      addNotification({ title: 'Datos invalidos', message: validationError, type: 'error' })
+      return
+    }
+
     try {
-      const data = await register(form)
+      const data = await register({
+        ...form,
+        documento: cleanText(form.documento),
+        nombre: cleanText(form.nombre),
+        apellido: cleanText(form.apellido),
+        telefono: cleanText(form.telefono),
+        email: cleanText(form.email).toLowerCase()
+      })
 
       await showInfo({
         title: 'Cuenta creada',

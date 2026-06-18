@@ -1,4 +1,4 @@
-export const TURNOS_TIME_SLOTS = [
+export const HORARIOS_TURNOS = [
   '08:00',
   '08:30',
   '09:00',
@@ -13,48 +13,48 @@ export const TURNOS_TIME_SLOTS = [
   '13:30'
 ]
 
-export const DEFAULT_AVAILABILITY_DAYS = 12
-export const TURNOS_REASON_MIN_LENGTH = 10
-export const TURNOS_REASON_MAX_LENGTH = 300
+export const DIAS_DISPONIBILIDAD_TURNOS = 12
+export const MINIMO_CARACTERES_MOTIVO_TURNO = 10
+export const MAXIMO_CARACTERES_MOTIVO_TURNO = 300
 
-export function ensureArray(data) {
-  if (Array.isArray(data)) return data
-  if (Array.isArray(data?.$values)) return data.$values
-  if (Array.isArray(data?.data)) return data.data
-  if (Array.isArray(data?.items)) return data.items
-  if (Array.isArray(data?.results)) return data.results
+export function asegurarArray(datos) {
+  if (Array.isArray(datos)) return datos
+  if (Array.isArray(datos?.$values)) return datos.$values
+  if (Array.isArray(datos?.data)) return datos.data
+  if (Array.isArray(datos?.items)) return datos.items
+  if (Array.isArray(datos?.results)) return datos.results
   return []
 }
 
-export function pickFirst(...values) {
-  return values.find((value) => value !== undefined && value !== null && String(value).trim() !== '')
+export function obtenerPrimerValor(...valores) {
+  return valores.find((valor) => valor !== undefined && valor !== null && String(valor).trim() !== '')
 }
 
-export function normalizeText(value) {
-  return String(value || '')
+export function normalizarTexto(valor) {
+  return String(valor || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase()
 }
 
-export function sanitizePlainText(value) {
-  return String(value || '')
+export function limpiarTextoPlano(valor) {
+  return String(valor || '')
     .replace(/[<>]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
 }
 
-export function validateTurnoRequest({ fecha, hora, motivoDetalle, maxLength = TURNOS_REASON_MAX_LENGTH }) {
+export function validarSolicitudTurno({ fecha, hora, motivoDetalle, maxLength = MAXIMO_CARACTERES_MOTIVO_TURNO }) {
   if (!fecha) return 'Selecciona un dia disponible.'
   if (!hora) return 'Selecciona un horario disponible.'
-  if (!TURNOS_TIME_SLOTS.includes(hora)) return 'El horario seleccionado no pertenece a la agenda permitida.'
-  if (isPastDate(fecha) || isPastSlot(fecha, hora)) return 'El turno no puede quedar en una fecha u horario pasado.'
-  if (isWeekend(fecha)) return 'Los turnos presenciales solo se toman de lunes a viernes.'
+  if (!HORARIOS_TURNOS.includes(hora)) return 'El horario seleccionado no pertenece a la agenda permitida.'
+  if (esFechaPasada(fecha) || esHorarioPasado(fecha, hora)) return 'El turno no puede quedar en una fecha u horario pasado.'
+  if (esFinDeSemana(fecha)) return 'Los turnos presenciales solo se toman de lunes a viernes.'
 
-  const detalle = sanitizePlainText(motivoDetalle)
-  if (detalle.length < TURNOS_REASON_MIN_LENGTH) {
-    return `El detalle debe tener al menos ${TURNOS_REASON_MIN_LENGTH} caracteres.`
+  const detalle = limpiarTextoPlano(motivoDetalle)
+  if (detalle.length < MINIMO_CARACTERES_MOTIVO_TURNO) {
+    return `El detalle debe tener al menos ${MINIMO_CARACTERES_MOTIVO_TURNO} caracteres.`
   }
   if (detalle.length > maxLength) {
     return `El detalle no puede superar ${maxLength} caracteres.`
@@ -63,93 +63,93 @@ export function validateTurnoRequest({ fecha, hora, motivoDetalle, maxLength = T
   return ''
 }
 
-export function formatDateInput(date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+export function formatearFechaInput(fecha) {
+  const anio = fecha.getFullYear()
+  const mes = String(fecha.getMonth() + 1).padStart(2, '0')
+  const dia = String(fecha.getDate()).padStart(2, '0')
+  return `${anio}-${mes}-${dia}`
 }
 
-export function parseLocalDate(dateString) {
-  const normalized = String(dateString || '').slice(0, 10)
-  const [year, month, day] = normalized
+export function parsearFechaLocal(fechaTexto) {
+  const fechaNormalizada = String(fechaTexto || '').slice(0, 10)
+  const [anio, mes, dia] = fechaNormalizada
     .split('-')
     .map(Number)
 
-  if (!year || !month || !day) return null
-  return new Date(year, month - 1, day)
+  if (!anio || !mes || !dia) return null
+  return new Date(anio, mes - 1, dia)
 }
 
-function startOfToday() {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return today
+function inicioDelDiaActual() {
+  const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
+  return hoy
 }
 
-export function isWeekend(dateString) {
-  const date = typeof dateString === 'string' ? parseLocalDate(dateString) : dateString
-  if (!date) return false
-  const day = date.getDay()
-  return day === 0 || day === 6
+export function esFinDeSemana(fechaTexto) {
+  const fecha = typeof fechaTexto === 'string' ? parsearFechaLocal(fechaTexto) : fechaTexto
+  if (!fecha) return false
+  const dia = fecha.getDay()
+  return dia === 0 || dia === 6
 }
 
-export function isPastDate(dateString) {
-  const date = parseLocalDate(dateString)
-  if (!date) return true
-  return date < startOfToday()
+export function esFechaPasada(fechaTexto) {
+  const fecha = parsearFechaLocal(fechaTexto)
+  if (!fecha) return true
+  return fecha < inicioDelDiaActual()
 }
 
-export function isPastSlot(dateString, timeString) {
-  const date = parseLocalDate(dateString)
-  if (!date || !timeString) return true
+export function esHorarioPasado(fechaTexto, horaTexto) {
+  const fecha = parsearFechaLocal(fechaTexto)
+  if (!fecha || !horaTexto) return true
 
-  const now = new Date()
-  const todayKey = formatDateInput(now)
-  const dateKey = formatDateInput(date)
+  const ahora = new Date()
+  const claveHoy = formatearFechaInput(ahora)
+  const claveFecha = formatearFechaInput(fecha)
 
-  if (dateKey < todayKey) return true
-  if (dateKey > todayKey) return false
+  if (claveFecha < claveHoy) return true
+  if (claveFecha > claveHoy) return false
 
-  const [hours, minutes] = String(timeString).split(':').map(Number)
-  const slotMinutes = hours * 60 + minutes
-  const currentMinutes = now.getHours() * 60 + now.getMinutes()
-  return slotMinutes <= currentMinutes
+  const [horas, minutos] = String(horaTexto).split(':').map(Number)
+  const minutosHorario = horas * 60 + minutos
+  const minutosActuales = ahora.getHours() * 60 + ahora.getMinutes()
+  return minutosHorario <= minutosActuales
 }
 
-export function formatDateLabel(dateString, options = {}) {
-  const date = parseLocalDate(dateString)
-  if (!date) return dateString || '-'
+export function formatearFechaCorta(fechaTexto, opciones = {}) {
+  const fecha = parsearFechaLocal(fechaTexto)
+  if (!fecha) return fechaTexto || '-'
 
   return new Intl.DateTimeFormat('es-AR', {
-    weekday: options.weekday || 'short',
+    weekday: opciones.weekday || 'short',
     day: '2-digit',
-    month: options.month || 'short'
-  }).format(date)
+    month: opciones.month || 'short'
+  }).format(fecha)
 }
 
-export function formatDateLong(dateString) {
-  const date = parseLocalDate(dateString)
-  if (!date) return dateString || '-'
+export function formatearFechaLarga(fechaTexto) {
+  const fecha = parsearFechaLocal(fechaTexto)
+  if (!fecha) return fechaTexto || '-'
 
   return new Intl.DateTimeFormat('es-AR', {
     weekday: 'long',
     day: '2-digit',
     month: 'long',
     year: 'numeric'
-  }).format(date)
+  }).format(fecha)
 }
 
-export function normalizeTurno(turno) {
-  const fecha = pickFirst(turno?.fecha, turno?.Fecha, turno?.fechaSolicitada, turno?.FechaSolicitada, '')
-  const hora = pickFirst(turno?.hora, turno?.Hora, '')
-  const fechaPropuesta = pickFirst(turno?.fechaPropuesta, turno?.FechaPropuesta, '')
-  const horaPropuesta = pickFirst(turno?.horaPropuesta, turno?.HoraPropuesta, '')
-  const estado = pickFirst(turno?.estado, turno?.Estado, turno?.estadoTurno, turno?.EstadoTurno, 'Pendiente')
+export function normalizarTurno(turno) {
+  const fecha = obtenerPrimerValor(turno?.fecha, turno?.Fecha, turno?.fechaSolicitada, turno?.FechaSolicitada, '')
+  const hora = obtenerPrimerValor(turno?.hora, turno?.Hora, '')
+  const fechaPropuesta = obtenerPrimerValor(turno?.fechaPropuesta, turno?.FechaPropuesta, '')
+  const horaPropuesta = obtenerPrimerValor(turno?.horaPropuesta, turno?.HoraPropuesta, '')
+  const estado = obtenerPrimerValor(turno?.estado, turno?.Estado, turno?.estadoTurno, turno?.EstadoTurno, 'Pendiente')
 
   return {
-    id: pickFirst(turno?.id, turno?.idTurno, turno?.IdTurno),
-    idSocio: pickFirst(turno?.idSocio, turno?.IdSocio, turno?.idsocio, ''),
-    socio: pickFirst(
+    id: obtenerPrimerValor(turno?.id, turno?.idTurno, turno?.IdTurno),
+    idSocio: obtenerPrimerValor(turno?.idSocio, turno?.IdSocio, turno?.idsocio, ''),
+    socio: obtenerPrimerValor(
       turno?.socio,
       turno?.Socio,
       turno?.socioNombre,
@@ -163,7 +163,7 @@ export function normalizeTurno(turno) {
         : '',
       ''
     ),
-    documentoSocio: pickFirst(
+    documentoSocio: obtenerPrimerValor(
       turno?.documentoSocio,
       turno?.DocumentoSocio,
       turno?.socioDocumento,
@@ -177,22 +177,28 @@ export function normalizeTurno(turno) {
     hora,
     fechaPropuesta,
     horaPropuesta,
-    motivo: pickFirst(turno?.motivo, turno?.Motivo, ''),
+    motivo: obtenerPrimerValor(turno?.motivo, turno?.Motivo, ''),
     estado,
-    observacionAdmin: pickFirst(turno?.observacionAdmin, turno?.ObservacionAdmin, ''),
-    fechaCreacion: pickFirst(turno?.fechaCreacion, turno?.FechaCreacion, turno?.createdAt, ''),
+    observacionAdmin: obtenerPrimerValor(turno?.observacionAdmin, turno?.ObservacionAdmin, ''),
+    fechaCreacion: obtenerPrimerValor(turno?.fechaCreacion, turno?.FechaCreacion, turno?.createdAt, ''),
     origen: turno?.origen
   }
 }
 
-export function normalizeAvailability(data) {
-  return ensureArray(data)
-    .map((day) => {
-      const fecha = pickFirst(day?.fecha, day?.Fecha, day?.date, day?.Date, '')
-      const rawSlots = ensureArray(pickFirst(day?.horarios, day?.Horarios, day?.slots, day?.Slots, []))
-      const horarios = rawSlots
-        .map((slot) => (typeof slot === 'string' ? slot : pickFirst(slot?.hora, slot?.Hora, slot?.time, slot?.Time, '')))
-        .filter((slot) => TURNOS_TIME_SLOTS.includes(slot) && !isPastSlot(fecha, slot))
+export function normalizarDisponibilidad(datos) {
+  return asegurarArray(datos)
+    .map((diaDisponible) => {
+      const fecha = obtenerPrimerValor(diaDisponible?.fecha, diaDisponible?.Fecha, diaDisponible?.date, diaDisponible?.Date, '')
+      const horariosSinNormalizar = asegurarArray(
+        obtenerPrimerValor(diaDisponible?.horarios, diaDisponible?.Horarios, diaDisponible?.slots, diaDisponible?.Slots, [])
+      )
+      const horarios = horariosSinNormalizar
+        .map((horario) =>
+          typeof horario === 'string'
+            ? horario
+            : obtenerPrimerValor(horario?.hora, horario?.Hora, horario?.time, horario?.Time, '')
+        )
+        .filter((horario) => HORARIOS_TURNOS.includes(horario) && !esHorarioPasado(fecha, horario))
 
       return {
         fecha,
@@ -200,47 +206,47 @@ export function normalizeAvailability(data) {
         horarios: [...new Set(horarios)]
       }
     })
-    .filter((day) => day.fecha && !isPastDate(day.fecha) && !isWeekend(day.fecha))
+    .filter((diaDisponible) => diaDisponible.fecha && !esFechaPasada(diaDisponible.fecha) && !esFinDeSemana(diaDisponible.fecha))
 }
 
-export function compareTurnos(a, b) {
-  const left = normalizeTurno(a)
-  const right = normalizeTurno(b)
-  const leftDate = `${left.fecha || '9999-12-31'} ${left.hora || '99:99'}`
-  const rightDate = `${right.fecha || '9999-12-31'} ${right.hora || '99:99'}`
-  return leftDate.localeCompare(rightDate)
+export function compararTurnos(a, b) {
+  const turnoIzquierdo = normalizarTurno(a)
+  const turnoDerecho = normalizarTurno(b)
+  const fechaIzquierda = `${turnoIzquierdo.fecha || '9999-12-31'} ${turnoIzquierdo.hora || '99:99'}`
+  const fechaDerecha = `${turnoDerecho.fecha || '9999-12-31'} ${turnoDerecho.hora || '99:99'}`
+  return fechaIzquierda.localeCompare(fechaDerecha)
 }
 
-export function compareTurnosRecientes(a, b) {
-  const left = normalizeTurno(a)
-  const right = normalizeTurno(b)
-  const leftDate = `${left.fecha || '0000-00-00'} ${left.hora || '00:00'}`
-  const rightDate = `${right.fecha || '0000-00-00'} ${right.hora || '00:00'}`
-  const dateComparison = rightDate.localeCompare(leftDate)
+export function compararTurnosRecientes(a, b) {
+  const turnoIzquierdo = normalizarTurno(a)
+  const turnoDerecho = normalizarTurno(b)
+  const fechaIzquierda = `${turnoIzquierdo.fecha || '0000-00-00'} ${turnoIzquierdo.hora || '00:00'}`
+  const fechaDerecha = `${turnoDerecho.fecha || '0000-00-00'} ${turnoDerecho.hora || '00:00'}`
+  const comparacionFecha = fechaDerecha.localeCompare(fechaIzquierda)
 
-  if (dateComparison !== 0) return dateComparison
+  if (comparacionFecha !== 0) return comparacionFecha
 
-  const leftCreated = String(left.fechaCreacion || '')
-  const rightCreated = String(right.fechaCreacion || '')
-  const createdComparison = rightCreated.localeCompare(leftCreated)
+  const creadoIzquierdo = String(turnoIzquierdo.fechaCreacion || '')
+  const creadoDerecho = String(turnoDerecho.fechaCreacion || '')
+  const comparacionCreacion = creadoDerecho.localeCompare(creadoIzquierdo)
 
-  if (createdComparison !== 0) return createdComparison
+  if (comparacionCreacion !== 0) return comparacionCreacion
 
-  return Number(right.id || 0) - Number(left.id || 0)
+  return Number(turnoDerecho.id || 0) - Number(turnoIzquierdo.id || 0)
 }
 
-export function statusStyles(status) {
-  const normalized = normalizeText(status)
+export function estilosEstadoTurno(estado) {
+  const estadoNormalizado = normalizarTexto(estado)
 
-  if (normalized === 'aprobado' || normalized === 'aprobada' || normalized === 'aceptado' || normalized === 'aceptada') {
+  if (estadoNormalizado.startsWith('aprobad') || estadoNormalizado.startsWith('aceptad')) {
     return 'bg-emerald-100 text-emerald-700'
   }
 
-  if (normalized === 'propuesto' || normalized === 'propuesta') {
+  if (estadoNormalizado.startsWith('propuest')) {
     return 'bg-blue-100 text-blue-700'
   }
 
-  if (normalized === 'rechazado' || normalized === 'rechazada' || normalized === 'cancelado' || normalized === 'cancelada') {
+  if (estadoNormalizado.startsWith('rechazad') || estadoNormalizado.startsWith('cancelad')) {
     return 'bg-red-100 text-red-700'
   }
 

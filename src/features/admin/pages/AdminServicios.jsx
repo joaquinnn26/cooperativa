@@ -3,6 +3,7 @@ import { Droplet, Pencil, PlusCircle, ToggleRight, Trash2, Wifi, Wrench, X, Zap 
 
 import { useServicios } from '@/hooks/useServicios.js'
 import { confirmAction, showToast } from '@/utils/alerts.js'
+import { cleanText, firstValidationError, isPositiveNumber, validateRequired } from '@/utils/validation.js'
 
 const initialForm = {
   idServicio: null,
@@ -235,13 +236,25 @@ export default function AdminServicios() {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+    const validationError = firstValidationError([
+      validateRequired(form.nombre, 'El nombre'),
+      validateRequired(form.descripcion, 'La descripcion'),
+      !isPositiveNumber(form.idTipoTarifa) ? 'Selecciona un tipo de tarifa valido.' : '',
+      !isPositiveNumber(form.tarifaBase) ? 'La tarifa base debe ser mayor a cero.' : ''
+    ])
+
+    if (validationError) {
+      setFormError(validationError)
+      return
+    }
+
     setSaving(true)
     setFormError('')
 
     try {
       const payload = {
-        Nombre: form.nombre.trim(),
-        Descripcion: form.descripcion.trim(),
+        Nombre: cleanText(form.nombre),
+        Descripcion: cleanText(form.descripcion),
         idTipoTarifa: Number(form.idTipoTarifa),
         TarifaBase: Number(form.tarifaBase)
       }

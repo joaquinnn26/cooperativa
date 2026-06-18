@@ -6,8 +6,10 @@ import useAuthStore from '@/store/authStore.js'
 import useAppStore from '@/store/appStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
 import { useCurrentSocio } from '@/hooks/useCurrentSocio.js'
+import { cleanText, firstValidationError, isPositiveNumber, validateRequired } from '@/utils/validation.js'
 
 const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
 const CLOSED_REQUEST_STATUSES = new Set(['rechazada', 'rechazado', 'cancelada', 'cancelado'])
 const INACTIVE_SERVICE_STATUSES = new Set(['inactivo', 'inactiva', 'baja', 'cancelada', 'cancelado'])
 
@@ -156,6 +158,15 @@ export default function SocioSolicitudServicioNueva() {
   const handleFileChange = (requirementId, fileList) => {
     const file = Array.from(fileList || []).find((item) => ACCEPTED_TYPES.includes(item.type))
 
+    if (file && file.size > MAX_FILE_SIZE_BYTES) {
+      addNotification({
+        title: 'Archivo invalido',
+        message: 'Cada archivo debe pesar 5 MB o menos.',
+        type: 'error'
+      })
+      return
+    }
+
     setFilesByRequirement((prev) => {
       const next = { ...prev }
       if (file) {
@@ -171,12 +182,17 @@ export default function SocioSolicitudServicioNueva() {
     event.preventDefault()
 
     const resolvedSocioId = socioId ?? (await resolveSocioId())
+    const validationError = firstValidationError([
+      !isPositiveNumber(form.idServicio) ? 'Selecciona un servicio valido.' : '',
+      validateRequired(form.observaciones, 'Las observaciones'),
+      missingFiles.length ? 'Debes adjuntar un archivo por cada requisito.' : '',
+      selectedServiceBlocked ? 'Ya tenes ese servicio activo o una solicitud en curso.' : ''
+    ])
 
-    if (!canSubmit || !resolvedSocioId) {
+    if (validationError || !resolvedSocioId) {
       setError(
-        selectedServiceBlocked
-          ? 'Ya tenes ese servicio activo o una solicitud en curso.'
-          : 'Debes seleccionar un servicio, completar observaciones y adjuntar un archivo por requisito.'
+        validationError ||
+          'No se pudo identificar el socio actual.'
       )
       return
     }
@@ -188,7 +204,7 @@ export default function SocioSolicitudServicioNueva() {
       await createServiceRequest({
         idSocio: Number(resolvedSocioId),
         idServicio: Number(form.idServicio),
-        observaciones: form.observaciones.trim(),
+        observaciones: cleanText(form.observaciones),
         socioUsuario: usuario,
         socioNombre: nombre || usuario,
         filesByRequirement

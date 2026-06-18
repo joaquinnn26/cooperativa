@@ -28,9 +28,11 @@ import AdminLecturas from '@/features/admin/pages/AdminLecturas.jsx'
 import AdminSolicitudesServicio from '@/features/admin/pages/AdminSolicitudesServicio.jsx'
 import AdminRequisitosServicio from '@/features/admin/pages/AdminRequisitosServicio.jsx'
 import AdminMedidores from '@/features/admin/pages/AdminMedidores.jsx'
+import AdminRutasMedicion from '@/features/admin/pages/AdminRutasMedicion.jsx'
 import AdminTurnos from '@/features/admin/pages/AdminTurnos.jsx'
 import EmpleadoDashboard from '@/features/empleado/pages/EmpleadoDashboard.jsx'
 import EmpleadoMediciones from '@/features/empleado/pages/EmpleadoMediciones.jsx'
+import EmpleadoHojaRuta from '@/features/empleado/pages/EmpleadoHojaRuta.jsx'
 import EmpleadoSolicitudesTecnicas from '@/features/empleado/pages/EmpleadoSolicitudesTecnicas.jsx'
 import HelpCenter from '@/features/help/pages/HelpCenter.jsx'
 import ProtectedRoute from '@/components/ProtectedRoute.jsx'
@@ -114,6 +116,7 @@ export default function App() {
           <Route path="/admin/reclamos" element={<AdminReclamos />} />
           <Route path="/admin/reportes" element={<AdminReportes />} />
           <Route path="/admin/lecturas" element={<AdminLecturas />} />
+          <Route path="/admin/rutas-medicion" element={<AdminRutasMedicion />} />
           <Route path="/admin/solicitudes-servicio" element={<AdminSolicitudesServicio />} />
           <Route path="/admin/requisitos-servicio" element={<AdminRequisitosServicio />} />
           <Route path="/admin/medidores" element={<AdminMedidores />} />
@@ -123,6 +126,7 @@ export default function App() {
         <Route element={<ProtectedRoute role="Empleado" />}>
           <Route path="/empleado" element={<EmpleadoDashboard />} />
           <Route path="/empleado/mediciones" element={<EmpleadoMediciones />} />
+          <Route path="/empleado/hoja-ruta" element={<EmpleadoHojaRuta />} />
           <Route path="/empleado/solicitudes-tecnicas" element={<EmpleadoSolicitudesTecnicas />} />
         </Route>
 

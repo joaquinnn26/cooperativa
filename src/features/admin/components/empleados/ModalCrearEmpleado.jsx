@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useEmpleados } from '@/hooks/useEmpleados.js'
+import { isPositiveNumber } from '@/utils/validation.js'
 
 const initialForm = {
   idSocio: '',
@@ -58,7 +59,7 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
     const idSocio = Number(form.idSocio)
     const idCargo = Number(form.idCargo)
 
-    if (Number.isNaN(idSocio) || Number.isNaN(idCargo)) {
+    if (!isPositiveNumber(idSocio) || !isPositiveNumber(idCargo)) {
       setError('Los datos seleccionados no son validos. Vuelve a elegir el socio y el cargo.')
       return
     }

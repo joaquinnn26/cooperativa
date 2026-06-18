@@ -5,6 +5,7 @@ import {
   Bell,
   CalendarClock,
   ClipboardList,
+  MapPinned,
   Droplet,
   FilePlus2,
   Gauge,
@@ -20,6 +21,7 @@ import {
 } from 'lucide-react'
 import useAuthStore from '../store/authStore.js'
 import AuthSessionManager from './AuthSessionManager.jsx'
+import PublicAnnouncementsBanner from './PublicAnnouncementsBanner.jsx'
 import { getDefaultRouteByRole, normalizeCargo, normalizeRole } from '@/utils/auth.js'
 
 function buildPanelSections(role, cargo) {
@@ -42,6 +44,7 @@ function buildPanelSections(role, cargo) {
           { to: '/admin/servicios', label: 'Servicios', icon: Settings },
           { to: '/admin/medidores', label: 'Medidores', icon: Zap },
           { to: '/admin/lecturas', label: 'Lecturas', icon: Gauge },
+          { to: '/admin/rutas-medicion', label: 'Rutas', icon: MapPinned },
           { to: '/admin/solicitudes-servicio', label: 'Solicitudes', icon: ClipboardList },
           { to: '/admin/requisitos-servicio', label: 'Requisitos', icon: FilePlus2 }
         ]
@@ -65,7 +68,10 @@ function buildPanelSections(role, cargo) {
         items: [
           { to: '/empleado', label: 'Panel principal', icon: Bell },
           ...(normalizedCargo.includes('lecturista')
-            ? [{ to: '/empleado/mediciones', label: 'Mediciones', icon: Gauge }]
+            ? [
+                { to: '/empleado/hoja-ruta', label: 'Hoja de ruta', icon: MapPinned },
+                { to: '/empleado/mediciones', label: 'Mediciones', icon: Gauge }
+              ]
             : []),
           ...(normalizedCargo.includes('tecnico')
             ? [{ to: '/empleado/solicitudes-tecnicas', label: 'Solicitudes tecnicas', icon: Wrench }]
@@ -145,6 +151,7 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-gray-50">
       <AuthSessionManager />
+      {!usuario ? <PublicAnnouncementsBanner /> : null}
 
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

@@ -5,6 +5,17 @@ import useAuthStore from '@/store/authStore.js'
 import useAppStore from '@/store/appStore.js'
 import { useCurrentSocio } from '@/hooks/useCurrentSocio.js'
 import { useSocios } from '@/hooks/useSocios.js'
+import {
+  cleanText,
+  firstValidationError,
+  isBlank,
+  isValidAddress,
+  isValidHouseNumber,
+  validateEmail,
+  validatePhone,
+  validateRequired,
+  validateStrongPassword
+} from '@/utils/validation.js'
 
 function getAuthHeaders() {
   const token = localStorage.getItem('token')
@@ -15,29 +26,18 @@ function getAuthHeaders() {
 }
 
 async function tryChangePassword(payload) {
-  const attempts = [
-    { path: '/auth/cambiar-contrasena', body: payload },
-    { path: '/auth/change-password', body: payload },
-    { path: '/usuario/password', body: payload }
-  ]
+  const response = await fetch(apiUrl('/auth/cambiar-contrasena'), {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  })
 
-  for (const attempt of attempts) {
-    try {
-      const response = await fetch(apiUrl(attempt.path), {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(attempt.body)
-      })
-
-      if (response.ok) {
-        return true
-      }
-    } catch {
-      // continue
-    }
+  const data = await response.json().catch(() => null)
+  if (!response.ok) {
+    throw new Error(data?.Message || data?.message || 'No se pudo cambiar la contrasena.')
   }
 
-  throw new Error('Tu API todavia no tiene un endpoint para cambiar contrasena.')
+  return data
 }
 
 export default function SocioPerfil() {
@@ -109,6 +109,18 @@ export default function SocioPerfil() {
 
     if (!profile?.idSocio) return
 
+    const validationError = firstValidationError([
+      validatePhone(contactForm.Telefono),
+      validateEmail(contactForm.Email),
+      !isBlank(contactForm.Calle) && !isValidAddress(contactForm.Calle) ? 'La calle contiene caracteres invalidos.' : '',
+      !isBlank(contactForm.Numero) && !isValidHouseNumber(contactForm.Numero) ? 'El numero de domicilio debe ser numerico.' : ''
+    ])
+
+    if (validationError) {
+      addNotification({ title: 'Datos invalidos', message: validationError, type: 'error' })
+      return
+    }
+
     setSavingProfile(true)
 
     try {
@@ -116,14 +128,14 @@ export default function SocioPerfil() {
         Nombre: profile.Persona?.Nombre,
         Apellido: profile.Persona?.Apellido,
         Documento: profile.Persona?.Documento,
-        Telefono: contactForm.Telefono || null,
-        Email: contactForm.Email || null,
-        Calle: contactForm.Calle || null,
-        Numero: contactForm.Numero || null
+        Telefono: cleanText(contactForm.Telefono),
+        Email: cleanText(contactForm.Email).toLowerCase(),
+        Calle: cleanText(contactForm.Calle) || null,
+        Numero: cleanText(contactForm.Numero) || null
       })
 
       updateProfileSession({
-        email: contactForm.Email || sessionEmail,
+        email: cleanText(contactForm.Email).toLowerCase() || sessionEmail,
         nombre: fullName
       })
 
@@ -133,10 +145,10 @@ export default function SocioPerfil() {
               ...current,
               Persona: {
                 ...current.Persona,
-                Telefono: contactForm.Telefono,
-                Email: contactForm.Email,
-                Calle: contactForm.Calle,
-                Numero: contactForm.Numero
+                Telefono: cleanText(contactForm.Telefono),
+                Email: cleanText(contactForm.Email).toLowerCase(),
+                Calle: cleanText(contactForm.Calle),
+                Numero: cleanText(contactForm.Numero)
               }
             }
           : current
@@ -160,6 +172,16 @@ export default function SocioPerfil() {
 
   const handlePasswordSave = async (event) => {
     event.preventDefault()
+
+    const validationError = firstValidationError([
+      validateRequired(passwordForm.actual, 'La contrasena actual'),
+      validateStrongPassword(passwordForm.nueva, 'La nueva contrasena')
+    ])
+
+    if (validationError) {
+      addNotification({ title: 'Datos invalidos', message: validationError, type: 'error' })
+      return
+    }
 
     if (passwordForm.nueva !== passwordForm.confirmar) {
       addNotification({
@@ -304,7 +326,7 @@ export default function SocioPerfil() {
           </div>
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Cambiar contrasena</h2>
-            <p className="text-sm text-gray-500">Si tu API lo soporta, el cambio se guarda inmediatamente.</p>
+            <p className="text-sm text-gray-500">El cambio requiere validar tu contrasena actual.</p>
           </div>
         </div>
 

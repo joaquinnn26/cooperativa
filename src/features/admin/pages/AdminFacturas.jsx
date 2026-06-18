@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, ExternalLink, Filter, Receipt, Save, Search, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ExternalLink, Filter, PlusCircle, Receipt, Save, Search, X } from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
 import useAppStore from '@/store/appStore.js'
 import useCooperativeStore from '@/store/cooperativeStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
 import { useSocios } from '@/hooks/useSocios.js'
 import { formatDate } from '@/utils/formatDate.js'
-import { sanitizePlainText } from '@/utils/turnosUtils.jsx'
+import { limpiarTextoPlano } from '@/utils/turnosUtils.jsx'
 
 const initialForm = {
   idSocio: '',
@@ -100,7 +100,7 @@ export default function AdminFacturas() {
   const fetchBills = useCooperativeStore((state) => state.fetchBills)
   const createBill = useCooperativeStore((state) => state.createBill)
   const updateBill = useCooperativeStore((state) => state.updateBill)
-  const updateBillStatus = useCooperativeStore((state) => state.updateBillStatus)
+  const payBill = useCooperativeStore((state) => state.payBill)
 
   const [socios, setSocios] = useState([])
   const [services, setServices] = useState([])
@@ -109,8 +109,15 @@ export default function AdminFacturas() {
   const [filtro, setFiltro] = useState('Todas')
   const [selectedBill, setSelectedBill] = useState(null)
   const [managementForm, setManagementForm] = useState(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
+
+  const closeCreateModal = () => {
+    setShowCreateModal(false)
+    setForm(initialForm)
+    setServices([])
+  }
 
   const closeBillManager = () => {
     setSelectedBill(null)
@@ -232,11 +239,12 @@ export default function AdminFacturas() {
         amount: Number(form.amount),
         dueDate: form.dueDate,
         paymentLink: form.paymentLink.trim(),
-        observations: sanitizePlainText(form.observations)
+        observations: limpiarTextoPlano(form.observations)
       })
 
       setForm(initialForm)
       setServices([])
+      setShowCreateModal(false)
       await loadBills()
       addNotification({
         title: 'Factura creada',
@@ -280,19 +288,12 @@ export default function AdminFacturas() {
         amount: Number(managementForm.amount),
         dueDate: managementForm.dueDate,
         paymentLink: managementForm.paymentLink.trim(),
-        observations: sanitizePlainText(managementForm.observations)
+        observations: limpiarTextoPlano(managementForm.observations)
       })
 
-      await updateBillStatus(
-        {
-          ...selectedBill,
-          amount: Number(managementForm.amount),
-          dueDate: managementForm.dueDate,
-          paymentLink: managementForm.paymentLink.trim(),
-          observations: sanitizePlainText(managementForm.observations)
-        },
-        managementForm.status
-      )
+      if (selectedBill.status !== 'paid' && managementForm.status === 'paid') {
+        await payBill(selectedBill.id)
+      }
 
       const refreshed = await loadBills()
       const updatedBill = refreshed.find((item) => item.id === selectedBill.id) || null
@@ -315,9 +316,19 @@ export default function AdminFacturas() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-8">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Gestion de facturas</h1>
-        <p className="mt-2 text-gray-600">Primero cargas una factura. Despues la buscas y gestionas su estado desde el listado.</p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Gestion de facturas</h1>
+          <p className="mt-2 text-gray-600">Consulta, filtra y actualiza el estado de las facturas emitidas.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowCreateModal(true)}
+          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+        >
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Nueva factura
+        </button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -335,111 +346,13 @@ export default function AdminFacturas() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-        <form onSubmit={handleSubmit} className="card space-y-5">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Nueva factura</h2>
-            <p className="mt-2 text-gray-600">Selecciona el socio, el servicio aprobado y completa los datos de cobro.</p>
-          </div>
-
-          <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Destinatario</p>
-            <select
-              value={form.idSocio}
-              onChange={(event) => setForm((prev) => ({ ...prev, idSocio: event.target.value }))}
-              className="input-field"
-              required
-            >
-              <option value="">Seleccionar socio...</option>
-              {socios.map((socio) => (
-                <option key={socio.idSocio} value={socio.idSocio}>
-                  {socio.Persona?.Apellido}, {socio.Persona?.Nombre} - {socio.Persona?.Documento}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={form.idServicio}
-              onChange={(event) => setForm((prev) => ({ ...prev, idServicio: event.target.value }))}
-              className="input-field"
-              required
-              disabled={!services.length}
-            >
-              <option value="">Seleccionar servicio aprobado...</option>
-              {services.map((service) => (
-                <option key={`${service.idServicioSocio ?? service.idServicio}-${service.idServicio}`} value={service.idServicio}>
-                  {service.servicioNombre}
-                </option>
-              ))}
-            </select>
-
-            {selectedSocio && !services.length ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                Este socio todavia no tiene servicios aprobados para facturar.
-              </div>
-            ) : null}
-          </div>
-
-          <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Datos de facturacion</p>
-            <div className="grid gap-4 md:grid-cols-2">
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.amount}
-                onChange={(event) => setForm((prev) => ({ ...prev, amount: event.target.value }))}
-                className="input-field"
-                placeholder="Monto total"
-                required
-              />
-              <input
-                type="date"
-                value={form.dueDate}
-                onChange={(event) => setForm((prev) => ({ ...prev, dueDate: event.target.value }))}
-                className="input-field"
-                required
-              />
-            </div>
-
-            <input
-              type="url"
-              value={form.paymentLink}
-              onChange={(event) => setForm((prev) => ({ ...prev, paymentLink: event.target.value }))}
-              className="input-field"
-              placeholder="Link de pago"
-            />
-
-            <textarea
-              value={form.observations}
-              onChange={(event) => setForm((prev) => ({ ...prev, observations: event.target.value }))}
-              className="input-field min-h-28"
-              placeholder="Observaciones"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={!idEmpleado || !services.length}
-            className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Receipt className="mr-2 h-4 w-4" />
-            Crear factura
-          </button>
-
-          {!idEmpleado ? (
-            <p className="text-sm text-amber-700">
-              Debes iniciar sesion con un usuario que tenga `idEmpleado` para cargar facturas.
-            </p>
-          ) : null}
-        </form>
-
+      <div className="space-y-6">
         <div className="space-y-6">
           <div className="card">
             <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Listado de facturas</h2>
-                <p className="text-sm text-gray-500">Busca una factura y usa “Gestionar” para cambiar estado, monto o vencimiento.</p>
+                <p className="text-sm text-gray-500">Busca una factura y usa "Gestionar" para cambiar estado, monto o vencimiento.</p>
               </div>
               <p className="text-sm text-gray-500">
                 {filtered.length} factura{filtered.length === 1 ? '' : 's'}
@@ -596,6 +509,137 @@ export default function AdminFacturas() {
         </div>
       </div>
 
+      {showCreateModal ? (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 p-3 md:flex md:items-center md:justify-center md:p-4"
+          onClick={closeCreateModal}
+        >
+          <div
+            className="mx-auto flex h-[calc(100vh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl md:h-auto md:max-h-[88vh]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-4 py-4 md:px-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 md:text-2xl">Nueva factura</h2>
+                <p className="mt-1 text-sm text-gray-600">Selecciona el socio, el servicio aprobado y completa los datos de cobro.</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeCreateModal}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                aria-label="Cerrar modal"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="flex flex-1 flex-col overflow-hidden">
+              <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4 md:px-6">
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Destinatario</p>
+                  <select
+                    value={form.idSocio}
+                    onChange={(event) => setForm((prev) => ({ ...prev, idSocio: event.target.value }))}
+                    className="input-field"
+                    required
+                  >
+                    <option value="">Seleccionar socio...</option>
+                    {socios.map((socio) => (
+                      <option key={socio.idSocio} value={socio.idSocio}>
+                        {socio.Persona?.Apellido}, {socio.Persona?.Nombre} - {socio.Persona?.Documento}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={form.idServicio}
+                    onChange={(event) => setForm((prev) => ({ ...prev, idServicio: event.target.value }))}
+                    className="input-field"
+                    required
+                    disabled={!services.length}
+                  >
+                    <option value="">Seleccionar servicio aprobado...</option>
+                    {services.map((service) => (
+                      <option key={`${service.idServicioSocio ?? service.idServicio}-${service.idServicio}`} value={service.idServicio}>
+                        {service.servicioNombre}
+                      </option>
+                    ))}
+                  </select>
+
+                  {selectedSocio && !services.length ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      Este socio todavia no tiene servicios aprobados para facturar.
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Datos de facturacion</p>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={form.amount}
+                      onChange={(event) => setForm((prev) => ({ ...prev, amount: event.target.value }))}
+                      className="input-field"
+                      placeholder="Monto total"
+                      required
+                    />
+                    <input
+                      type="date"
+                      value={form.dueDate}
+                      onChange={(event) => setForm((prev) => ({ ...prev, dueDate: event.target.value }))}
+                      className="input-field"
+                      required
+                    />
+                  </div>
+
+                  <input
+                    type="url"
+                    value={form.paymentLink}
+                    onChange={(event) => setForm((prev) => ({ ...prev, paymentLink: event.target.value }))}
+                    className="input-field"
+                    placeholder="Link de pago"
+                  />
+
+                  <textarea
+                    value={form.observations}
+                    onChange={(event) => setForm((prev) => ({ ...prev, observations: event.target.value }))}
+                    className="input-field min-h-28"
+                    placeholder="Observaciones"
+                  />
+                </div>
+
+                {!idEmpleado ? (
+                  <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    Debes iniciar sesion con un usuario que tenga idEmpleado para cargar facturas.
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-gray-200 px-4 py-4 md:px-6">
+                <button
+                  type="button"
+                  onClick={closeCreateModal}
+                  className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={!idEmpleado || !services.length}
+                  className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Receipt className="mr-2 h-4 w-4" />
+                  Crear factura
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
       {selectedBill && managementForm ? (
         <div
           className="fixed inset-0 z-50 bg-black/40 p-3 md:flex md:items-center md:justify-center md:p-4"
@@ -656,11 +700,18 @@ export default function AdminFacturas() {
                   value={managementForm.status}
                   onChange={(event) => setManagementForm((prev) => ({ ...prev, status: event.target.value }))}
                   className="input-field mt-2"
+                  disabled={selectedBill.status === 'paid'}
                 >
-                  <option value="pending">Pendiente</option>
+                  <option value={selectedBill.status === 'overdue' ? 'overdue' : 'pending'}>
+                    {selectedBill.status === 'overdue' ? 'Vencido' : 'Pendiente'}
+                  </option>
                   <option value="paid">Pagado</option>
-                  <option value="overdue">Vencido</option>
                 </select>
+                {selectedBill.status === 'paid' && (
+                  <p className="mt-2 text-xs text-gray-500">
+                    Un pago confirmado no puede volver a pendiente.
+                  </p>
+                )}
               </div>
 
               <div className="rounded-xl bg-gray-50 p-4">

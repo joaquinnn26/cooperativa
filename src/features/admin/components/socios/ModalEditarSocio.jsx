@@ -1,5 +1,16 @@
 import React, { useEffect, useState } from 'react'
 import { useSocios } from '@/hooks/useSocios.js'
+import {
+  firstValidationError,
+  isBlank,
+  isValidAddress,
+  isValidHouseNumber,
+  sanitizePersonPayload,
+  validateDocument,
+  validateEmail,
+  validatePersonName,
+  validatePhone
+} from '@/utils/validation.js'
 
 const initialForm = {
   Nombre: '',
@@ -98,18 +109,34 @@ export default function ModalEditarSocio({ show, socio, onClose, onRefresh }) {
   const guardar = async () => {
     if (!socio) return
 
+    const sanitized = sanitizePersonPayload(form)
+    const validationError = firstValidationError([
+      validatePersonName(sanitized.Nombre, 'El nombre'),
+      validatePersonName(sanitized.Apellido, 'El apellido'),
+      validateDocument(sanitized.Documento),
+      validatePhone(sanitized.Telefono),
+      validateEmail(sanitized.Email),
+      !isBlank(sanitized.Calle) && !isValidAddress(sanitized.Calle) ? 'La calle contiene caracteres invalidos.' : '',
+      !isBlank(sanitized.Numero) && !isValidHouseNumber(sanitized.Numero) ? 'El numero de domicilio debe ser numerico.' : ''
+    ])
+
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+
     setSaving(true)
     setError('')
 
     try {
       await editarSocio(socio.idSocio, {
-        Nombre: form.Nombre,
-        Apellido: form.Apellido,
-        Documento: form.Documento,
-        Telefono: form.Telefono || null,
-        Email: form.Email || null,
-        Calle: form.Calle || null,
-        Numero: form.Numero || null
+        Nombre: sanitized.Nombre,
+        Apellido: sanitized.Apellido,
+        Documento: sanitized.Documento,
+        Telefono: sanitized.Telefono,
+        Email: sanitized.Email,
+        Calle: sanitized.Calle || null,
+        Numero: sanitized.Numero || null
       })
 
       await asignarServicios(

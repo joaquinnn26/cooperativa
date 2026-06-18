@@ -12,6 +12,7 @@ import {
   ClipboardList,
   DollarSign,
   FileText,
+  MapPinned,
   Megaphone,
   Receipt,
   Settings,
@@ -194,6 +195,14 @@ const QUICK_MODULES = [
     icon: BarChart3,
     bg: 'bg-orange-50',
     color: 'text-orange-600'
+  },
+  {
+    title: 'Rutas',
+    description: 'Asignar hojas de ruta a lecturistas.',
+    to: '/admin/rutas-medicion',
+    icon: MapPinned,
+    bg: 'bg-emerald-50',
+    color: 'text-emerald-600'
   },
   {
     title: 'Reclamos',

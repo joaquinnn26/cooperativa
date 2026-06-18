@@ -27,9 +27,8 @@ export function isTokenExpired(token) {
   return Date.now() >= expiresAt
 }
 
-export function hasActiveSession({ token, usuario }) {
-  if (token) return !isTokenExpired(token)
-  return Boolean(usuario)
+export function hasActiveSession({ token }) {
+  return Boolean(token) && !isTokenExpired(token)
 }
 
 export function normalizeRole(role) {

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { ClipboardCheck, Pencil, Plus, Power, X } from 'lucide-react'
 import useAppStore from '@/store/appStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
+import { cleanText, firstValidationError, isPositiveNumber, validateRequired } from '@/utils/validation.js'
 
 const initialForm = {
   idServicio: '',
@@ -81,12 +82,30 @@ export default function AdminRequisitosServicio() {
   const handleSubmit = async (event) => {
     event.preventDefault()
 
+    const validationError = firstValidationError([
+      !isPositiveNumber(form.idServicio) ? 'Selecciona un servicio valido.' : '',
+      validateRequired(form.Nombre, 'El nombre del requisito'),
+      validateRequired(form.Descripcion, 'La descripcion del requisito')
+    ])
+
+    if (validationError) {
+      addNotification({ title: 'Datos invalidos', message: validationError, type: 'error' })
+      return
+    }
+
+    const payload = {
+      ...form,
+      idServicio: Number(form.idServicio),
+      Nombre: cleanText(form.Nombre),
+      Descripcion: cleanText(form.Descripcion)
+    }
+
     try {
       if (editingId) {
-        await updateRequirement(editingId, form)
+        await updateRequirement(editingId, payload)
         addNotification({ title: 'Requisito actualizado', message: 'Se guardaron los cambios.', type: 'success' })
       } else {
-        await createRequirement(form)
+        await createRequirement(payload)
         addNotification({ title: 'Requisito creado', message: 'Se agrego un nuevo requisito.', type: 'success' })
       }
 

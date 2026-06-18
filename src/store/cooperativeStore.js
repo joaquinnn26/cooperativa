@@ -41,6 +41,13 @@ const initialAnnouncements = [
   }
 ]
 
+function normalizeAnnouncementPriority(value) {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (['alta', 'high'].includes(normalized)) return 'high'
+  if (['baja', 'low'].includes(normalized)) return 'low'
+  return 'medium'
+}
+
 function getAuthHeaders() {
   const token = localStorage.getItem('token')
   return {
@@ -51,13 +58,20 @@ function getAuthHeaders() {
 
 async function jsonFetch(url, options = {}) {
   const res = await fetch(url, {
-    headers: { ...getAuthHeaders(), ...(options.headers || {}) },
-    ...options
+    ...options,
+    headers: { ...getAuthHeaders(), ...(options.headers || {}) }
   })
 
   if (!res.ok) {
     const errorText = await res.text()
-    throw new Error(errorText || `HTTP ${res.status}`)
+    let message = errorText
+    try {
+      const parsed = JSON.parse(errorText)
+      message = parsed.Message || parsed.message || parsed.error || errorText
+    } catch {
+      // The API may return a plain functional message.
+    }
+    throw new Error(message || `HTTP ${res.status}`)
   }
 
   return res.status === 204 ? null : res.json()
@@ -126,6 +140,40 @@ function normalizeBillFromApi(bill) {
   }
 }
 
+function normalizeAnnouncementFromApi(announcement) {
+  return {
+    id: pickFirst(announcement.idAnuncio, announcement.IdAnuncio, announcement.id),
+    title: pickFirst(announcement.Titulo, announcement.titulo, announcement.title, ''),
+    content: pickFirst(announcement.Contenido, announcement.contenido, announcement.content, ''),
+    priority: normalizeAnnouncementPriority(pickFirst(announcement.Prioridad, announcement.prioridad, announcement.priority)),
+    date: pickFirst(announcement.FechaPublicacion, announcement.fechaPublicacion, announcement.date),
+    startsAt: pickFirst(announcement.FechaInicio, announcement.fechaInicio, announcement.startsAt, ''),
+    endsAt: pickFirst(announcement.FechaFin, announcement.fechaFin, announcement.endsAt, ''),
+    active: Boolean(pickFirst(announcement.Activo, announcement.activo, announcement.active, true)),
+    fixed: Boolean(pickFirst(announcement.Fijo, announcement.fijo, announcement.fixed, false)),
+    idEmpleado: pickFirst(announcement.idEmpleado, announcement.IdEmpleado, announcement.employeeId, null)
+  }
+}
+
+function announcementPayload(payload) {
+  const priorities = {
+    high: 'Alta',
+    medium: 'Media',
+    low: 'Baja'
+  }
+
+  return {
+    Titulo: payload.title,
+    Contenido: payload.content,
+    Prioridad: priorities[payload.priority] || 'Media',
+    FechaInicio: payload.startsAt || null,
+    FechaFin: payload.endsAt || null,
+    Activo: payload.active !== false,
+    Fijo: Boolean(payload.fixed),
+    idEmpleado: payload.idEmpleado != null && payload.idEmpleado !== '' ? Number(payload.idEmpleado) : null
+  }
+}
+
 const useCooperativeStore = create(
   persist(
     (set, get) => ({
@@ -134,7 +182,42 @@ const useCooperativeStore = create(
       announcements: initialAnnouncements,
 
       fetchServices: async () => get().services,
-      fetchAnnouncements: async () => get().announcements,
+      fetchAnnouncements: async () => {
+        const data = await jsonFetch(apiUrl('/anuncios'))
+        const normalized = ensureArray(data).map(normalizeAnnouncementFromApi)
+        set((state) => ({ ...state, announcements: normalized }))
+        return normalized
+      },
+      fetchAnnouncementsAdmin: async () => {
+        const data = await jsonFetch(apiUrl('/anuncios/admin'))
+        return ensureArray(data).map(normalizeAnnouncementFromApi)
+      },
+      createAnnouncement: async (payload) => {
+        const created = await jsonFetch(apiUrl('/anuncios'), {
+          method: 'POST',
+          body: JSON.stringify(announcementPayload(payload))
+        })
+
+        await get().fetchAnnouncements()
+        return normalizeAnnouncementFromApi(created)
+      },
+      updateAnnouncement: async (id, payload) => {
+        const updated = await jsonFetch(apiUrl(`/anuncios/${id}`), {
+          method: 'PUT',
+          body: JSON.stringify(announcementPayload(payload))
+        })
+
+        await get().fetchAnnouncements()
+        return normalizeAnnouncementFromApi(updated)
+      },
+      deactivateAnnouncement: async (id) => {
+        const updated = await jsonFetch(apiUrl(`/anuncios/${id}`), {
+          method: 'DELETE'
+        })
+
+        await get().fetchAnnouncements()
+        return normalizeAnnouncementFromApi(updated)
+      },
       fetchBills: async () => {
         const data = await jsonFetch(apiUrl('/factura'))
         const normalized = ensureArray(data)
@@ -201,50 +284,6 @@ const useCooperativeStore = create(
 
         await get().fetchBills()
         return result
-      },
-
-      updateBillStatus: async (bill, nextStatus) => {
-        if (!bill?.id) {
-          throw new Error('Factura invalida.')
-        }
-
-        const today = new Date()
-        const futureDate = new Date(today)
-        futureDate.setDate(futureDate.getDate() + 7)
-
-        const pastDate = new Date(today)
-        pastDate.setDate(pastDate.getDate() - 7)
-
-        if (nextStatus === 'paid') {
-          await jsonFetch(apiUrl(`/factura/pagar/${bill.id}`), {
-            method: 'PUT',
-            body: JSON.stringify({
-              Pagada: true
-            })
-          })
-        } else {
-          await jsonFetch(apiUrl(`/factura/pagar/${bill.id}`), {
-            method: 'PUT',
-            body: JSON.stringify({
-              Pagada: false
-            })
-          })
-
-          const nextDueDate = nextStatus === 'overdue' ? pastDate : futureDate
-
-          await jsonFetch(apiUrl(`/factura/${bill.id}`), {
-            method: 'PUT',
-            body: JSON.stringify({
-              idServicio: Number(bill.idServicio),
-              MontoTotal: Number(bill.amount),
-              FechaCaducidad: nextDueDate.toISOString(),
-              LinkPago: bill.paymentLink || '',
-              Observaciones: bill.observations || ''
-            })
-          })
-        }
-
-        await get().fetchBills()
       }
     }),
     {

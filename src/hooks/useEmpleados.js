@@ -12,8 +12,8 @@ function getAuthHeaders() {
 
 async function jsonFetch(url, options = {}) {
   const res = await fetch(url, {
-    headers: { ...getAuthHeaders(), ...(options.headers || {}) },
-    ...options
+    ...options,
+    headers: { ...getAuthHeaders(), ...(options.headers || {}) }
   })
 
   if (!res.ok) {
@@ -40,6 +40,17 @@ async function jsonFetchFirst(paths) {
 
 function pickFirst(...values) {
   return values.find((value) => value !== undefined && value !== null)
+}
+
+function normalizeBoolean(value, fallback = true) {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value === 1
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (['true', '1', 'activo', 'activa', 'si', 'sí'].includes(normalized)) return true
+    if (['false', '0', 'inactivo', 'inactiva', 'no'].includes(normalized)) return false
+  }
+  return fallback
 }
 
 function ensureArray(data) {
@@ -126,7 +137,7 @@ function normalizeEmpleado(empleado) {
     idEmpleado: pickFirst(empleado.idEmpleado, empleado.IdEmpleado, empleado.id),
     idPersona: pickFirst(empleado.idPersona, empleado.IdPersona, persona?.idPersona),
     idCargo: pickFirst(empleado.idCargo, empleado.IdCargo, cargo.idCargo),
-    Activo: Boolean(pickFirst(empleado.Activo, empleado.activo, empleado.EstadoActivo, true)),
+    Activo: normalizeBoolean(pickFirst(empleado.Activo, empleado.activo, empleado.EstadoActivo), true),
     Persona: {
       ...persona,
       Nombre: pickFirst(empleado.Nombre, empleado.nombre, persona?.Nombre, ''),
@@ -156,7 +167,7 @@ export function useEmpleados(autoLoad = true) {
   const [loadingCatalogos, setLoadingCatalogos] = useState(false)
   const [catalogosError, setCatalogosError] = useState('')
 
-  const fetchEmpleados = useCallback(async () => {
+  const fetchEmpleados = useCallback(async ({ throwOnError = false } = {}) => {
     setLoading(true)
     try {
       const data = await jsonFetch(apiUrl('/empleado'))
@@ -166,6 +177,7 @@ export function useEmpleados(autoLoad = true) {
     } catch (error) {
       console.error('Error al obtener empleados', error)
       setEmpleados([])
+      if (throwOnError) throw error
       return []
     } finally {
       setLoading(false)

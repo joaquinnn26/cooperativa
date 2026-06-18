@@ -5,6 +5,7 @@ import BackToSocioDashboard from '@/components/BackToSocioDashboard.jsx'
 import { useReclamos } from '@/hooks/useReclamos.js'
 import { useCurrentSocio } from '@/hooks/useCurrentSocio.js'
 import useAppStore from '@/store/appStore.js'
+import { cleanText, firstValidationError, isPositiveNumber, validateRequired } from '@/utils/validation.js'
 
 export default function ReclamoNuevo() {
   const { crearReclamo, tiposReclamo, fetchTiposReclamo } = useReclamos()
@@ -44,6 +45,16 @@ export default function ReclamoNuevo() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const validationError = firstValidationError([
+      !isPositiveNumber(form.idTipoReclamo) ? 'Selecciona un tipo de reclamo valido.' : '',
+      validateRequired(form.descripcion, 'La descripcion')
+    ])
+
+    if (validationError) {
+      addNotification({ title: 'Datos invalidos', message: validationError, type: 'error' })
+      return
+    }
+
     setIsLoading(true)
 
     try {
@@ -57,7 +68,7 @@ export default function ReclamoNuevo() {
         idSocio: resolvedSocioId,
         idTipoReclamo: Number(form.idTipoReclamo),
         idEstadoReclamo: 1,
-        Descripcion: form.descripcion.trim()
+        Descripcion: cleanText(form.descripcion)
       })
 
       addNotification({

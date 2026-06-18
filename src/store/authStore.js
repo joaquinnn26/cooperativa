@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { apiUrl } from '@/config/api.js'
+import { isTokenExpired } from '@/utils/auth.js'
 
 function normalizeRole(rawRole) {
   if (!rawRole) return null
@@ -26,15 +27,100 @@ function normalizeLoginResponse(data) {
   }
 }
 
+function clearSessionStorage() {
+  for (const key of ['token', 'rol', 'cargo', 'usuario', 'email', 'nombre', 'idSocio', 'idEmpleado']) {
+    localStorage.removeItem(key)
+  }
+}
+
+function saveVerifiedSession(token, data) {
+  localStorage.setItem('token', token)
+  localStorage.setItem('rol', data.rol || '')
+  localStorage.setItem('usuario', data.usuario || '')
+  localStorage.setItem('email', data.email || '')
+  localStorage.setItem('nombre', data.nombre || '')
+
+  for (const [key, value] of [
+    ['cargo', data.cargo],
+    ['idSocio', data.idSocio],
+    ['idEmpleado', data.idEmpleado]
+  ]) {
+    if (value != null && value !== '') localStorage.setItem(key, String(value))
+    else localStorage.removeItem(key)
+  }
+}
+
+const storedToken = localStorage.getItem('token')
+const initialToken = storedToken && !isTokenExpired(storedToken) ? storedToken : null
+if (!initialToken) clearSessionStorage()
+
 const useAuthStore = create((set) => ({
-  token: localStorage.getItem('token') || null,
-  rol: localStorage.getItem('rol') || null,
-  cargo: localStorage.getItem('cargo') || null,
-  usuario: localStorage.getItem('usuario') || null,
-  email: localStorage.getItem('email') || null,
-  nombre: localStorage.getItem('nombre') || null,
-  idSocio: localStorage.getItem('idSocio') || null,
-  idEmpleado: localStorage.getItem('idEmpleado') || null,
+  token: initialToken,
+  rol: null,
+  cargo: null,
+  usuario: null,
+  email: null,
+  nombre: null,
+  idSocio: null,
+  idEmpleado: null,
+  sessionStatus: initialToken ? 'checking' : 'anonymous',
+
+  verifySession: async () => {
+    const token = localStorage.getItem('token')
+    if (!token || isTokenExpired(token)) {
+      clearSessionStorage()
+      set({
+        token: null,
+        rol: null,
+        cargo: null,
+        usuario: null,
+        email: null,
+        nombre: null,
+        idSocio: null,
+        idEmpleado: null,
+        sessionStatus: 'anonymous'
+      })
+      return false
+    }
+
+    set({ sessionStatus: 'checking' })
+
+    try {
+      const response = await fetch(apiUrl('/auth/session'), {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!response.ok) throw new Error('Sesion invalida.')
+
+      const data = normalizeLoginResponse(await response.json())
+      saveVerifiedSession(token, data)
+      set({
+        token,
+        rol: data.rol,
+        cargo: data.cargo != null ? String(data.cargo) : null,
+        usuario: data.usuario,
+        email: data.email || null,
+        nombre: data.nombre,
+        idSocio: data.idSocio != null ? String(data.idSocio) : null,
+        idEmpleado: data.idEmpleado != null ? String(data.idEmpleado) : null,
+        sessionStatus: 'authenticated'
+      })
+      return true
+    } catch {
+      clearSessionStorage()
+      set({
+        token: null,
+        rol: null,
+        cargo: null,
+        usuario: null,
+        email: null,
+        nombre: null,
+        idSocio: null,
+        idEmpleado: null,
+        sessionStatus: 'anonymous'
+      })
+      return false
+    }
+  },
 
   login: async (form) => {
     const res = await fetch(apiUrl('/auth/login'), {
@@ -55,30 +141,8 @@ const useAuthStore = create((set) => ({
 
     const data = normalizeLoginResponse(await res.json())
 
-    if (data.token) {
-      localStorage.setItem('token', data.token)
-    } else {
-      localStorage.removeItem('token')
-    }
-    localStorage.setItem('rol', data.rol || '')
-    if (data.cargo) {
-      localStorage.setItem('cargo', String(data.cargo))
-    } else {
-      localStorage.removeItem('cargo')
-    }
-    localStorage.setItem('usuario', String(data.usuario))
-    localStorage.setItem('email', form.email)
-    localStorage.setItem('nombre', data.nombre)
-    if (data.idSocio != null) {
-      localStorage.setItem('idSocio', String(data.idSocio))
-    } else {
-      localStorage.removeItem('idSocio')
-    }
-    if (data.idEmpleado != null) {
-      localStorage.setItem('idEmpleado', String(data.idEmpleado))
-    } else {
-      localStorage.removeItem('idEmpleado')
-    }
+    if (!data.token) throw new Error('La API no devolvio un token valido.')
+    saveVerifiedSession(data.token, { ...data, email: data.email || form.email })
 
     set({
       token: data.token,
@@ -88,7 +152,8 @@ const useAuthStore = create((set) => ({
       email: form.email,
       nombre: data.nombre,
       idSocio: data.idSocio != null ? String(data.idSocio) : null,
-      idEmpleado: data.idEmpleado != null ? String(data.idEmpleado) : null
+      idEmpleado: data.idEmpleado != null ? String(data.idEmpleado) : null,
+      sessionStatus: 'authenticated'
     })
 
     return data
@@ -118,8 +183,18 @@ const useAuthStore = create((set) => ({
   },
 
   logout: () => {
-    localStorage.clear()
-    set({ token: null, rol: null, cargo: null, usuario: null, email: null, nombre: null, idSocio: null, idEmpleado: null })
+    clearSessionStorage()
+    set({
+      token: null,
+      rol: null,
+      cargo: null,
+      usuario: null,
+      email: null,
+      nombre: null,
+      idSocio: null,
+      idEmpleado: null,
+      sessionStatus: 'anonymous'
+    })
   },
 
   setResolvedEmpleadoId: (idEmpleado) => {

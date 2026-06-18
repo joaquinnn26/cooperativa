@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
 import { apiUrl } from '@/config/api.js'
 import {
-  compareTurnosRecientes,
-  ensureArray,
-  normalizeTurno,
-  sanitizePlainText
+  asegurarArray,
+  compararTurnosRecientes,
+  limpiarTextoPlano,
+  normalizarTurno
 } from '@/utils/turnosUtils.jsx'
 
 const ESTADO_POR_ID = {
@@ -16,7 +16,7 @@ const ESTADO_POR_ID = {
   6: 'Aceptado'
 }
 
-function getAuthHeaders() {
+function obtenerHeadersAuth() {
   const token = localStorage.getItem('token')
   return {
     'Content-Type': 'application/json',
@@ -24,31 +24,31 @@ function getAuthHeaders() {
   }
 }
 
-async function readError(response, fallbackMessage) {
-  const errorText = await response.text()
+async function leerError(respuesta, mensajeFallback) {
+  const textoError = await respuesta.text()
   try {
-    const data = JSON.parse(errorText)
-    return data?.message || data?.Message || errorText || fallbackMessage
+    const datos = JSON.parse(textoError)
+    return datos?.message || datos?.Message || textoError || mensajeFallback
   } catch {
-    return errorText || fallbackMessage
+    return textoError || mensajeFallback
   }
 }
 
 export const obtenerTodosLosTurnos = async () => {
-  const response = await fetch(apiUrl('/admin/turnos'), {
-    headers: getAuthHeaders()
+  const respuesta = await fetch(apiUrl('/admin/turnos'), {
+    headers: obtenerHeadersAuth()
   })
 
-  if (!response.ok) {
-    throw new Error(await readError(response, 'No se pudieron obtener los turnos'))
+  if (!respuesta.ok) {
+    throw new Error(await leerError(respuesta, 'No se pudieron obtener los turnos'))
   }
 
-  const data = response.status === 204 ? [] : await response.json()
-  return ensureArray(data).map(normalizeTurno).sort(compareTurnosRecientes)
+  const datos = respuesta.status === 204 ? [] : await respuesta.json()
+  return asegurarArray(datos).map(normalizarTurno).sort(compararTurnosRecientes)
 }
 
-export const actualizarEstadoTurno = async (id, nuevoEstadoId, cambios = {}) => {
-  if (!id) {
+export const actualizarEstadoTurno = async (idTurno, nuevoEstadoId, cambios = {}) => {
+  if (!idTurno) {
     throw new Error('No se pudo identificar el turno a actualizar.')
   }
 
@@ -57,38 +57,56 @@ export const actualizarEstadoTurno = async (id, nuevoEstadoId, cambios = {}) => 
   }
 
   const estadoLocal = ESTADO_POR_ID[nuevoEstadoId] || cambios.estado || 'Pendiente'
-  const payload = { ...cambios }
+  const cuerpo = { ...cambios }
 
   if (cambios.observacionAdmin != null || cambios.ObservacionAdmin != null) {
-    const observacion = sanitizePlainText(cambios.observacionAdmin || cambios.ObservacionAdmin)
-    payload.observacionAdmin = observacion
-    payload.ObservacionAdmin = observacion
+    const observacion = limpiarTextoPlano(cambios.observacionAdmin || cambios.ObservacionAdmin)
+    cuerpo.observacionAdmin = observacion
+    cuerpo.ObservacionAdmin = observacion
   }
 
-  const response = await fetch(apiUrl(`/admin/turnos/${id}`), {
+  const respuesta = await fetch(apiUrl(`/admin/turnos/${idTurno}`), {
     method: 'PUT',
-    headers: getAuthHeaders(),
+    headers: obtenerHeadersAuth(),
     body: JSON.stringify({
       estadoId: nuevoEstadoId,
       idEstadoTurno: nuevoEstadoId,
       IdEstadoTurno: nuevoEstadoId,
-      ...payload
+      ...cuerpo
     })
   })
 
-  if (!response.ok) {
-    throw new Error(await readError(response, 'No se pudo actualizar el turno'))
+  if (!respuesta.ok) {
+    throw new Error(await leerError(respuesta, 'No se pudo actualizar el turno'))
   }
 
-  const data = response.status === 204 ? { id, estado: estadoLocal, ...payload } : await response.json()
-  return normalizeTurno(data)
+  const datos = respuesta.status === 204 ? { id: idTurno, estado: estadoLocal, ...cuerpo } : await respuesta.json()
+  return normalizarTurno(datos)
+}
+
+export const eliminarTurnoAdmin = async (idTurno) => {
+  if (!idTurno) {
+    throw new Error('No se pudo identificar el turno a eliminar.')
+  }
+
+  const respuesta = await fetch(apiUrl(`/admin/turnos/${idTurno}`), {
+    method: 'DELETE',
+    headers: obtenerHeadersAuth()
+  })
+
+  if (!respuesta.ok) {
+    throw new Error(await leerError(respuesta, 'No se pudo eliminar el turno'))
+  }
+
+  return true
 }
 
 export function useAdminTurnos() {
   return useMemo(
     () => ({
       obtenerTodosLosTurnos,
-      actualizarEstadoTurno
+      actualizarEstadoTurno,
+      eliminarTurnoAdmin
     }),
     []
   )

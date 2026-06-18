@@ -4,6 +4,7 @@ import useAppStore from '@/store/appStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
 import { confirmAction } from '@/utils/alerts.js'
 import { formatDate } from '@/utils/formatDate.js'
+import { cleanText, firstValidationError, isPositiveNumber, validateRequired } from '@/utils/validation.js'
 
 function normalizeServiceName(nombre) {
   return String(nombre || '')
@@ -136,7 +137,14 @@ export default function AdminMedidores() {
   )
 
   const handleInstall = async () => {
-    if (!selectedInstallation) return
+    if (!selectedInstallation || !isPositiveNumber(selectedInstallation.idServicioSocio)) {
+      addNotification({
+        title: 'Datos invalidos',
+        message: 'Selecciona una instalacion valida antes de crear el medidor.',
+        type: 'error'
+      })
+      return
+    }
 
     try {
       await createMeter({
@@ -177,9 +185,19 @@ export default function AdminMedidores() {
   const handleSaveMeter = async () => {
     if (!editingMeter) return
 
+    const validationError = firstValidationError([
+      validateRequired(editingForm.TipoMedidor, 'El tipo de medidor'),
+      !['Activo', 'Inactivo'].includes(editingForm.Estado) ? 'Selecciona un estado valido.' : ''
+    ])
+
+    if (validationError) {
+      addNotification({ title: 'Datos invalidos', message: validationError, type: 'error' })
+      return
+    }
+
     try {
       await updateMeter(editingMeter.idMedidor, {
-        TipoMedidor: editingForm.TipoMedidor,
+        TipoMedidor: cleanText(editingForm.TipoMedidor),
         Estado: editingForm.Estado
       })
 

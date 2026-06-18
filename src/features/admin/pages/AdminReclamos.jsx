@@ -2,6 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Phone, Search, X } from 'lucide-react'
 import { apiUrl } from '@/config/api.js'
 import { formatDate } from '@/utils/formatDate.js'
+import {
+  CLAIM_STATUS_OPTIONS,
+  getAllowedClaimStatuses,
+  getClaimStatusId,
+  isValidClaimTransition,
+  normalizeClaimStatus
+} from '@/utils/claimWorkflow.js'
 
 function getAuthHeaders() {
   const token = localStorage.getItem('token')
@@ -36,18 +43,23 @@ async function fetchJson(path) {
   return response.json()
 }
 
-function normalizeClaimStatus(status) {
-  const value = String(status || '').trim().toLowerCase()
-  if (value.includes('resuelto')) return 'Resuelto'
-  if (value.includes('proceso')) return 'En proceso'
-  if (value.includes('pend')) return 'Pendiente'
-  return status || 'Sin estado'
+async function readError(response, fallback) {
+  const errorText = await response.text()
+  if (!errorText) return fallback
+
+  try {
+    const parsed = JSON.parse(errorText)
+    return parsed.Message || parsed.message || parsed.mensaje || fallback
+  } catch {
+    return errorText
+  }
 }
 
 function statusStyles(status) {
   const normalized = normalizeClaimStatus(status)
   if (normalized === 'Resuelto') return 'bg-emerald-100 text-emerald-700'
   if (normalized === 'En proceso') return 'bg-sky-100 text-sky-700'
+  if (normalized === 'Cancelado') return 'bg-gray-200 text-gray-700'
   return 'bg-amber-100 text-amber-700'
 }
 
@@ -93,18 +105,11 @@ function formatTextValue(value, fallback = '') {
   return fallback
 }
 
-const DEFAULT_STATUS_OPTIONS = [
-  { idEstadoReclamo: 1, NombreEstado: 'Pendiente' },
-  { idEstadoReclamo: 2, NombreEstado: 'En proceso' },
-  { idEstadoReclamo: 3, NombreEstado: 'Resuelto' }
-]
-
 export default function AdminReclamos() {
   const [claims, setClaims] = useState([])
   const [sociosDirectory, setSociosDirectory] = useState([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('Todos')
-  const [statusOptions, setStatusOptions] = useState(DEFAULT_STATUS_OPTIONS)
   const [selectedClaim, setSelectedClaim] = useState(null)
   const [editingStatus, setEditingStatus] = useState('Pendiente')
   const [savingStatus, setSavingStatus] = useState(false)
@@ -123,24 +128,6 @@ export default function AdminReclamos() {
         setError('No se pudieron cargar los reclamos.')
       })
       .finally(() => setLoading(false))
-  }, [])
-
-  useEffect(() => {
-    fetchJson('/reclamo/estadoReclamo')
-      .then((data) => {
-        const normalized = ensureArray(data)
-          .filter((item) => item && typeof item === 'object')
-          .map((item) => ({
-            idEstadoReclamo: item.idEstadoReclamo ?? item.IdEstadoReclamo,
-            NombreEstado: formatTextValue(item.NombreEstado ?? item.Estado ?? item.nombreEstado)
-          }))
-          .filter((item) => item.idEstadoReclamo && item.NombreEstado)
-
-        if (normalized.length) {
-          setStatusOptions(normalized)
-        }
-      })
-      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -212,12 +199,13 @@ export default function AdminReclamos() {
     return normalized ? `tel:${normalized}` : ''
   }
   const normalizedStatusOptions = useMemo(
-    () => ['Todos', ...Array.from(new Set(statusOptions.map((item) => normalizeClaimStatus(item.NombreEstado))))],
-    [statusOptions]
+    () => ['Todos', ...CLAIM_STATUS_OPTIONS.map((item) => item.NombreEstado)],
+    []
   )
 
   const openClaimManager = (claim) => {
     const currentStatus = normalizeClaimStatus(getClaimValue(claim, ['Estado', 'estado'], 'Pendiente'))
+    setError('')
     setSelectedClaim(claim)
     setEditingStatus(currentStatus)
   }
@@ -229,47 +217,42 @@ export default function AdminReclamos() {
   }
 
   const getStatusId = (statusName) => {
-    const match = statusOptions.find((item) => normalizeClaimStatus(item.NombreEstado) === normalizeClaimStatus(statusName))
-    return match?.idEstadoReclamo ?? null
+    const match = CLAIM_STATUS_OPTIONS.find(
+      (item) => normalizeClaimStatus(item.NombreEstado) === normalizeClaimStatus(statusName)
+    )
+    return match?.idEstadoReclamo ?? getClaimStatusId(statusName)
   }
 
   const updateClaimStatus = async () => {
     if (!selectedClaim) return
 
     const claimId = getClaimValue(selectedClaim, ['idReclamo', 'IdReclamo'])
+    const currentStatus = normalizeClaimStatus(getClaimValue(selectedClaim, ['Estado', 'estado'], 'Pendiente'))
     const nextStatusId = getStatusId(editingStatus)
-    const payload = {
-      idEstadoReclamo: nextStatusId,
-      Estado: editingStatus
+    if (!claimId || !nextStatusId) {
+      setError('No se pudo identificar el reclamo o el estado seleccionado.')
+      return
+    }
+    if (!isValidClaimTransition(currentStatus, editingStatus)) {
+      setError(`No se permite cambiar un reclamo de ${currentStatus} a ${editingStatus}.`)
+      return
+    }
+    if (currentStatus === editingStatus) {
+      closeClaimManager()
+      return
     }
 
     setSavingStatus(true)
+    setError('')
 
     try {
-      let updated = false
-
-      const attempts = [
-        { path: `/reclamo/${claimId}`, body: payload },
-        { path: `/reclamo/estado/${claimId}`, body: payload },
-        { path: `/reclamo/${claimId}`, body: { idEstadoReclamo: nextStatusId } },
-        { path: `/reclamo/estado/${claimId}`, body: { idEstadoReclamo: nextStatusId } }
-      ]
-
-      for (const attempt of attempts) {
-        try {
-          const response = await fetch(apiUrl(attempt.path), {
-            method: 'PUT',
-            headers: getJsonHeaders(),
-            body: JSON.stringify(attempt.body)
-          })
-
-          if (response.ok) {
-            updated = true
-            break
-          }
-        } catch {
-          // try next format
-        }
+      const response = await fetch(apiUrl(`/reclamo/${claimId}`), {
+        method: 'PUT',
+        headers: getJsonHeaders(),
+        body: JSON.stringify({ idEstadoReclamo: nextStatusId })
+      })
+      if (!response.ok) {
+        throw new Error(await readError(response, 'No se pudo actualizar el estado del reclamo.'))
       }
 
       setClaims((current) =>
@@ -285,11 +268,9 @@ export default function AdminReclamos() {
         )
       )
 
-      if (!updated) {
-        console.warn('No se pudo persistir el cambio de estado del reclamo en la API. Se aplico solo en la vista.')
-      }
-
       closeClaimManager()
+    } catch (updateError) {
+      setError(updateError.message || 'No se pudo actualizar el estado del reclamo.')
     } finally {
       setSavingStatus(false)
     }
@@ -571,8 +552,9 @@ export default function AdminReclamos() {
                   className="input-field"
                   disabled={savingStatus}
                 >
-                  {normalizedStatusOptions
-                    .filter((status) => status !== 'Todos')
+                  {getAllowedClaimStatuses(
+                    getClaimValue(selectedClaim, ['Estado', 'estado'], 'Pendiente')
+                  )
                     .map((status) => (
                       <option key={status} value={status}>
                         {status}
