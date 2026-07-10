@@ -14,6 +14,7 @@ import {
   Gauge,
   Receipt,
   Settings,
+  Wifi,
   Zap
 } from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
@@ -21,23 +22,13 @@ import useCooperativeStore from '@/store/cooperativeStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
 import useAppStore from '@/store/appStore.js'
 import { useCurrentSocio } from '@/hooks/useCurrentSocio.js'
+import { useTurnos } from '@/hooks/useTurnos.jsx'
 import { formatDate } from '@/utils/formatDate.js'
-
-function normalizeServiceName(nombre) {
-  return String(nombre || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase()
-}
-
-function serviceRequiresMeter(nombre) {
-  const normalized = normalizeServiceName(nombre)
-  return normalized === 'luz' || normalized === 'agua potable'
-}
+import { isInternetService, normalizeServiceText, serviceRequiresInstallation, serviceRequiresMeter } from '@/utils/serviceInstallation.js'
 
 function serviceIcon(nombre) {
-  return normalizeServiceName(nombre).includes('agua') ? Droplet : Zap
+  if (isInternetService(nombre)) return Wifi
+  return normalizeServiceText(nombre).includes('agua') ? Droplet : Zap
 }
 
 function meterMatchesService(meter, service, socioId) {
@@ -54,7 +45,7 @@ function meterMatchesService(meter, service, socioId) {
 
   const sameService =
     (meter.idServicio && service.idServicio && Number(meter.idServicio) === Number(service.idServicio)) ||
-    normalizeServiceName(meter.servicioNombre) === normalizeServiceName(service.servicioNombre)
+    normalizeServiceText(meter.servicioNombre) === normalizeServiceText(service.servicioNombre)
 
   return sameSocio && sameService
 }
@@ -70,6 +61,27 @@ function alertToneClasses(tone) {
   return tones[tone] || tones.slate
 }
 
+function isOpenServiceRequest(request) {
+  const status = normalizeServiceText(request?.estado)
+  return ['pendiente', 'en revision'].includes(status)
+}
+
+function isRejectedServiceRequest(request) {
+  return normalizeServiceText(request?.estado).startsWith('rechazad')
+}
+
+function isTurnoWaitingUser(turno) {
+  return normalizeServiceText(turno?.estado).startsWith('propuest')
+}
+
+function isTurnoPending(turno) {
+  return normalizeServiceText(turno?.estado) === 'pendiente'
+}
+
+function isTurnoRejected(turno) {
+  return normalizeServiceText(turno?.estado).startsWith('rechazad')
+}
+
 export default function SocioDashboard() {
   const nombre = useAuthStore((state) => state.nombre)
   const usuario = useAuthStore((state) => state.usuario)
@@ -77,25 +89,31 @@ export default function SocioDashboard() {
   const fetchBillsBySocio = useCooperativeStore((state) => state.fetchBillsBySocio)
   const fetchAnnouncements = useCooperativeStore((state) => state.fetchAnnouncements)
   const fetchSocioServices = useServiceWorkflowStore((state) => state.fetchSocioServices)
+  const fetchServiceRequestsBySocio = useServiceWorkflowStore((state) => state.fetchServiceRequestsBySocio)
   const fetchMeters = useServiceWorkflowStore((state) => state.fetchMeters)
   const fetchMetersBySocio = useServiceWorkflowStore((state) => state.fetchMetersBySocio)
   const fetchMeasurementsBySocio = useServiceWorkflowStore((state) => state.fetchMeasurementsBySocio)
   const addNotification = useAppStore((state) => state.addNotification)
+  const { obtenerTurnosPorSocio } = useTurnos()
 
   const [services, setServices] = useState([])
   const [bills, setBills] = useState([])
   const [announcements, setAnnouncements] = useState([])
+  const [serviceRequests, setServiceRequests] = useState([])
+  const [turnos, setTurnos] = useState([])
 
   useEffect(() => {
     if (!socioId) return
 
     const loadData = async () => {
       try {
-        const [servicesData, measurementsData, billsData, announcementsData] = await Promise.all([
+        const [servicesData, measurementsData, billsData, announcementsData, requestsData, turnosData] = await Promise.all([
           fetchSocioServices(socioId),
           fetchMeasurementsBySocio(socioId),
           fetchBillsBySocio({ idSocio: socioId, usuario }),
-          fetchAnnouncements().catch(() => [])
+          fetchAnnouncements().catch(() => []),
+          fetchServiceRequestsBySocio(socioId).catch(() => []),
+          obtenerTurnosPorSocio(socioId).catch(() => [])
         ])
         const metersData = fetchMetersBySocio ? await fetchMetersBySocio(socioId) : await fetchMeters()
 
@@ -111,8 +129,8 @@ export default function SocioDashboard() {
               measurement.NumeroMedidor &&
               String(measurement.NumeroMedidor) === String(matchedMeter.NumeroMedidor)
             const sameService =
-              normalizeServiceName(measurement.servicioNombre) ===
-              normalizeServiceName(service.servicioNombre)
+              normalizeServiceText(measurement.servicioNombre) ===
+              normalizeServiceText(service.servicioNombre)
 
             return sameMeter || sameService
           })
@@ -121,6 +139,8 @@ export default function SocioDashboard() {
           return {
             ...service,
             requiereMedidor: requiresMeter,
+            requiereInstalacion: serviceRequiresInstallation(service.servicioNombre),
+            instalacionPendiente: serviceRequiresInstallation(service.servicioNombre) && !matchedMeter?.NumeroMedidor,
             numeroMedidor:
               matchedMeter?.NumeroMedidor ||
               service.numeroMedidor ||
@@ -134,6 +154,8 @@ export default function SocioDashboard() {
         setServices(enrichedServices)
         setBills(billsData || [])
         setAnnouncements(announcementsData || [])
+        setServiceRequests(requestsData || [])
+        setTurnos(turnosData || [])
       } catch (error) {
         addNotification({
           title: 'No se pudo cargar el panel',
@@ -144,7 +166,19 @@ export default function SocioDashboard() {
     }
 
     loadData()
-  }, [addNotification, fetchAnnouncements, fetchBillsBySocio, fetchMeasurementsBySocio, fetchMeters, fetchMetersBySocio, fetchSocioServices, socioId, usuario])
+  }, [
+    addNotification,
+    fetchAnnouncements,
+    fetchBillsBySocio,
+    fetchMeasurementsBySocio,
+    fetchMeters,
+    fetchMetersBySocio,
+    fetchServiceRequestsBySocio,
+    fetchSocioServices,
+    obtenerTurnosPorSocio,
+    socioId,
+    usuario
+  ])
 
   const pendingBills = useMemo(() => bills.filter((bill) => bill.status !== 'paid'), [bills])
   const totalPendingAmount = useMemo(
@@ -161,6 +195,11 @@ export default function SocioDashboard() {
     [pendingBills]
   )
   const todayLabel = useMemo(() => formatDate(new Date(), 'es-AR', { weekday: 'long' }), [])
+  const openServiceRequests = useMemo(() => serviceRequests.filter(isOpenServiceRequest), [serviceRequests])
+  const rejectedServiceRequests = useMemo(() => serviceRequests.filter(isRejectedServiceRequest), [serviceRequests])
+  const proposedTurnos = useMemo(() => turnos.filter(isTurnoWaitingUser), [turnos])
+  const pendingTurnos = useMemo(() => turnos.filter(isTurnoPending), [turnos])
+  const rejectedTurnos = useMemo(() => turnos.filter(isTurnoRejected), [turnos])
 
   const dashboardAlerts = useMemo(() => {
     const alerts = announcements.slice(0, 3).map((announcement) => ({
@@ -179,34 +218,72 @@ export default function SocioDashboard() {
         to: '/facturas',
         icon: Receipt
       })
-    } else {
+    }
+
+    if (proposedTurnos.length) {
       alerts.push({
-        title: 'Cuenta al dia',
-        message: 'No hay facturas pendientes cargadas.',
-        tone: 'emerald',
-        to: '/facturas',
-        icon: CheckCircle2
+        title: 'Turno con propuesta',
+        message: `${proposedTurnos.length} turno${proposedTurnos.length === 1 ? '' : 's'} esperando tu respuesta.`,
+        tone: 'indigo',
+        to: '/socio/turnos',
+        icon: CalendarCheck
       })
     }
 
-    alerts.push({
-      title: 'Turnos presenciales',
-      message: 'Modulo disponible para solicitudes y propuestas.',
-      tone: 'indigo',
-      to: '/socio/turnos',
-      icon: CalendarCheck
-    })
+    if (pendingTurnos.length) {
+      alerts.push({
+        title: 'Turno pendiente',
+        message: `${pendingTurnos.length} solicitud${pendingTurnos.length === 1 ? '' : 'es'} de turno pendiente${pendingTurnos.length === 1 ? '' : 's'} de aprobacion.`,
+        tone: 'slate',
+        to: '/socio/turnos',
+        icon: Clock3
+      })
+    }
 
-    alerts.push({
-      title: 'Cortes de servicio',
-      message: 'No hay cortes informados para tus servicios activos.',
-      tone: 'slate',
-      to: '/ayuda',
-      icon: Bell
-    })
+    if (rejectedTurnos.length) {
+      const latestRejected = rejectedTurnos[0]
+      alerts.push({
+        title: 'Turno rechazado',
+        message: latestRejected?.motivoRechazo
+          ? `Motivo: ${latestRejected.motivoRechazo}`
+          : `${rejectedTurnos.length} turno${rejectedTurnos.length === 1 ? '' : 's'} rechazado${rejectedTurnos.length === 1 ? '' : 's'}.`,
+        tone: 'amber',
+        to: '/socio/turnos',
+        icon: AlertTriangle
+      })
+    }
+
+    if (openServiceRequests.length) {
+      alerts.push({
+        title: 'Solicitud en tramite',
+        message: `${openServiceRequests.length} solicitud${openServiceRequests.length === 1 ? '' : 'es'} de servicio en revision.`,
+        tone: 'indigo',
+        to: '/socio/solicitudes-servicio',
+        icon: FilePlus2
+      })
+    }
+
+    if (rejectedServiceRequests.length) {
+      alerts.push({
+        title: 'Solicitud rechazada',
+        message: `${rejectedServiceRequests.length} solicitud${rejectedServiceRequests.length === 1 ? '' : 'es'} requiere${rejectedServiceRequests.length === 1 ? '' : 'n'} revision.`,
+        tone: 'amber',
+        to: '/socio/solicitudes-servicio',
+        icon: AlertTriangle
+      })
+    }
 
     return alerts
-  }, [announcements, pendingBills.length])
+  }, [
+    announcements,
+    openServiceRequests.length,
+    pendingBills.length,
+    pendingTurnos.length,
+    proposedTurnos.length,
+    rejectedTurnos,
+    rejectedTurnos.length,
+    rejectedServiceRequests.length
+  ])
 
   const quickActions = useMemo(
     () => [
@@ -364,8 +441,9 @@ export default function SocioDashboard() {
             </span>
           </div>
 
-          <div className="divide-y divide-gray-100">
-            {dashboardAlerts.map((alert) => {
+          {dashboardAlerts.length ? (
+            <div className="divide-y divide-gray-100">
+              {dashboardAlerts.map((alert) => {
               const Icon = alert.icon
               return (
                 <Link key={alert.title} to={alert.to} className="flex items-start gap-3 p-4 transition hover:bg-gray-50">
@@ -379,8 +457,15 @@ export default function SocioDashboard() {
                   <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-gray-400" />
                 </Link>
               )
-            })}
-          </div>
+              })}
+            </div>
+          ) : (
+            <div className="px-5 py-10 text-center">
+              <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
+              <p className="mt-3 font-medium text-gray-700">No hay avisos activos.</p>
+              <p className="mt-1 text-sm text-gray-500">Cuando haya anuncios, facturas, turnos o solicitudes con novedades, apareceran aca.</p>
+            </div>
+          )}
         </aside>
       </section>
 
@@ -444,7 +529,7 @@ export default function SocioDashboard() {
                       <td className="px-5 py-4">
                         <div className="flex min-w-0 items-center gap-3">
                           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100">
-                            {normalizeServiceName(bill.service).includes('agua') ? (
+                            {normalizeServiceText(bill.service).includes('agua') ? (
                               <Droplet className="h-5 w-5 text-blue-600" />
                             ) : (
                               <Zap className="h-5 w-5 text-yellow-600" />
@@ -508,7 +593,9 @@ export default function SocioDashboard() {
                         <p className="truncate text-sm text-gray-600">
                           {service.requiereMedidor
                             ? `Medidor: ${service.numeroMedidor || 'pendiente'}`
-                            : 'Tarifa fija'}
+                            : service.requiereInstalacion
+                              ? 'Pendiente instalacion'
+                              : 'Tarifa fija'}
                         </p>
                       </div>
                     </div>
@@ -517,7 +604,11 @@ export default function SocioDashboard() {
                         {service.estado}
                       </span>
                       <p className="mt-1 text-xs text-gray-500">
-                        {service.requiereMedidor ? service.ultimaLectura ?? 'Sin lectura' : 'Sin medidor'}
+                        {service.requiereMedidor
+                          ? service.ultimaLectura ?? 'Sin lectura'
+                          : service.requiereInstalacion
+                            ? 'Sin consumo'
+                            : 'Mensual fijo'}
                       </p>
                     </div>
                   </div>

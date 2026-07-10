@@ -2,12 +2,13 @@ import React, { useEffect, useState } from 'react'
 import { useSocios } from '@/hooks/useSocios.js'
 import {
   firstValidationError,
+  FIELD_LIMITS,
   isBlank,
-  isValidAddress,
-  isValidHouseNumber,
   sanitizePersonPayload,
+  validateAddress,
   validateDocument,
   validateEmail,
+  validateHouseNumber,
   validatePersonName,
   validatePhone
 } from '@/utils/validation.js'
@@ -116,8 +117,8 @@ export default function ModalEditarSocio({ show, socio, onClose, onRefresh }) {
       validateDocument(sanitized.Documento),
       validatePhone(sanitized.Telefono),
       validateEmail(sanitized.Email),
-      !isBlank(sanitized.Calle) && !isValidAddress(sanitized.Calle) ? 'La calle contiene caracteres invalidos.' : '',
-      !isBlank(sanitized.Numero) && !isValidHouseNumber(sanitized.Numero) ? 'El numero de domicilio debe ser numerico.' : ''
+      !isBlank(sanitized.Calle) && validateAddress(sanitized.Calle),
+      !isBlank(sanitized.Numero) && validateHouseNumber(sanitized.Numero)
     ])
 
     if (validationError) {
@@ -174,6 +175,8 @@ export default function ModalEditarSocio({ show, socio, onClose, onRefresh }) {
             value={form.Nombre}
             onChange={(e) => setForm((prev) => ({ ...prev, Nombre: e.target.value }))}
             placeholder="Nombre"
+            minLength={FIELD_LIMITS.personName.min}
+            maxLength={FIELD_LIMITS.personName.max}
             className="input-field"
             disabled={saving}
           />
@@ -181,6 +184,8 @@ export default function ModalEditarSocio({ show, socio, onClose, onRefresh }) {
             value={form.Apellido}
             onChange={(e) => setForm((prev) => ({ ...prev, Apellido: e.target.value }))}
             placeholder="Apellido"
+            minLength={FIELD_LIMITS.personName.min}
+            maxLength={FIELD_LIMITS.personName.max}
             className="input-field"
             disabled={saving}
           />

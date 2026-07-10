@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useEmpleados } from '@/hooks/useEmpleados.js'
-import { isPositiveNumber } from '@/utils/validation.js'
+import { firstValidationError, isPositiveNumber } from '@/utils/validation.js'
 
 const initialForm = {
   idSocio: '',
@@ -51,16 +51,17 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
   }
 
   const handleSubmit = async () => {
-    if (!form.idSocio || !form.idCargo) {
-      setError('Debes seleccionar un socio y un cargo.')
-      return
-    }
-
     const idSocio = Number(form.idSocio)
     const idCargo = Number(form.idCargo)
+    const validationError = firstValidationError([
+      !isPositiveNumber(idSocio) ? 'Selecciona un socio valido.' : '',
+      !isPositiveNumber(idCargo) ? 'Selecciona un cargo valido.' : '',
+      sociosElegibles.some((socio) => String(socio.idSocio) === String(form.idSocio)) ? '' : 'El socio seleccionado ya no esta disponible.',
+      cargos.some((cargo) => String(cargo.idCargo) === String(form.idCargo)) ? '' : 'El cargo seleccionado ya no esta disponible.'
+    ])
 
-    if (!isPositiveNumber(idSocio) || !isPositiveNumber(idCargo)) {
-      setError('Los datos seleccionados no son validos. Vuelve a elegir el socio y el cargo.')
+    if (validationError) {
+      setError(validationError)
       return
     }
 

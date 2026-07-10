@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useEmpleados } from '@/hooks/useEmpleados.js'
-import { isPositiveNumber, isValidDate } from '@/utils/validation.js'
+import { firstValidationError, isPositiveNumber, isTodayOrPast, isValidDate } from '@/utils/validation.js'
 
 const initialForm = {
   Nombre: '',
@@ -52,19 +52,16 @@ export default function ModalEditarEmpleado({ show, empleado, onClose, onRefresh
   const handleSubmit = async () => {
     if (!empleado) return
 
-    if (!form.idCargo || !form.FechaDelInicio) {
-      setError('Debes seleccionar un cargo y una fecha de inicio.')
-      return
-    }
-
     const idCargo = Number(form.idCargo)
-    if (!isPositiveNumber(idCargo)) {
-      setError('El cargo seleccionado no es valido.')
-      return
-    }
+    const validationError = firstValidationError([
+      !isPositiveNumber(idCargo) ? 'Selecciona un cargo valido.' : '',
+      cargos.some((cargo) => String(cargo.idCargo) === String(form.idCargo)) ? '' : 'El cargo seleccionado ya no esta disponible.',
+      !isValidDate(form.FechaDelInicio) ? 'La fecha de inicio es obligatoria y debe ser valida.' : '',
+      !isTodayOrPast(form.FechaDelInicio) ? 'La fecha de inicio no puede ser posterior a hoy.' : ''
+    ])
 
-    if (!isValidDate(form.FechaDelInicio)) {
-      setError('La fecha de inicio no es valida.')
+    if (validationError) {
+      setError(validationError)
       return
     }
 

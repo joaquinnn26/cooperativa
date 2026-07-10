@@ -4,7 +4,7 @@ import useAuthStore from '@/store/authStore.js'
 import useAppStore from '@/store/appStore.js'
 import useCooperativeStore from '@/store/cooperativeStore.js'
 import { formatDate } from '@/utils/formatDate.js'
-import { cleanText, firstValidationError, validateRequired } from '@/utils/validation.js'
+import { cleanText, FIELD_LIMITS, firstValidationError, isValidDate, validateMeaningfulText } from '@/utils/validation.js'
 
 const initialForm = {
   title: '',
@@ -34,11 +34,13 @@ function toDateInput(value) {
 
 function validateAnnouncement(form) {
   return firstValidationError([
-    validateRequired(form.title, 'El titulo'),
-    validateRequired(form.content, 'El contenido'),
+    validateMeaningfulText(form.title, 'El titulo', FIELD_LIMITS.shortTitle),
+    validateMeaningfulText(form.content, 'El contenido', FIELD_LIMITS.announcement),
     cleanText(form.title).length > 120 ? 'El titulo no puede superar 120 caracteres.' : '',
     cleanText(form.content).length > 1000 ? 'El contenido no puede superar 1000 caracteres.' : '',
     !['high', 'medium', 'low'].includes(form.priority) ? 'Selecciona una prioridad valida.' : '',
+    form.startsAt && !isValidDate(form.startsAt) ? 'La fecha de inicio no es valida.' : '',
+    form.endsAt && !isValidDate(form.endsAt) ? 'La fecha de fin no es valida.' : '',
     form.startsAt && form.endsAt && form.endsAt < form.startsAt ? 'La fecha de fin no puede ser anterior al inicio.' : ''
   ])
 }
@@ -207,7 +209,8 @@ export default function AdminAnuncios() {
             onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
             placeholder="Titulo del comunicado"
             className="input-field"
-            maxLength={120}
+            minLength={FIELD_LIMITS.shortTitle.min}
+            maxLength={FIELD_LIMITS.shortTitle.max}
             required
           />
 
@@ -216,7 +219,8 @@ export default function AdminAnuncios() {
             onChange={(event) => setForm((prev) => ({ ...prev, content: event.target.value }))}
             placeholder="Detalle del anuncio"
             className="input-field min-h-32"
-            maxLength={1000}
+            minLength={FIELD_LIMITS.announcement.min}
+            maxLength={FIELD_LIMITS.announcement.max}
             required
           />
 

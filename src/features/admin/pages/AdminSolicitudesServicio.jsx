@@ -13,6 +13,7 @@ import { API_SERVER_URL } from '@/config/api.js'
 import useAppStore from '@/store/appStore.js'
 import useServiceWorkflowStore, { SERVICE_REQUEST_STATUSES } from '@/store/serviceWorkflowStore.js'
 import { formatDate } from '@/utils/formatDate.js'
+import { cleanText, FIELD_LIMITS, validateMeaningfulText } from '@/utils/validation.js'
 
 const STATUS_FILTERS = ['Todas', 'Pendiente', 'En revision', 'Aprobada', 'Rechazada', 'Cancelada']
 
@@ -168,10 +169,15 @@ export default function AdminSolicitudesServicio() {
 
   const handleReject = async () => {
     if (!rejectingRequest || !rejectReason.trim()) return
+    const validationError = validateMeaningfulText(rejectReason, 'El motivo de rechazo', FIELD_LIMITS.rejectionReason)
+    if (validationError) {
+      addNotification({ title: 'Datos invalidos', message: validationError, type: 'error' })
+      return
+    }
 
     setSaving(true)
     try {
-      await rejectServiceRequest(rejectingRequest.idSolicitudServicio, rejectReason.trim())
+      await rejectServiceRequest(rejectingRequest.idSolicitudServicio, cleanText(rejectReason))
       addNotification({
         title: 'Solicitud rechazada',
         message: `Se rechazo ${rejectingRequest.servicioNombre}.`,
@@ -485,9 +491,14 @@ export default function AdminSolicitudesServicio() {
             <textarea
               value={rejectReason}
               onChange={(event) => setRejectReason(event.target.value)}
+              minLength={FIELD_LIMITS.rejectionReason.min}
+              maxLength={FIELD_LIMITS.rejectionReason.max}
               className="input-field mt-5 min-h-32"
               placeholder="Motivo del rechazo"
             />
+            <p className="mt-2 text-xs text-gray-500">
+              {cleanText(rejectReason).length}/{FIELD_LIMITS.rejectionReason.max} caracteres. Minimo {FIELD_LIMITS.rejectionReason.min}.
+            </p>
 
             <div className="mt-5 flex justify-end gap-2">
               <button

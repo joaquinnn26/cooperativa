@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   AlertTriangle,
+  ArrowLeft,
   Bell,
   CalendarClock,
   ClipboardList,
@@ -42,7 +43,7 @@ function buildPanelSections(role, cargo) {
         title: 'Servicios',
         items: [
           { to: '/admin/servicios', label: 'Servicios', icon: Settings },
-          { to: '/admin/medidores', label: 'Medidores', icon: Zap },
+          { to: '/admin/medidores', label: 'Instalacion', icon: Zap },
           { to: '/admin/lecturas', label: 'Lecturas', icon: Gauge },
           { to: '/admin/rutas-medicion', label: 'Rutas', icon: MapPinned },
           { to: '/admin/solicitudes-servicio', label: 'Solicitudes', icon: ClipboardList },
@@ -135,6 +136,11 @@ export default function Layout() {
   const isPanelRoute =
     /^\/(admin|socio|empleado)(\/|$)/.test(location.pathname) ||
     (normalizedRole === 'Socio' && location.pathname === '/facturas')
+  const showBackToPanel =
+    usuario &&
+    ['Administrador', 'Socio'].includes(normalizedRole) &&
+    isPanelRoute &&
+    location.pathname !== panelPath
   const sections = useMemo(() => buildPanelSections(normalizedRole, cargo), [normalizedRole, cargo])
   const currentLabel = useMemo(() => findCurrentLabel(sections, location.pathname), [sections, location.pathname])
 
@@ -282,6 +288,15 @@ export default function Layout() {
             </aside>
 
             <main className="min-w-0">
+              {showBackToPanel ? (
+                <Link
+                  to={panelPath}
+                  className="mb-4 inline-flex items-center gap-2 rounded-lg border border-blue-100 bg-white px-3 py-2 text-sm font-semibold text-blue-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Volver al inicio
+                </Link>
+              ) : null}
               <Outlet />
             </main>
           </div>

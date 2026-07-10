@@ -3,7 +3,7 @@ import { Droplet, Pencil, PlusCircle, ToggleRight, Trash2, Wifi, Wrench, X, Zap 
 
 import { useServicios } from '@/hooks/useServicios.js'
 import { confirmAction, showToast } from '@/utils/alerts.js'
-import { cleanText, firstValidationError, isPositiveNumber, validateRequired } from '@/utils/validation.js'
+import { cleanText, FIELD_LIMITS, firstValidationError, isPositiveNumber, validateMeaningfulText, validateServiceName } from '@/utils/validation.js'
 
 const initialForm = {
   idServicio: null,
@@ -79,6 +79,8 @@ function ModalCrearServicio({
               name="nombre"
               value={form.nombre}
               onChange={onChange}
+              minLength={FIELD_LIMITS.serviceName.min}
+              maxLength={FIELD_LIMITS.serviceName.max}
               className="input-field"
               placeholder="Ej. Recoleccion"
               required
@@ -91,6 +93,8 @@ function ModalCrearServicio({
               name="descripcion"
               value={form.descripcion}
               onChange={onChange}
+              minLength={FIELD_LIMITS.description.min}
+              maxLength={FIELD_LIMITS.description.max}
               className="input-field"
               placeholder="Describe el servicio"
               rows={3}
@@ -237,8 +241,8 @@ export default function AdminServicios() {
   const handleSubmit = async (event) => {
     event.preventDefault()
     const validationError = firstValidationError([
-      validateRequired(form.nombre, 'El nombre'),
-      validateRequired(form.descripcion, 'La descripcion'),
+      validateServiceName(form.nombre, 'El nombre del servicio'),
+      validateMeaningfulText(form.descripcion, 'La descripcion', FIELD_LIMITS.description),
       !isPositiveNumber(form.idTipoTarifa) ? 'Selecciona un tipo de tarifa valido.' : '',
       !isPositiveNumber(form.tarifaBase) ? 'La tarifa base debe ser mayor a cero.' : ''
     ])

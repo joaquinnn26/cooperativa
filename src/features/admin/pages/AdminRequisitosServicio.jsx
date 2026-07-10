@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { ClipboardCheck, Pencil, Plus, Power, X } from 'lucide-react'
 import useAppStore from '@/store/appStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
-import { cleanText, firstValidationError, isPositiveNumber, validateRequired } from '@/utils/validation.js'
+import { cleanText, FIELD_LIMITS, firstValidationError, isPositiveNumber, validateMeaningfulText, validateServiceName } from '@/utils/validation.js'
 
 const initialForm = {
   idServicio: '',
@@ -84,8 +84,8 @@ export default function AdminRequisitosServicio() {
 
     const validationError = firstValidationError([
       !isPositiveNumber(form.idServicio) ? 'Selecciona un servicio valido.' : '',
-      validateRequired(form.Nombre, 'El nombre del requisito'),
-      validateRequired(form.Descripcion, 'La descripcion del requisito')
+      validateServiceName(form.Nombre, 'El nombre del requisito'),
+      validateMeaningfulText(form.Descripcion, 'La descripcion del requisito', FIELD_LIMITS.description)
     ])
 
     if (validationError) {
@@ -269,6 +269,8 @@ export default function AdminRequisitosServicio() {
               <input
                 value={form.Nombre}
                 onChange={(event) => setForm((prev) => ({ ...prev, Nombre: event.target.value }))}
+                minLength={FIELD_LIMITS.serviceName.min}
+                maxLength={FIELD_LIMITS.serviceName.max}
                 className="input-field"
                 placeholder="Nombre del requisito"
                 required
@@ -277,6 +279,8 @@ export default function AdminRequisitosServicio() {
               <textarea
                 value={form.Descripcion}
                 onChange={(event) => setForm((prev) => ({ ...prev, Descripcion: event.target.value }))}
+                minLength={FIELD_LIMITS.description.min}
+                maxLength={FIELD_LIMITS.description.max}
                 className="input-field min-h-28"
                 placeholder="Descripcion del requisito"
                 required

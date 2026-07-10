@@ -1,24 +1,13 @@
 import React, { useEffect, useState } from 'react'
-import { Droplet, Gauge, Zap } from 'lucide-react'
+import { Droplet, Gauge, Wifi, Zap } from 'lucide-react'
 import BackToSocioDashboard from '@/components/BackToSocioDashboard.jsx'
 import { useCurrentSocio } from '@/hooks/useCurrentSocio.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
-
-function normalizeServiceName(nombre) {
-  return String(nombre || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase()
-}
-
-function serviceRequiresMeter(nombre) {
-  const normalized = normalizeServiceName(nombre)
-  return normalized === 'luz' || normalized === 'agua potable'
-}
+import { isInternetService, normalizeServiceText, serviceRequiresInstallation, serviceRequiresMeter } from '@/utils/serviceInstallation.js'
 
 function serviceIcon(nombre) {
-  return normalizeServiceName(nombre).includes('agua') ? Droplet : Zap
+  if (isInternetService(nombre)) return Wifi
+  return normalizeServiceText(nombre).includes('agua') ? Droplet : Zap
 }
 
 function meterMatchesService(meter, service, socioId) {
@@ -35,7 +24,7 @@ function meterMatchesService(meter, service, socioId) {
 
   const sameService =
     (meter.idServicio && service.idServicio && Number(meter.idServicio) === Number(service.idServicio)) ||
-    normalizeServiceName(meter.servicioNombre) === normalizeServiceName(service.servicioNombre)
+    normalizeServiceText(meter.servicioNombre) === normalizeServiceText(service.servicioNombre)
 
   return sameSocio && sameService
 }
@@ -64,7 +53,9 @@ export default function SocioServicios() {
           ...service,
           numeroMedidor: matchedMeter?.NumeroMedidor || service.numeroMedidor || '',
           tipoMedidor: matchedMeter?.TipoMedidor || service.tipoMedidor || '',
-          requiereMedidor: requiresMeter
+          requiereMedidor: requiresMeter,
+          requiereInstalacion: serviceRequiresInstallation(service.servicioNombre),
+          instalacionPendiente: serviceRequiresInstallation(service.servicioNombre) && !matchedMeter?.NumeroMedidor
         }
       })
 
@@ -95,9 +86,9 @@ export default function SocioServicios() {
                   </div>
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900">{service.servicioNombre}</h2>
-                    <p className="text-sm text-gray-500">Tarifa base: ${service.tarifa.toLocaleString('es-AR')}</p>
-                  </div>
+                  <p className="text-sm text-gray-500">Tarifa base: ${service.tarifa.toLocaleString('es-AR')}</p>
                 </div>
+              </div>
                 <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
                   {service.estado}
                 </span>
@@ -117,10 +108,19 @@ export default function SocioServicios() {
                     </p>
                   </div>
                 </div>
+              ) : service.requiereInstalacion ? (
+                <div className="mt-5 rounded-xl bg-amber-50 p-4">
+                  <p className="text-xs uppercase text-amber-700">Instalacion</p>
+                  <p className="mt-1 font-semibold text-amber-900">
+                    {service.instalacionPendiente ? 'Pendiente instalacion' : 'Instalado'}
+                  </p>
+                  <p className="mt-1 text-sm text-amber-800">Servicio de tarifa mensual fija, sin consumo medido.</p>
+                </div>
               ) : (
                 <div className="mt-5 rounded-xl bg-gray-50 p-4">
                   <p className="text-xs uppercase text-gray-500">Modalidad</p>
-                  <p className="mt-1 font-semibold text-gray-900">Tarifa fija, sin medidor asociado</p>
+                  <p className="mt-1 font-semibold text-gray-900">Tarifa mensual fija</p>
+                  <p className="mt-1 text-sm text-gray-600">No registra consumo medido.</p>
                 </div>
               )}
             </div>

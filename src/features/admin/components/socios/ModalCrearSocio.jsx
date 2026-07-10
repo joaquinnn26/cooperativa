@@ -3,15 +3,26 @@ import { useSocios } from '@/hooks/useSocios.js'
 import { showInfo, showToast } from '@/utils/alerts.js'
 import {
   firstValidationError,
+  FIELD_LIMITS,
   isBlank,
-  isValidAddress,
-  isValidHouseNumber,
   sanitizePersonPayload,
+  validateAddress,
   validateDocument,
   validateEmail,
+  validateHouseNumber,
   validatePersonName,
   validatePhone
 } from '@/utils/validation.js'
+
+const FIELD_CONFIG = {
+  Nombre: { minLength: FIELD_LIMITS.personName.min, maxLength: FIELD_LIMITS.personName.max },
+  Apellido: { minLength: FIELD_LIMITS.personName.min, maxLength: FIELD_LIMITS.personName.max },
+  Documento: { minLength: FIELD_LIMITS.document.min, maxLength: FIELD_LIMITS.document.max, inputMode: 'numeric' },
+  Telefono: { minLength: FIELD_LIMITS.phone.min, maxLength: FIELD_LIMITS.phone.max },
+  Email: { minLength: FIELD_LIMITS.email.min, maxLength: FIELD_LIMITS.email.max, type: 'email' },
+  Calle: { minLength: FIELD_LIMITS.address.min, maxLength: FIELD_LIMITS.address.max },
+  Numero: { minLength: FIELD_LIMITS.houseNumber.min, maxLength: FIELD_LIMITS.houseNumber.max }
+}
 
 export default function ModalCrearSocio({ show, onClose, onSaved }) {
   const { crearSocio } = useSocios(false)
@@ -39,8 +50,8 @@ export default function ModalCrearSocio({ show, onClose, onSaved }) {
       validateDocument(sanitized.Documento),
       validatePhone(sanitized.Telefono),
       validateEmail(sanitized.Email),
-      !isBlank(sanitized.Calle) && !isValidAddress(sanitized.Calle) ? 'La calle contiene caracteres invalidos.' : '',
-      !isBlank(sanitized.Numero) && !isValidHouseNumber(sanitized.Numero) ? 'El numero de domicilio debe ser numerico.' : ''
+      !isBlank(sanitized.Calle) && validateAddress(sanitized.Calle),
+      !isBlank(sanitized.Numero) && validateHouseNumber(sanitized.Numero)
     ])
 
     if (validationError) {
@@ -98,11 +109,15 @@ export default function ModalCrearSocio({ show, onClose, onSaved }) {
             {['Nombre', 'Apellido', 'Documento', 'Telefono', 'Email', 'Calle', 'Numero'].map((field) => (
               <input
                 key={field}
+                type={FIELD_CONFIG[field]?.type || 'text'}
                 name={field}
                 value={form[field]}
                 onChange={handleChange}
                 placeholder={field}
                 required={['Nombre', 'Apellido', 'Documento'].includes(field)}
+                minLength={FIELD_CONFIG[field]?.minLength}
+                maxLength={FIELD_CONFIG[field]?.maxLength}
+                inputMode={FIELD_CONFIG[field]?.inputMode}
                 className="input-field"
               />
             ))}

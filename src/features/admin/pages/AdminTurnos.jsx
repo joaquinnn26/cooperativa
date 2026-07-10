@@ -2,13 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react'
 import {
   CalendarCheck,
   CalendarClock,
+  CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock3,
   Search,
   Send,
-  Trash2,
   X,
   XCircle
 } from 'lucide-react'
@@ -18,17 +18,22 @@ import useAppStore from '@/store/appStore.js'
 import { confirmAction } from '@/utils/alerts.js'
 import {
   DIAS_DISPONIBILIDAD_TURNOS,
+  HORARIOS_TURNOS,
   compararTurnos,
   compararTurnosRecientes,
   estilosEstadoTurno,
   formatearFechaCorta,
   formatearFechaLarga,
+  limpiarTextoPlano,
   normalizarTexto,
   normalizarTurno
 } from '@/utils/turnosUtils.jsx'
+import { firstValidationError, isTodayOrFuture } from '@/utils/validation.js'
 
 const FILTROS_ESTADO = ['Todos', 'Pendiente', 'Propuesto', 'Aprobado', 'Aceptado', 'Rechazado', 'Cancelado']
 const CANTIDAD_POR_PAGINA = 6
+const MINIMO_CARACTERES_RECHAZO = 10
+const MAXIMO_CARACTERES_RECHAZO = 300
 const OPCIONES_ORDEN = [
   { value: 'recientes', label: 'Mas recientes primero' },
   { value: 'viejos', label: 'Mas viejos primero' }
@@ -55,7 +60,7 @@ function esEstadoAbierto(estado) {
 export default function AdminTurnos() {
   const addNotification = useAppStore((state) => state.addNotification)
   const { obtenerDisponibilidadTurnos } = useTurnos()
-  const { actualizarEstadoTurno, eliminarTurnoAdmin, obtenerTodosLosTurnos } = useAdminTurnos()
+  const { actualizarEstadoTurno, obtenerTodosLosTurnos } = useAdminTurnos()
   const [turnos, setTurnos] = useState([])
   const [disponibilidad, setDisponibilidad] = useState([])
   const [cargandoDisponibilidad, setCargandoDisponibilidad] = useState(false)
@@ -66,6 +71,9 @@ export default function AdminTurnos() {
   const [ordenTurnos, setOrdenTurnos] = useState('recientes')
   const [paginaActual, setPaginaActual] = useState(1)
   const [idProponiendo, setIdProponiendo] = useState(null)
+  const [turnoRechazando, setTurnoRechazando] = useState(null)
+  const [modalAgendaAbierta, setModalAgendaAbierta] = useState(false)
+  const [motivoRechazo, setMotivoRechazo] = useState('')
   const [formularioPropuesta, setFormularioPropuesta] = useState({
     fechaPropuesta: '',
     horaPropuesta: ''
@@ -118,6 +126,8 @@ export default function AdminTurnos() {
         turno.fechaPropuesta,
         turno.horaPropuesta,
         turno.motivo,
+        turno.motivoRechazo,
+        turno.observacionAdmin,
         turno.estado
       ]
         .join(' ')
@@ -157,6 +167,29 @@ export default function AdminTurnos() {
         .sort((turnoA, turnoB) => `${turnoA.fecha || ''} ${turnoA.hora || ''}`.localeCompare(`${turnoB.fecha || ''} ${turnoB.hora || ''}`))[0] || null,
     [turnos]
   )
+
+  const agendaConfirmada = useMemo(() => {
+    const turnosConfirmados = turnos
+      .filter((turno) => ['aprobado', 'aceptado'].includes(claveEstado(turno.estado)))
+      .sort(compararTurnos)
+
+    return Array.from(
+      turnosConfirmados.reduce((agenda, turno) => {
+        const fecha = turno.fechaPropuesta || turno.fecha
+        const hora = turno.horaPropuesta || turno.hora
+
+        if (!fecha) return agenda
+        if (!agenda.has(fecha)) agenda.set(fecha, [])
+        agenda.get(fecha).push({ ...turno, fechaAgenda: fecha, horaAgenda: hora })
+        return agenda
+      }, new Map())
+    ).map(([fecha, turnosDelDia]) => ({
+      fecha,
+      turnos: turnosDelDia.sort((turnoA, turnoB) =>
+        String(turnoA.horaAgenda || '').localeCompare(String(turnoB.horaAgenda || ''))
+      )
+    }))
+  }, [turnos])
 
   useEffect(() => {
     setPaginaActual(1)
@@ -231,10 +264,18 @@ export default function AdminTurnos() {
   }
 
   const manejarPropuesta = async (turno) => {
-    if (!formularioPropuesta.fechaPropuesta || !formularioPropuesta.horaPropuesta) {
+    const validationError = firstValidationError([
+      !isTodayOrFuture(formularioPropuesta.fechaPropuesta) ? 'Selecciona un dia valido de hoy o posterior.' : '',
+      !HORARIOS_TURNOS.includes(formularioPropuesta.horaPropuesta) ? 'Selecciona un horario valido de la agenda.' : '',
+      !diaPropuestaSeleccionado?.horarios?.includes(formularioPropuesta.horaPropuesta)
+        ? 'El horario seleccionado ya no esta disponible para ese dia.'
+        : ''
+    ])
+
+    if (validationError) {
       addNotification({
         title: 'Faltan datos',
-        message: 'Selecciona un dia y horario disponible.',
+        message: validationError,
         type: 'error'
       })
       return
@@ -270,20 +311,47 @@ export default function AdminTurnos() {
   }
 
   const manejarRechazo = async (turno) => {
-    const confirmado = await confirmAction({
-      title: 'Rechazar turno',
-      message: `Vas a rechazar el turno de ${turno.socio || 'este socio'}.`,
-      confirmButtonText: 'Rechazar',
-      type: 'warning',
-      danger: true
-    })
+    setTurnoRechazando(turno)
+    setMotivoRechazo('')
+  }
 
-    if (!confirmado) return
+  const cerrarRechazo = () => {
+    setTurnoRechazando(null)
+    setMotivoRechazo('')
+  }
+
+  const confirmarRechazo = async () => {
+    const turno = turnoRechazando
+    if (!turno) return
+
+    const motivoLimpio = limpiarTextoPlano(motivoRechazo)
+    const validationError = firstValidationError([
+      motivoLimpio.length < MINIMO_CARACTERES_RECHAZO
+        ? `El motivo de rechazo debe tener al menos ${MINIMO_CARACTERES_RECHAZO} caracteres.`
+        : '',
+      motivoLimpio.length > MAXIMO_CARACTERES_RECHAZO
+        ? `El motivo de rechazo no puede superar ${MAXIMO_CARACTERES_RECHAZO} caracteres.`
+        : ''
+    ])
+
+    if (validationError) {
+      addNotification({
+        title: 'Motivo invalido',
+        message: validationError,
+        type: 'error'
+      })
+      return
+    }
 
     setIdActualizando(turno.id)
 
     try {
-      await actualizarEstadoTurno(turno.id, 4)
+      await actualizarEstadoTurno(turno.id, 4, {
+        motivoRechazo: motivoLimpio,
+        MotivoRechazo: motivoLimpio,
+        observacionAdmin: motivoLimpio,
+        ObservacionAdmin: motivoLimpio
+      })
 
       addNotification({
         title: 'Turno rechazado',
@@ -291,43 +359,12 @@ export default function AdminTurnos() {
         type: 'success'
       })
 
+      cerrarRechazo()
       await cargarDatos()
     } catch (error) {
       addNotification({
         title: 'Error',
         message: error.message || 'No se pudo rechazar el turno.',
-        type: 'error'
-      })
-    } finally {
-      setIdActualizando(null)
-    }
-  }
-
-  const manejarEliminacion = async (turno) => {
-    const confirmado = await confirmAction({
-      title: 'Eliminar turno',
-      message: `Vas a eliminar el turno de ${turno.socio || 'este socio'} del ${formatearFechaLarga(turno.fecha)} a las ${turno.hora} hs. Esta accion no se puede deshacer.`,
-      confirmButtonText: 'Eliminar',
-      type: 'warning',
-      danger: true
-    })
-
-    if (!confirmado) return
-
-    setIdActualizando(turno.id)
-
-    try {
-      await eliminarTurnoAdmin(turno.id)
-      addNotification({
-        title: 'Turno eliminado',
-        message: `El turno de ${turno.socio || 'socio'} se elimino correctamente.`,
-        type: 'success'
-      })
-      await cargarDatos()
-    } catch (error) {
-      addNotification({
-        title: 'Error',
-        message: error.message || 'No se pudo eliminar el turno.',
         type: 'error'
       })
     } finally {
@@ -347,9 +384,19 @@ export default function AdminTurnos() {
           <h1 className="text-3xl font-bold text-gray-900">Gestion de turnos presenciales</h1>
           <p className="mt-2 text-gray-600">Prioriza solicitudes pendientes, responde propuestas y confirma horarios.</p>
         </div>
-        <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-blue-900">
-          <p className="text-xs font-semibold uppercase text-blue-700">Bandeja abierta</p>
-          <p className="mt-1 text-2xl font-bold">{turnosUrgentes.length}</p>
+        <div className="flex flex-wrap items-stretch gap-3">
+          <button
+            type="button"
+            onClick={() => setModalAgendaAbierta(true)}
+            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            <CalendarDays className="mr-2 h-5 w-5" />
+            Ver agenda aprobada
+          </button>
+          <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-blue-900">
+            <p className="text-xs font-semibold uppercase text-blue-700">Bandeja abierta</p>
+            <p className="mt-1 text-2xl font-bold">{turnosUrgentes.length}</p>
+          </div>
         </div>
       </div>
 
@@ -526,6 +573,13 @@ export default function AdminTurnos() {
                         {turno.observacionAdmin ? <p className="mt-2 text-sm text-gray-600">{turno.observacionAdmin}</p> : null}
                       </div>
                     ) : null}
+
+                    {estado === 'rechazado' && turno.motivoRechazo ? (
+                      <div className="mt-3 rounded-lg border border-red-100 bg-red-50 px-4 py-3">
+                        <p className="text-xs font-semibold uppercase text-red-700">Motivo de rechazo</p>
+                        <p className="mt-1 text-sm text-red-800">{turno.motivoRechazo}</p>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="flex flex-col justify-between gap-3 rounded-lg bg-gray-50 p-3">
@@ -579,15 +633,6 @@ export default function AdminTurnos() {
                       </button>
                     ) : null}
 
-                    <button
-                      type="button"
-                      onClick={() => manejarEliminacion(turno)}
-                      disabled={idActualizando === turno.id}
-                      className="inline-flex items-center justify-center rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <Trash2 className="mr-1 h-4 w-4" />
-                      {idActualizando === turno.id ? 'Eliminando...' : 'Eliminar'}
-                    </button>
                   </div>
                 </div>
               </article>
@@ -630,6 +675,89 @@ export default function AdminTurnos() {
           ) : null}
         </div>
       </section>
+
+      {modalAgendaAbierta ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <span className="rounded-lg bg-blue-100 p-2 text-blue-700">
+                  <CalendarCheck className="h-6 w-6" />
+                </span>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Agenda de turnos confirmados</h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Turnos aprobados directamente y propuestas aceptadas por los socios.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalAgendaAbierta(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+                aria-label="Cerrar agenda"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mb-5 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase text-emerald-700">Turnos confirmados</p>
+                <p className="mt-1 text-2xl font-bold text-emerald-800">
+                  {agendaConfirmada.reduce((total, dia) => total + dia.turnos.length, 0)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase text-blue-700">Dias con atencion</p>
+                <p className="mt-1 text-2xl font-bold text-blue-800">{agendaConfirmada.length}</p>
+              </div>
+            </div>
+
+            {agendaConfirmada.length ? (
+              <div className="space-y-5">
+                {agendaConfirmada.map((dia) => (
+                  <section key={dia.fecha} className="overflow-hidden rounded-lg border border-gray-200">
+                    <div className="flex items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3">
+                      <h3 className="font-bold capitalize text-gray-900">{formatearFechaLarga(dia.fecha)}</h3>
+                      <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                        {dia.turnos.length} turno{dia.turnos.length === 1 ? '' : 's'}
+                      </span>
+                    </div>
+                    <div className="divide-y divide-gray-100">
+                      {dia.turnos.map((turno) => (
+                        <article
+                          key={turno.id}
+                          className="grid gap-3 px-4 py-4 sm:grid-cols-[100px_minmax(0,1fr)_auto] sm:items-center"
+                        >
+                          <div className="flex items-center font-bold text-blue-700">
+                            <Clock3 className="mr-2 h-4 w-4" />
+                            {turno.horaAgenda || '--:--'} hs
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-gray-900">{turno.socio || `Socio ${turno.idSocio}`}</p>
+                            <p className="mt-1 text-sm text-gray-600">{turno.motivo || 'Sin motivo informado'}</p>
+                            {turno.documentoSocio ? (
+                              <p className="mt-1 text-xs text-gray-500">Documento: {turno.documentoSocio}</p>
+                            ) : null}
+                          </div>
+                          <span className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${estilosEstadoTurno(turno.estado)}`}>
+                            {turno.estado}
+                          </span>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-12 text-center text-gray-500">
+                No hay turnos aprobados o aceptados para mostrar en la agenda.
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       {turnoEnPropuesta ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -730,6 +858,69 @@ export default function AdminTurnos() {
               >
                 <Send className="mr-2 h-4 w-4" />
                 {idActualizando === turnoEnPropuesta.id ? 'Enviando...' : 'Enviar propuesta'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {turnoRechazando ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-xl rounded-lg bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-red-600">Rechazar turno</p>
+                <h2 className="mt-1 text-2xl font-bold text-gray-900">
+                  {turnoRechazando.socio || `Socio ${turnoRechazando.idSocio}`}
+                </h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  Solicito {formatearFechaLarga(turnoRechazando.fecha)} - {turnoRechazando.hora} hs
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={cerrarRechazo}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+                aria-label="Cerrar rechazo"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-5">
+              <label className="mb-2 block text-sm font-medium text-gray-700">Motivo del rechazo</label>
+              <textarea
+                value={motivoRechazo}
+                onChange={(event) => setMotivoRechazo(event.target.value)}
+                rows={5}
+                minLength={MINIMO_CARACTERES_RECHAZO}
+                maxLength={MAXIMO_CARACTERES_RECHAZO}
+                className="input-field"
+                placeholder="Ej: no hay disponibilidad para esa gestion, debe presentar documentacion previa..."
+                disabled={idActualizando === turnoRechazando.id}
+              />
+              <p className="mt-2 text-xs text-gray-500">
+                {limpiarTextoPlano(motivoRechazo).length}/{MAXIMO_CARACTERES_RECHAZO} caracteres. Minimo {MINIMO_CARACTERES_RECHAZO}.
+              </p>
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={cerrarRechazo}
+                className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-200"
+                disabled={idActualizando === turnoRechazando.id}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarRechazo}
+                disabled={idActualizando === turnoRechazando.id}
+                className="inline-flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <XCircle className="mr-2 h-4 w-4" />
+                {idActualizando === turnoRechazando.id ? 'Rechazando...' : 'Confirmar rechazo'}
               </button>
             </div>
           </div>

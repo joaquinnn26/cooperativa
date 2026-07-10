@@ -5,9 +5,10 @@ import { apiUrl } from '@/config/api.js'
 import useAppStore from '@/store/appStore.js'
 import {
   cleanText,
+  FIELD_LIMITS,
   firstValidationError,
   validateEmail,
-  validateRequired,
+  validateMeaningfulText,
   validateStrongPassword
 } from '@/utils/validation.js'
 
@@ -89,7 +90,7 @@ export default function RecoverPassword() {
     event.preventDefault()
 
     const validationError = firstValidationError([
-      validateRequired(resetForm.token, 'El token'),
+      validateMeaningfulText(resetForm.token, 'El token', { ...FIELD_LIMITS.token, requireLetter: false }),
       validateStrongPassword(resetForm.nueva, 'La nueva contrasena')
     ])
     if (validationError) {
@@ -149,6 +150,8 @@ export default function RecoverPassword() {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               required
+              minLength={FIELD_LIMITS.email.min}
+              maxLength={FIELD_LIMITS.email.max}
               className="input-field"
               placeholder="tu@email.com"
             />
@@ -164,6 +167,8 @@ export default function RecoverPassword() {
           <input
             value={resetForm.token}
             onChange={(event) => setResetForm((current) => ({ ...current, token: event.target.value }))}
+            minLength={FIELD_LIMITS.token.min}
+            maxLength={FIELD_LIMITS.token.max}
             className="input-field"
             placeholder="Token de recuperacion"
           />
@@ -171,6 +176,8 @@ export default function RecoverPassword() {
             type="password"
             value={resetForm.nueva}
             onChange={(event) => setResetForm((current) => ({ ...current, nueva: event.target.value }))}
+            minLength={FIELD_LIMITS.password.min}
+            maxLength={FIELD_LIMITS.password.max}
             className="input-field"
             placeholder="Nueva contrasena"
           />
@@ -178,6 +185,8 @@ export default function RecoverPassword() {
             type="password"
             value={resetForm.confirmar}
             onChange={(event) => setResetForm((current) => ({ ...current, confirmar: event.target.value }))}
+            minLength={FIELD_LIMITS.password.min}
+            maxLength={FIELD_LIMITS.password.max}
             className="input-field"
             placeholder="Confirmar nueva contrasena"
           />

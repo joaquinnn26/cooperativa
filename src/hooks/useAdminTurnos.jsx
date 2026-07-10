@@ -65,6 +65,14 @@ export const actualizarEstadoTurno = async (idTurno, nuevoEstadoId, cambios = {}
     cuerpo.ObservacionAdmin = observacion
   }
 
+  if (cambios.motivoRechazo != null || cambios.MotivoRechazo != null) {
+    const motivoRechazo = limpiarTextoPlano(cambios.motivoRechazo || cambios.MotivoRechazo)
+    cuerpo.motivoRechazo = motivoRechazo
+    cuerpo.MotivoRechazo = motivoRechazo
+    cuerpo.observacionAdmin = motivoRechazo
+    cuerpo.ObservacionAdmin = motivoRechazo
+  }
+
   const respuesta = await fetch(apiUrl(`/admin/turnos/${idTurno}`), {
     method: 'PUT',
     headers: obtenerHeadersAuth(),

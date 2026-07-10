@@ -199,6 +199,7 @@ export default function MisTurnos() {
         turno.horaPropuesta,
         turno.motivo,
         turno.estado,
+        turno.motivoRechazo,
         turno.observacionAdmin
       ]
         .join(' ')
@@ -497,6 +498,13 @@ export default function MisTurnos() {
                     {turno.observacionAdmin ? (
                       <p className="mt-2 text-sm text-gray-600">{turno.observacionAdmin}</p>
                     ) : null}
+                  </div>
+                ) : null}
+
+                {normalizarTexto(turno.estado).startsWith('rechazad') && turno.motivoRechazo ? (
+                  <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3">
+                    <p className="text-xs uppercase text-red-700">Motivo de rechazo</p>
+                    <p className="mt-1 text-sm text-red-800">{turno.motivoRechazo}</p>
                   </div>
                 ) : null}
               </div>
@@ -829,6 +837,12 @@ export default function MisTurnos() {
                   {turnoSeleccionado.observacionAdmin ? (
                     <p className="mt-2 text-sm text-gray-600">{turnoSeleccionado.observacionAdmin}</p>
                   ) : null}
+                </div>
+              ) : null}
+              {normalizarTexto(turnoSeleccionado.estado).startsWith('rechazad') && turnoSeleccionado.motivoRechazo ? (
+                <div className="rounded-lg border border-red-100 bg-red-50 p-4 md:col-span-2">
+                  <p className="text-xs uppercase text-red-700">Motivo de rechazo</p>
+                  <p className="mt-1 text-sm text-red-800">{turnoSeleccionado.motivoRechazo}</p>
                 </div>
               ) : null}
             </div>

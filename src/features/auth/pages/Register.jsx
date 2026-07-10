@@ -6,6 +6,7 @@ import useAppStore from '@/store/appStore.js'
 import { showInfo } from '@/utils/alerts.js'
 import {
   cleanText,
+  FIELD_LIMITS,
   firstValidationError,
   validateDocument,
   validateEmail,
@@ -97,6 +98,9 @@ export default function Register() {
                 value={form.documento}
                 onChange={handleChange}
                 required
+                minLength={FIELD_LIMITS.document.min}
+                maxLength={FIELD_LIMITS.document.max}
+                inputMode="numeric"
                 className="input-field"
                 placeholder="Tu numero de documento"
               />
@@ -108,6 +112,8 @@ export default function Register() {
                 value={form.nombre}
                 onChange={handleChange}
                 required
+                minLength={FIELD_LIMITS.personName.min}
+                maxLength={FIELD_LIMITS.personName.max}
                 className="input-field"
                 placeholder="Tu nombre"
               />
@@ -122,6 +128,8 @@ export default function Register() {
                 value={form.apellido}
                 onChange={handleChange}
                 required
+                minLength={FIELD_LIMITS.personName.min}
+                maxLength={FIELD_LIMITS.personName.max}
                 className="input-field"
                 placeholder="Tu apellido"
               />
@@ -134,6 +142,8 @@ export default function Register() {
                 value={form.telefono}
                 onChange={handleChange}
                 required
+                minLength={FIELD_LIMITS.phone.min}
+                maxLength={FIELD_LIMITS.phone.max}
                 className="input-field"
                 placeholder="Tu numero de telefono"
               />
@@ -148,6 +158,8 @@ export default function Register() {
               value={form.email}
               onChange={handleChange}
               required
+              minLength={FIELD_LIMITS.email.min}
+              maxLength={FIELD_LIMITS.email.max}
               className="input-field"
               placeholder="tu@email.com"
             />

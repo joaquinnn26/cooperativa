@@ -6,7 +6,7 @@ import useAuthStore from '@/store/authStore.js'
 import useAppStore from '@/store/appStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
 import { useCurrentSocio } from '@/hooks/useCurrentSocio.js'
-import { cleanText, firstValidationError, isPositiveNumber, validateRequired } from '@/utils/validation.js'
+import { cleanText, FIELD_LIMITS, firstValidationError, isPositiveNumber, validateMeaningfulText } from '@/utils/validation.js'
 
 const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
@@ -184,7 +184,7 @@ export default function SocioSolicitudServicioNueva() {
     const resolvedSocioId = socioId ?? (await resolveSocioId())
     const validationError = firstValidationError([
       !isPositiveNumber(form.idServicio) ? 'Selecciona un servicio valido.' : '',
-      validateRequired(form.observaciones, 'Las observaciones'),
+      validateMeaningfulText(form.observaciones, 'Las observaciones', FIELD_LIMITS.longText),
       missingFiles.length ? 'Debes adjuntar un archivo por cada requisito.' : '',
       selectedServiceBlocked ? 'Ya tenes ese servicio activo o una solicitud en curso.' : ''
     ])
@@ -280,6 +280,8 @@ export default function SocioSolicitudServicioNueva() {
             <textarea
               value={form.observaciones}
               onChange={(event) => setForm((prev) => ({ ...prev, observaciones: event.target.value }))}
+              minLength={FIELD_LIMITS.longText.min}
+              maxLength={FIELD_LIMITS.longText.max}
               className="input-field min-h-40"
               placeholder="Describe el pedido, direccion del servicio, referencias y cualquier dato util."
             />

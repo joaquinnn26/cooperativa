@@ -145,6 +145,13 @@ export function normalizarTurno(turno) {
   const fechaPropuesta = obtenerPrimerValor(turno?.fechaPropuesta, turno?.FechaPropuesta, '')
   const horaPropuesta = obtenerPrimerValor(turno?.horaPropuesta, turno?.HoraPropuesta, '')
   const estado = obtenerPrimerValor(turno?.estado, turno?.Estado, turno?.estadoTurno, turno?.EstadoTurno, 'Pendiente')
+  const observacionAdmin = obtenerPrimerValor(turno?.observacionAdmin, turno?.ObservacionAdmin, '')
+  const motivoRechazo = obtenerPrimerValor(
+    turno?.motivoRechazo,
+    turno?.MotivoRechazo,
+    normalizarTexto(estado).startsWith('rechazad') ? observacionAdmin : '',
+    ''
+  )
 
   return {
     id: obtenerPrimerValor(turno?.id, turno?.idTurno, turno?.IdTurno),
@@ -179,7 +186,8 @@ export function normalizarTurno(turno) {
     horaPropuesta,
     motivo: obtenerPrimerValor(turno?.motivo, turno?.Motivo, ''),
     estado,
-    observacionAdmin: obtenerPrimerValor(turno?.observacionAdmin, turno?.ObservacionAdmin, ''),
+    observacionAdmin,
+    motivoRechazo,
     fechaCreacion: obtenerPrimerValor(turno?.fechaCreacion, turno?.FechaCreacion, turno?.createdAt, ''),
     origen: turno?.origen
   }

@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { LogIn } from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
 import useAppStore from '@/store/appStore.js'
-import { cleanText, firstValidationError, validateEmail, validateRequired } from '@/utils/validation.js'
+import { cleanText, FIELD_LIMITS, firstValidationError, validateEmail, validateRequired } from '@/utils/validation.js'
 
 export default function Login() {
   const login = useAuthStore((state) => state.login)
@@ -93,6 +93,8 @@ export default function Login() {
               onChange={handleChange}
               type="email"
               required
+              minLength={FIELD_LIMITS.email.min}
+              maxLength={FIELD_LIMITS.email.max}
               className="input-field"
               placeholder="tu@email.com"
             />
@@ -106,6 +108,8 @@ export default function Login() {
               onChange={handleChange}
               type="password"
               required
+              minLength={FIELD_LIMITS.password.min}
+              maxLength={FIELD_LIMITS.password.max}
               className="input-field"
               placeholder="Tu contrasena"
             />

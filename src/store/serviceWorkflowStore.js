@@ -23,6 +23,14 @@ const mockServices = [
     TarifaBase: 1800,
     Activo: true,
     TipoMedidor: 'Electromecanico'
+  },
+  {
+    idServicio: 3,
+    Nombre: 'Internet',
+    Descripcion: 'Servicio de internet domiciliario',
+    TarifaBase: 12000,
+    Activo: true,
+    TipoMedidor: 'Sin medidor'
   }
 ]
 
@@ -53,6 +61,20 @@ const mockRequirements = [
     idServicio: 2,
     Nombre: 'Plano o croquis',
     Descripcion: 'Ubicacion del punto de conexion electrica.',
+    Activo: true
+  },
+  {
+    idRequisitoServicio: 5,
+    idServicio: 3,
+    Nombre: 'DNI del titular',
+    Descripcion: 'Frente y dorso del documento vigente.',
+    Activo: true
+  },
+  {
+    idRequisitoServicio: 6,
+    idServicio: 3,
+    Nombre: 'Direccion de instalacion',
+    Descripcion: 'Indicar domicilio y referencias para la instalacion tecnica.',
     Activo: true
   }
 ]

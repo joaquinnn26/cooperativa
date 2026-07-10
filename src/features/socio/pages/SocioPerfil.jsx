@@ -7,13 +7,14 @@ import { useCurrentSocio } from '@/hooks/useCurrentSocio.js'
 import { useSocios } from '@/hooks/useSocios.js'
 import {
   cleanText,
+  FIELD_LIMITS,
   firstValidationError,
   isBlank,
-  isValidAddress,
-  isValidHouseNumber,
+  validateAddress,
   validateEmail,
+  validateHouseNumber,
+  validateMeaningfulText,
   validatePhone,
-  validateRequired,
   validateStrongPassword
 } from '@/utils/validation.js'
 
@@ -112,8 +113,8 @@ export default function SocioPerfil() {
     const validationError = firstValidationError([
       validatePhone(contactForm.Telefono),
       validateEmail(contactForm.Email),
-      !isBlank(contactForm.Calle) && !isValidAddress(contactForm.Calle) ? 'La calle contiene caracteres invalidos.' : '',
-      !isBlank(contactForm.Numero) && !isValidHouseNumber(contactForm.Numero) ? 'El numero de domicilio debe ser numerico.' : ''
+      !isBlank(contactForm.Calle) && validateAddress(contactForm.Calle),
+      !isBlank(contactForm.Numero) && validateHouseNumber(contactForm.Numero)
     ])
 
     if (validationError) {
@@ -174,7 +175,7 @@ export default function SocioPerfil() {
     event.preventDefault()
 
     const validationError = firstValidationError([
-      validateRequired(passwordForm.actual, 'La contrasena actual'),
+      validateMeaningfulText(passwordForm.actual, 'La contrasena actual', { ...FIELD_LIMITS.password, requireLetter: false }),
       validateStrongPassword(passwordForm.nueva, 'La nueva contrasena')
     ])
 
@@ -273,6 +274,8 @@ export default function SocioPerfil() {
               <input
                 value={contactForm.Telefono}
                 onChange={(event) => setContactForm((prev) => ({ ...prev, Telefono: event.target.value }))}
+                minLength={FIELD_LIMITS.phone.min}
+                maxLength={FIELD_LIMITS.phone.max}
                 className="input-field"
                 placeholder="Tu numero de telefono"
                 required
@@ -284,6 +287,8 @@ export default function SocioPerfil() {
                 type="email"
                 value={contactForm.Email}
                 onChange={(event) => setContactForm((prev) => ({ ...prev, Email: event.target.value }))}
+                minLength={FIELD_LIMITS.email.min}
+                maxLength={FIELD_LIMITS.email.max}
                 className="input-field"
                 placeholder="tu@email.com"
                 required
@@ -297,6 +302,8 @@ export default function SocioPerfil() {
               <input
                 value={contactForm.Calle}
                 onChange={(event) => setContactForm((prev) => ({ ...prev, Calle: event.target.value }))}
+                minLength={FIELD_LIMITS.address.min}
+                maxLength={FIELD_LIMITS.address.max}
                 className="input-field"
                 placeholder="Tu calle"
               />
@@ -306,6 +313,8 @@ export default function SocioPerfil() {
               <input
                 value={contactForm.Numero}
                 onChange={(event) => setContactForm((prev) => ({ ...prev, Numero: event.target.value }))}
+                minLength={FIELD_LIMITS.houseNumber.min}
+                maxLength={FIELD_LIMITS.houseNumber.max}
                 className="input-field"
                 placeholder="Numero de puerta"
               />
@@ -337,6 +346,8 @@ export default function SocioPerfil() {
               type="password"
               value={passwordForm.actual}
               onChange={(event) => setPasswordForm((prev) => ({ ...prev, actual: event.target.value }))}
+              minLength={FIELD_LIMITS.password.min}
+              maxLength={FIELD_LIMITS.password.max}
               className="input-field"
               required
             />
@@ -347,6 +358,8 @@ export default function SocioPerfil() {
               type="password"
               value={passwordForm.nueva}
               onChange={(event) => setPasswordForm((prev) => ({ ...prev, nueva: event.target.value }))}
+              minLength={FIELD_LIMITS.password.min}
+              maxLength={FIELD_LIMITS.password.max}
               className="input-field"
               required
             />
@@ -357,6 +370,8 @@ export default function SocioPerfil() {
               type="password"
               value={passwordForm.confirmar}
               onChange={(event) => setPasswordForm((prev) => ({ ...prev, confirmar: event.target.value }))}
+              minLength={FIELD_LIMITS.password.min}
+              maxLength={FIELD_LIMITS.password.max}
               className="input-field"
               required
             />

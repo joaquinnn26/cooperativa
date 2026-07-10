@@ -7,6 +7,7 @@ import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
 import { useSocios } from '@/hooks/useSocios.js'
 import { formatDate } from '@/utils/formatDate.js'
 import { limpiarTextoPlano } from '@/utils/turnosUtils.jsx'
+import { FIELD_LIMITS, firstValidationError, isPositiveNumber, validateMeaningfulText } from '@/utils/validation.js'
 
 const initialForm = {
   idSocio: '',
@@ -53,6 +54,7 @@ function buildManagementDraft(factura) {
 
 function isValidPaymentLink(value) {
   if (!value) return true
+  if (String(value).length < FIELD_LIMITS.url.min || String(value).length > FIELD_LIMITS.url.max) return false
 
   try {
     const url = new URL(value)
@@ -73,23 +75,13 @@ function isPastDate(dateValue) {
 function validateBillDraft(draft, { allowPastDueDate = false } = {}) {
   const amount = Number(draft.amount)
 
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return 'El monto debe ser mayor a cero.'
-  }
-
-  if (!draft.dueDate) {
-    return 'La fecha de vencimiento es obligatoria.'
-  }
-
-  if (!allowPastDueDate && isPastDate(draft.dueDate)) {
-    return 'La fecha de vencimiento no puede ser anterior a hoy.'
-  }
-
-  if (!isValidPaymentLink(draft.paymentLink)) {
-    return 'El link de pago debe ser una URL http o https valida.'
-  }
-
-  return ''
+  return firstValidationError([
+    !Number.isFinite(amount) || amount <= 0 ? 'El monto debe ser mayor a cero.' : '',
+    !draft.dueDate ? 'La fecha de vencimiento es obligatoria.' : '',
+    !allowPastDueDate && isPastDate(draft.dueDate) ? 'La fecha de vencimiento no puede ser anterior a hoy.' : '',
+    !isValidPaymentLink(draft.paymentLink) ? 'El link de pago debe ser una URL http o https valida.' : '',
+    draft.observations && validateMeaningfulText(draft.observations, 'Las observaciones', FIELD_LIMITS.observation)
+  ])
 }
 
 export default function AdminFacturas() {
@@ -212,10 +204,16 @@ export default function AdminFacturas() {
   const handleSubmit = async (event) => {
     event.preventDefault()
 
-    if (!selectedSocio || !selectedService || !idEmpleado) {
+    const selectionError = firstValidationError([
+      !selectedSocio || !isPositiveNumber(selectedSocio.idSocio) ? 'Selecciona un socio valido.' : '',
+      !selectedService || !isPositiveNumber(selectedService.idServicio) ? 'Selecciona un servicio aprobado valido.' : '',
+      !isPositiveNumber(idEmpleado) ? 'No se pudo identificar un empleado valido para crear la factura.' : ''
+    ])
+
+    if (selectionError) {
       addNotification({
         title: 'Faltan datos',
-        message: 'Selecciona socio, servicio y empleado antes de crear la factura.',
+        message: selectionError,
         type: 'error'
       })
       return
@@ -599,6 +597,8 @@ export default function AdminFacturas() {
                     type="url"
                     value={form.paymentLink}
                     onChange={(event) => setForm((prev) => ({ ...prev, paymentLink: event.target.value }))}
+                    minLength={FIELD_LIMITS.url.min}
+                    maxLength={FIELD_LIMITS.url.max}
                     className="input-field"
                     placeholder="Link de pago"
                   />
@@ -606,6 +606,8 @@ export default function AdminFacturas() {
                   <textarea
                     value={form.observations}
                     onChange={(event) => setForm((prev) => ({ ...prev, observations: event.target.value }))}
+                    minLength={FIELD_LIMITS.observation.min}
+                    maxLength={FIELD_LIMITS.observation.max}
                     className="input-field min-h-28"
                     placeholder="Observaciones"
                   />
@@ -742,6 +744,8 @@ export default function AdminFacturas() {
                   type="url"
                   value={managementForm.paymentLink}
                   onChange={(event) => setManagementForm((prev) => ({ ...prev, paymentLink: event.target.value }))}
+                  minLength={FIELD_LIMITS.url.min}
+                  maxLength={FIELD_LIMITS.url.max}
                   className="input-field mt-2"
                 />
               </div>
@@ -752,6 +756,8 @@ export default function AdminFacturas() {
               <textarea
                 value={managementForm.observations}
                 onChange={(event) => setManagementForm((prev) => ({ ...prev, observations: event.target.value }))}
+                minLength={FIELD_LIMITS.observation.min}
+                maxLength={FIELD_LIMITS.observation.max}
                 className="input-field mt-2 min-h-28"
               />
               </div>

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Phone, Search, X } from 'lucide-react'
+import { AlertTriangle, ChevronLeft, ChevronRight, FileDown, FileSpreadsheet, Phone, Search, Table, X } from 'lucide-react'
 import { apiUrl } from '@/config/api.js'
+import { exportTable } from '@/utils/exportTable.js'
 import { formatDate } from '@/utils/formatDate.js'
 import {
   CLAIM_STATUS_OPTIONS,
@@ -110,6 +111,9 @@ export default function AdminReclamos() {
   const [sociosDirectory, setSociosDirectory] = useState([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('Todos')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [exporting, setExporting] = useState(null)
   const [selectedClaim, setSelectedClaim] = useState(null)
   const [editingStatus, setEditingStatus] = useState('Pendiente')
   const [savingStatus, setSavingStatus] = useState(false)
@@ -168,6 +172,32 @@ export default function AdminReclamos() {
   }
 
   const getClaimId = (claim, index) => getClaimValue(claim, ['idReclamo', 'IdReclamo'], `reclamo-${index}`)
+
+  const totalPages = Math.max(1, Math.ceil(filteredClaims.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const paginatedClaims = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredClaims.slice(start, start + pageSize)
+  }, [currentPage, filteredClaims, pageSize])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
+
+  const summary = useMemo(
+    () => ({
+      total: claims.length,
+      pendientes: claims.filter((claim) => normalizeClaimStatus(getClaimValue(claim, ['Estado', 'estado'])) === 'Pendiente').length,
+      proceso: claims.filter((claim) => normalizeClaimStatus(getClaimValue(claim, ['Estado', 'estado'])) === 'En proceso').length,
+      resueltos: claims.filter((claim) => normalizeClaimStatus(getClaimValue(claim, ['Estado', 'estado'])) === 'Resuelto').length
+    }),
+    [claims]
+  )
+
+  const resetToFirstPage = (callback) => {
+    setPage(1)
+    callback()
+  }
   const resolvePhone = (claim) => {
     const direct = formatTextValue(
       getClaimValue(claim, ['Telefono', 'telefono', 'Celular', 'celular'], '')
@@ -276,76 +306,202 @@ export default function AdminReclamos() {
     }
   }
 
+  const exportClaims = async (tipo) => {
+    if (!filteredClaims.length) {
+      setError('No hay reclamos para exportar con los filtros actuales.')
+      return
+    }
+
+    try {
+      setExporting(tipo)
+      await exportTable({
+        type: tipo,
+        filename: 'reclamos',
+        title: 'Listado de reclamos',
+        columns: [
+          { header: 'ID', value: (claim) => getClaimValue(claim, ['idReclamo', 'IdReclamo'], '-') },
+          { header: 'Socio', value: (claim) => formatSocioName(getClaimValue(claim, ['Socio', 'NombreSocio'])) },
+          {
+            header: 'Documento',
+            value: (claim) => formatDocumento(getClaimValue(claim, ['Documento', 'NroDocumento']), getClaimValue(claim, ['Socio']))
+          },
+          { header: 'Tipo', value: (claim) => formatTextValue(getClaimValue(claim, ['Tipo', 'TipoReclamo']), 'Sin tipo') },
+          { header: 'Fecha', value: (claim) => safeFormatDate(getClaimValue(claim, ['Fecha', 'fecha'])) },
+          { header: 'Estado', value: (claim) => normalizeClaimStatus(getClaimValue(claim, ['Estado', 'estado'])) },
+          { header: 'Descripcion', value: (claim) => formatTextValue(getClaimValue(claim, ['Descripcion', 'descripcion']), 'Sin descripcion') },
+          { header: 'Telefono', value: (claim) => resolvePhone(claim) || 'No informado' }
+        ],
+        rows: filteredClaims
+      })
+    } catch (exportError) {
+      setError(exportError.message || 'No se pudo generar el archivo.')
+    } finally {
+      setExporting(null)
+    }
+  }
+
+  const pagination = (
+    <div className="flex flex-col gap-3 border-t border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm text-gray-500">
+        Mostrando {paginatedClaims.length ? (currentPage - 1) * pageSize + 1 : 0}-
+        {Math.min(currentPage * pageSize, filteredClaims.length)} de {filteredClaims.length}
+      </p>
+      <div className="flex items-center gap-2">
+        <select
+          value={pageSize}
+          onChange={(event) => {
+            setPageSize(Number(event.target.value))
+            setPage(1)
+          }}
+          className="rounded-lg border border-gray-200 bg-white px-2 py-2 text-sm"
+          aria-label="Cantidad de reclamos por pagina"
+        >
+          <option value={10}>10 por pagina</option>
+          <option value={25}>25 por pagina</option>
+          <option value={50}>50 por pagina</option>
+        </select>
+        <button
+          type="button"
+          onClick={() => setPage((value) => Math.max(1, value - 1))}
+          disabled={currentPage === 1}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label="Pagina anterior"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <span className="min-w-16 text-center text-sm font-medium text-gray-700">
+          {currentPage}/{totalPages}
+        </span>
+        <button
+          type="button"
+          onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+          disabled={currentPage === totalPages}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label="Pagina siguiente"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  )
+
   return (
-    <div className="mx-auto max-w-7xl space-y-6 px-4 py-8">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Reclamos</h1>
-        <p className="mt-2 text-gray-600">Consulta los reclamos registrados por los socios y su estado actual.</p>
+    <div className="mx-auto max-w-7xl space-y-4 px-4 py-8">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Reclamos</h1>
+          <p className="mt-1 text-gray-600">Consulta, filtra y gestiona reclamos sin recorrer listados largos.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => exportClaims('PDF')}
+            disabled={Boolean(exporting)}
+            className="inline-flex items-center rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <FileDown className="mr-1.5 h-4 w-4" />
+            {exporting === 'PDF' ? 'Generando...' : 'PDF'}
+          </button>
+          <button
+            type="button"
+            onClick={() => exportClaims('Excel')}
+            disabled={Boolean(exporting)}
+            className="inline-flex items-center rounded-lg bg-green-700 px-3 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <FileSpreadsheet className="mr-1.5 h-4 w-4" />
+            {exporting === 'Excel' ? 'Generando...' : 'Excel'}
+          </button>
+          <button
+            type="button"
+            onClick={() => exportClaims('PSV')}
+            disabled={Boolean(exporting)}
+            className="inline-flex items-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Table className="mr-1.5 h-4 w-4" />
+            {exporting === 'PSV' ? 'Generando...' : 'PSV'}
+          </button>
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="card">
-          <p className="text-sm text-gray-500">Total</p>
-          <p className="mt-2 text-3xl font-bold text-gray-900">{claims.length}</p>
-        </div>
-        <div className="card">
-          <p className="text-sm text-gray-500">Pendientes</p>
-          <p className="mt-2 text-3xl font-bold text-amber-700">
-            {claims.filter((claim) => normalizeClaimStatus(getClaimValue(claim, ['Estado', 'estado'])) === 'Pendiente').length}
-          </p>
-        </div>
-        <div className="card">
-          <p className="text-sm text-gray-500">En proceso</p>
-          <p className="mt-2 text-3xl font-bold text-sky-700">
-            {claims.filter((claim) => normalizeClaimStatus(getClaimValue(claim, ['Estado', 'estado'])) === 'En proceso').length}
-          </p>
-        </div>
-      </div>
+      <section className="grid gap-3 sm:grid-cols-4">
+        <button
+          type="button"
+          onClick={() => resetToFirstPage(() => setStatusFilter('Todos'))}
+          className={`rounded-lg border p-4 text-left ${statusFilter === 'Todos' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'}`}
+        >
+          <p className="text-xs font-semibold uppercase text-gray-500">Total</p>
+          <p className="mt-1 text-2xl font-bold text-gray-900">{summary.total}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => resetToFirstPage(() => setStatusFilter('Pendiente'))}
+          className={`rounded-lg border p-4 text-left ${statusFilter === 'Pendiente' ? 'border-amber-500 bg-amber-50' : 'border-gray-200 bg-white'}`}
+        >
+          <p className="text-xs font-semibold uppercase text-gray-500">Pendientes</p>
+          <p className="mt-1 text-2xl font-bold text-amber-700">{summary.pendientes}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => resetToFirstPage(() => setStatusFilter('En proceso'))}
+          className={`rounded-lg border p-4 text-left ${statusFilter === 'En proceso' ? 'border-sky-500 bg-sky-50' : 'border-gray-200 bg-white'}`}
+        >
+          <p className="text-xs font-semibold uppercase text-gray-500">En proceso</p>
+          <p className="mt-1 text-2xl font-bold text-sky-700">{summary.proceso}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => resetToFirstPage(() => setStatusFilter('Resuelto'))}
+          className={`rounded-lg border p-4 text-left ${statusFilter === 'Resuelto' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 bg-white'}`}
+        >
+          <p className="text-xs font-semibold uppercase text-gray-500">Resueltos</p>
+          <p className="mt-1 text-2xl font-bold text-emerald-700">{summary.resueltos}</p>
+        </button>
+      </section>
 
-      <div className="card space-y-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Listado</h2>
-            <p className="text-sm text-gray-500">{filteredClaims.length} reclamo(s)</p>
-          </div>
-          <div className="flex flex-col gap-3 md:w-auto md:flex-row">
-            <label className="rounded-xl border border-gray-200 bg-white px-3 py-2 md:w-52">
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                className="w-full text-sm outline-none"
-              >
-                {normalizedStatusOptions.map((status) => (
-                  <option key={status} value={status}>
-                    {status === 'Todos' ? 'Todos los estados' : status}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 md:w-96">
+      <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div className="grid gap-3 border-b border-gray-100 px-4 py-4 lg:grid-cols-[minmax(240px,1fr)_220px_auto] lg:items-center">
+            <label className="flex min-w-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2">
               <Search className="h-4 w-4 text-gray-400" />
               <input
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value)
+                  setPage(1)
+                }}
                 placeholder="Buscar por socio, documento, tipo o descripcion..."
-                className="w-full text-sm outline-none"
+                className="w-full min-w-0 text-sm outline-none"
               />
             </label>
-          </div>
+            <select
+              value={statusFilter}
+              onChange={(event) => resetToFirstPage(() => setStatusFilter(event.target.value))}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+            >
+              {normalizedStatusOptions.map((status) => (
+                <option key={status} value={status}>
+                  {status === 'Todos' ? 'Todos los estados' : status}
+                </option>
+              ))}
+            </select>
+            <p className="text-sm text-gray-500">
+              {loading ? 'Cargando reclamos...' : `${filteredClaims.length} resultado${filteredClaims.length === 1 ? '' : 's'}`}
+            </p>
         </div>
 
         {loading ? (
-          <div className="py-10 text-center text-gray-500">Cargando reclamos...</div>
+          <div className="px-4 py-10 text-center text-gray-500">Cargando reclamos...</div>
         ) : null}
 
         {!loading && error ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+          <div className="mx-4 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
         ) : null}
 
+        {!loading ? pagination : null}
+
         {!loading ? (
-          <div className="space-y-4 md:hidden">
-            {filteredClaims.map((claim, index) => (
-              <div key={getClaimId(claim, index)} className="rounded-2xl border border-gray-200 bg-white p-4">
+          <div className="space-y-3 p-4 md:hidden">
+            {paginatedClaims.map((claim, index) => (
+              <div key={getClaimId(claim, index)} className="rounded-lg border border-gray-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold text-gray-900">
@@ -392,14 +548,14 @@ export default function AdminReclamos() {
                 <button
                   type="button"
                   onClick={() => openClaimManager(claim)}
-                  className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
                 >
                   Gestionar
                 </button>
                 {resolvePhone(claim) ? (
                   <a
                     href={buildTelHref(resolvePhone(claim))}
-                    className="inline-flex items-center justify-center rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
+                    className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
                   >
                     <Phone className="mr-2 h-4 w-4" />
                     Llamar
@@ -416,30 +572,30 @@ export default function AdminReclamos() {
             <table className="min-w-full text-left text-sm">
               <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-600">
                 <tr>
-                  <th className="px-4 py-3">ID</th>
                   <th className="px-4 py-3">Socio</th>
-                  <th className="px-4 py-3">Documento</th>
-                  <th className="px-4 py-3">Tipo</th>
-                  <th className="px-4 py-3">Fecha</th>
+                  <th className="px-4 py-3">Reclamo</th>
                   <th className="px-4 py-3">Estado</th>
-                  <th className="px-4 py-3">Descripcion</th>
-                  <th className="px-4 py-3">Telefono</th>
-                  <th className="px-4 py-3">Acciones</th>
+                  <th className="px-4 py-3">Fecha</th>
+                  <th className="px-4 py-3 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredClaims.map((claim, index) => (
-                  <tr key={getClaimId(claim, index)} className="border-t border-gray-100">
-                    <td className="px-4 py-3 font-semibold text-gray-900">{getClaimValue(claim, ['idReclamo', 'IdReclamo'], '-')}</td>
-                    <td className="px-4 py-3">{formatSocioName(getClaimValue(claim, ['Socio', 'NombreSocio']))}</td>
+                {paginatedClaims.map((claim, index) => (
+                  <tr key={getClaimId(claim, index)} className="border-t border-gray-100 hover:bg-gray-50/70">
                     <td className="px-4 py-3">
-                      {formatDocumento(
-                        getClaimValue(claim, ['Documento', 'NroDocumento']),
-                        getClaimValue(claim, ['Socio'])
-                      )}
+                      <p className="font-medium text-gray-900">{formatSocioName(getClaimValue(claim, ['Socio', 'NombreSocio']))}</p>
+                      <p className="text-xs text-gray-500">
+                        Doc. {formatDocumento(getClaimValue(claim, ['Documento', 'NroDocumento']), getClaimValue(claim, ['Socio']))}
+                      </p>
+                      <p className="text-xs text-gray-500">{resolvePhone(claim) || 'Sin telefono'}</p>
                     </td>
-                    <td className="px-4 py-3">{formatTextValue(getClaimValue(claim, ['Tipo', 'TipoReclamo']), 'Sin tipo')}</td>
-                    <td className="px-4 py-3">{safeFormatDate(getClaimValue(claim, ['Fecha', 'fecha']))}</td>
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-gray-900">#{getClaimValue(claim, ['idReclamo', 'IdReclamo'], '-')}</p>
+                      <p className="text-sm text-gray-700">{formatTextValue(getClaimValue(claim, ['Tipo', 'TipoReclamo']), 'Sin tipo')}</p>
+                      <p className="line-clamp-2 max-w-xl text-xs text-gray-500">
+                        {formatTextValue(getClaimValue(claim, ['Descripcion', 'descripcion']), 'Sin descripcion')}
+                      </p>
+                    </td>
                     <td className="px-4 py-3">
                       <span
                         className={`rounded-full px-3 py-1 text-xs font-semibold ${statusStyles(
@@ -449,12 +605,9 @@ export default function AdminReclamos() {
                       {normalizeClaimStatus(formatTextValue(getClaimValue(claim, ['Estado', 'estado']), 'Sin estado'))}
                     </span>
                   </td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {formatTextValue(getClaimValue(claim, ['Descripcion', 'descripcion']), 'Sin descripcion')}
-                    </td>
-                    <td className="px-4 py-3">{resolvePhone(claim) || 'No informado'}</td>
+                    <td className="px-4 py-3">{safeFormatDate(getClaimValue(claim, ['Fecha', 'fecha']))}</td>
                     <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex justify-end gap-2">
                         <button
                           type="button"
                           onClick={() => openClaimManager(claim)}
@@ -486,6 +639,8 @@ export default function AdminReclamos() {
             {search ? 'No hay reclamos que coincidan con la busqueda.' : 'Todavia no hay reclamos registrados.'}
           </div>
         ) : null}
+
+        {!loading ? pagination : null}
       </div>
 
       {selectedClaim ? (
