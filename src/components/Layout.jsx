@@ -4,16 +4,21 @@ import {
   AlertTriangle,
   ArrowLeft,
   Bell,
+  BarChart3,
   CalendarClock,
   ClipboardList,
+  CreditCard,
+  FileText,
   MapPinned,
   Droplet,
   FilePlus2,
   Gauge,
+  Headphones,
   Menu,
   Megaphone,
   Receipt,
   Settings,
+  ShieldCheck,
   UserCircle2,
   Users,
   Wrench,
@@ -24,6 +29,32 @@ import useAuthStore from '../store/authStore.js'
 import AuthSessionManager from './AuthSessionManager.jsx'
 import PublicAnnouncementsBanner from './PublicAnnouncementsBanner.jsx'
 import { getDefaultRouteByRole, normalizeCargo, normalizeRole } from '@/utils/auth.js'
+import { getEmployeeRoutesByCargo } from '@/utils/employeePermissions.js'
+
+const employeeIconByPath = {
+  '/empleado/anuncios': Megaphone,
+  '/empleado/cobranzas': CreditCard,
+  '/empleado/documentacion': FileText,
+  '/empleado/facturas': Receipt,
+  '/empleado/hoja-ruta': MapPinned,
+  '/empleado/incidencias': AlertTriangle,
+  '/empleado/indicadores': BarChart3,
+  '/empleado/instalaciones': Wrench,
+  '/empleado/mediciones': Gauge,
+  '/empleado/medidores': Gauge,
+  '/empleado/operaciones': Settings,
+  '/empleado/pagos': Receipt,
+  '/empleado/reclamos': AlertTriangle,
+  '/empleado/reportes': BarChart3,
+  '/empleado/rutas-medicion': MapPinned,
+  '/empleado/servicios': Settings,
+  '/empleado/solicitudes-servicio': ClipboardList,
+  '/empleado/solicitudes-tecnicas': Wrench,
+  '/empleado/soporte': Headphones,
+  '/empleado/supervision': ShieldCheck,
+  '/empleado/turnos': CalendarClock,
+  '/empleado/usuarios': Users
+}
 
 function buildPanelSections(role, cargo) {
   const normalizedRole = normalizeRole(role)
@@ -63,20 +94,18 @@ function buildPanelSections(role, cargo) {
   }
 
   if (normalizedRole === 'Empleado') {
+    const employeeRoutes = getEmployeeRoutesByCargo(normalizedCargo).map((route) => ({
+      to: route.to,
+      label: route.label,
+      icon: employeeIconByPath[route.to] || ClipboardList
+    }))
+
     return [
       {
         title: 'Trabajo',
         items: [
           { to: '/empleado', label: 'Panel principal', icon: Bell },
-          ...(normalizedCargo.includes('lecturista')
-            ? [
-                { to: '/empleado/hoja-ruta', label: 'Hoja de ruta', icon: MapPinned },
-                { to: '/empleado/mediciones', label: 'Mediciones', icon: Gauge }
-              ]
-            : []),
-          ...(normalizedCargo.includes('tecnico')
-            ? [{ to: '/empleado/solicitudes-tecnicas', label: 'Solicitudes tecnicas', icon: Wrench }]
-            : [])
+          ...employeeRoutes
         ]
       }
     ]

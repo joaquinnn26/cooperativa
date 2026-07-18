@@ -1,12 +1,12 @@
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i
-const NAME_RE = /^\p{L}+(?:[ '-]\p{L}+)*$/u
+const NAME_RE = /^\p{L}+(?: \p{L}+)*$/u
 const ADDRESS_RE = /^[\p{L}0-9 .'-]+$/u
 const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/
 const LETTER_RE = /\p{L}/u
 const SERVICE_NAME_RE = /^[\p{L}0-9 .,'()/-]+$/u
 
 export const FIELD_LIMITS = {
-  personName: { min: 2, max: 60 },
+  personName: { min: 2, max: 25 },
   document: { min: 7, max: 9 },
   phone: { min: 7, max: 20 },
   email: { min: 6, max: 120 },
@@ -137,7 +137,7 @@ export function validatePersonName(value, label) {
   if (isBlank(value)) return `${label} es obligatorio.`
   return isValidPersonName(value)
     ? ''
-    : `${label} debe tener entre ${FIELD_LIMITS.personName.min} y ${FIELD_LIMITS.personName.max} caracteres y contener solo letras y espacios.`
+    : `${label} debe tener entre ${FIELD_LIMITS.personName.min} y ${FIELD_LIMITS.personName.max} caracteres y contener solo letras y espacios simples.`
 }
 
 export function validateServiceName(value, label = 'El nombre del servicio') {

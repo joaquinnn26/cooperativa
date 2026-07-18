@@ -27,6 +27,8 @@ test('valida correos y documentos del dominio', () => {
 test('rechaza nombres con numeros', () => {
   assert.equal(isValidPersonName('Ana Maria'), true)
   assert.equal(isValidPersonName('Ana 2'), false)
+  assert.equal(isValidPersonName('Nombre Demasiado Largo Para Socio'), false)
+  assert.equal(isValidPersonName('Ana-Maria'), false)
 })
 
 test('rechaza nombres de servicio puramente numericos', () => {

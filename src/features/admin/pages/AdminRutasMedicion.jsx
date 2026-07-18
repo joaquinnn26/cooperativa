@@ -31,6 +31,12 @@ function isActiveMeter(meter) {
   return normalizeText(meter?.Estado) === 'activo'
 }
 
+function monthKey(value) {
+  const text = String(value || '').slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return ''
+  return text.slice(0, 7)
+}
+
 function employeeName(employee) {
   return [employee?.Persona?.Apellido, employee?.Persona?.Nombre].filter(Boolean).join(', ') || 'Empleado'
 }
@@ -140,25 +146,51 @@ export default function AdminRutasMedicion() {
     [employees, selectedEmployeeId]
   )
 
+  const unavailableMeterIds = useMemo(() => {
+    const targetMonth = monthKey(routeDate)
+    if (!targetMonth) return new Set()
+
+    const ids = new Set()
+    routes.forEach((route) => {
+      if (monthKey(route.fecha) !== targetMonth) return
+      if (normalizeText(route.estado) === 'cancelada') return
+
+      ;(route.items || []).forEach((item) => {
+        if (item.idMedidor != null) ids.add(String(item.idMedidor))
+      })
+    })
+
+    return ids
+  }, [routeDate, routes])
+
+  const availableMeters = useMemo(
+    () => meters.filter((meter) => !unavailableMeterIds.has(String(meter.idMedidor))),
+    [meters, unavailableMeterIds]
+  )
+
+  useEffect(() => {
+    setSelectedMeterIds((current) => current.filter((id) => !unavailableMeterIds.has(String(id))))
+  }, [unavailableMeterIds])
+
   const selectedIdSet = useMemo(() => new Set(selectedMeterIds.map(String)), [selectedMeterIds])
 
   const selectedMeters = useMemo(
     () =>
       selectedMeterIds
-        .map((id) => meters.find((meter) => String(meter.idMedidor) === String(id)))
+        .map((id) => availableMeters.find((meter) => String(meter.idMedidor) === String(id)))
         .filter(Boolean),
-    [meters, selectedMeterIds]
+    [availableMeters, selectedMeterIds]
   )
 
   const serviceOptions = useMemo(
-    () => Array.from(new Set(meters.map((meter) => meter.servicioNombre).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'es')),
-    [meters]
+    () => Array.from(new Set(availableMeters.map((meter) => meter.servicioNombre).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'es')),
+    [availableMeters]
   )
 
   const filteredMeters = useMemo(() => {
     const query = search.trim().toLowerCase()
 
-    return meters
+    return availableMeters
       .filter((meter) => serviceFilter === 'todos' || meter.servicioNombre === serviceFilter)
       .filter((meter) => {
         if (selectionFilter === 'seleccionados') return selectedIdSet.has(String(meter.idMedidor))
@@ -178,7 +210,7 @@ export default function AdminRutasMedicion() {
           .toLowerCase()
           .includes(query)
       )
-  }, [meters, search, selectedIdSet, selectionFilter, serviceFilter])
+  }, [availableMeters, search, selectedIdSet, selectionFilter, serviceFilter])
 
   const meterTotalPages = Math.max(1, Math.ceil(filteredMeters.length / meterPageSize))
   const meterCurrentPage = Math.min(meterPage, meterTotalPages)
@@ -203,13 +235,13 @@ export default function AdminRutasMedicion() {
   const summary = useMemo(() => {
     const finishedRoutes = routes.filter((route) => normalizeText(route.estado) === 'finalizada').length
     return {
-      meters: meters.length,
+      meters: availableMeters.length,
       selected: selectedMeterIds.length,
       employees: employees.length,
       routes: routes.length,
       activeRoutes: Math.max(routes.length - finishedRoutes, 0)
     }
-  }, [employees.length, meters.length, routes, selectedMeterIds.length])
+  }, [availableMeters.length, employees.length, routes, selectedMeterIds.length])
 
   const toggleMeter = (meterId) => {
     setSelectedMeterIds((current) =>
@@ -243,6 +275,7 @@ export default function AdminRutasMedicion() {
       !isTodayOrFuture(routeDate) ? 'La fecha de la hoja debe ser hoy o posterior.' : '',
       !isPositiveNumber(selectedEmployeeId) ? 'Selecciona un empleado activo.' : '',
       !selectedMeters.length ? 'Selecciona al menos un medidor activo.' : '',
+      selectedMeterIds.some((id) => unavailableMeterIds.has(String(id))) ? 'Hay medidores seleccionados que ya tienen ruta en ese mes.' : '',
       loadError ? `No se puede crear la ruta: ${loadError}` : ''
     ])
 
@@ -397,7 +430,7 @@ export default function AdminRutasMedicion() {
         <div className="rounded-lg border border-gray-200 bg-white p-4">
           <p className="text-xs font-semibold uppercase text-gray-500">Medidores activos</p>
           <p className="mt-1 text-2xl font-bold text-gray-900">{summary.meters}</p>
-          <p className="mt-1 text-xs text-gray-500">Disponibles para asignar</p>
+          <p className="mt-1 text-xs text-gray-500">Disponibles para {monthKey(routeDate) || 'el mes elegido'}</p>
         </div>
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
           <p className="text-xs font-semibold uppercase text-blue-700">Seleccionados</p>
@@ -504,7 +537,9 @@ export default function AdminRutasMedicion() {
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-sm font-bold text-blue-700">2</span>
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Seleccionar medidores</h2>
-                <p className="mt-1 text-sm text-gray-500">Filtra el listado y agrega solo los medidores que van a formar parte de la hoja.</p>
+                <p className="mt-1 text-sm text-gray-500">
+                  Solo se muestran medidores sin ruta en el mes seleccionado. Cada medidor se mide una vez por mes.
+                </p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -652,7 +687,7 @@ export default function AdminRutasMedicion() {
 
         {!filteredMeters.length ? (
           <div className="px-4 py-12 text-center text-gray-500">
-            No hay medidores activos que coincidan con la busqueda.
+            No hay medidores activos disponibles para ese mes o que coincidan con la busqueda.
           </div>
         ) : null}
 

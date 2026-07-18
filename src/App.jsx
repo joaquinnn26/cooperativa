@@ -34,8 +34,10 @@ import EmpleadoDashboard from '@/features/empleado/pages/EmpleadoDashboard.jsx'
 import EmpleadoMediciones from '@/features/empleado/pages/EmpleadoMediciones.jsx'
 import EmpleadoHojaRuta from '@/features/empleado/pages/EmpleadoHojaRuta.jsx'
 import EmpleadoSolicitudesTecnicas from '@/features/empleado/pages/EmpleadoSolicitudesTecnicas.jsx'
+import EmpleadoCargoVista from '@/features/empleado/pages/EmpleadoCargoVista.jsx'
 import HelpCenter from '@/features/help/pages/HelpCenter.jsx'
 import ProtectedRoute from '@/components/ProtectedRoute.jsx'
+import CargoProtectedRoute from '@/components/CargoProtectedRoute.jsx'
 import PublicOnlyRoute from '@/components/PublicOnlyRoute.jsx'
 import useAuthStore from '@/store/authStore.js'
 import { normalizeRole } from '@/utils/auth.js'
@@ -125,9 +127,30 @@ export default function App() {
 
         <Route element={<ProtectedRoute role="Empleado" />}>
           <Route path="/empleado" element={<EmpleadoDashboard />} />
-          <Route path="/empleado/mediciones" element={<EmpleadoMediciones />} />
-          <Route path="/empleado/hoja-ruta" element={<EmpleadoHojaRuta />} />
-          <Route path="/empleado/solicitudes-tecnicas" element={<EmpleadoSolicitudesTecnicas />} />
+          <Route element={<CargoProtectedRoute />}>
+            <Route path="/empleado/anuncios" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/cobranzas" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/documentacion" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/facturas" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/hoja-ruta" element={<EmpleadoHojaRuta />} />
+            <Route path="/empleado/incidencias" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/indicadores" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/instalaciones" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/mediciones" element={<EmpleadoMediciones />} />
+            <Route path="/empleado/medidores" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/operaciones" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/pagos" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/reclamos" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/reportes" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/rutas-medicion" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/servicios" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/solicitudes-servicio" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/solicitudes-tecnicas" element={<EmpleadoSolicitudesTecnicas />} />
+            <Route path="/empleado/soporte" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/supervision" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/turnos" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/usuarios" element={<EmpleadoCargoVista />} />
+          </Route>
         </Route>
 
         <Route path="*" element={<NotFound />} />

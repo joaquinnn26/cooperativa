@@ -49,6 +49,14 @@ src/
   utils/                          Utilidades generales
 ```
 
+## Encuentros de la asignatura
+
+La preparacion del Encuentro 1 se encuentra en:
+
+```text
+docs/encuentro-1-presentacion/README.md
+```
+
 ## Modulo de turnos
 
 El flujo de turnos esta documentado en:

@@ -285,11 +285,13 @@ export function useEmpleados(autoLoad = true) {
 
   const editarEmpleado = useCallback(
     async (idEmpleado, payload) => {
+      const fechaInicio = pickFirst(payload.FechaDeInicio, payload.FechaDelInicio)
       const empleadoActualizado = await jsonFetch(apiUrl(`/empleado/${idEmpleado}`), {
         method: 'PUT',
         body: JSON.stringify({
           idCargo: Number(payload.idCargo),
-          FechaDelInicio: payload.FechaDelInicio
+          FechaDeInicio: fechaInicio,
+          FechaDelInicio: fechaInicio
         })
       })
 

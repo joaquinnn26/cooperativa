@@ -3,14 +3,8 @@ import { useSocios } from '@/hooks/useSocios.js'
 import {
   firstValidationError,
   FIELD_LIMITS,
-  isBlank,
   sanitizePersonPayload,
-  validateAddress,
-  validateDocument,
-  validateEmail,
-  validateHouseNumber,
   validatePersonName,
-  validatePhone
 } from '@/utils/validation.js'
 
 const initialForm = {
@@ -113,12 +107,7 @@ export default function ModalEditarSocio({ show, socio, onClose, onRefresh }) {
     const sanitized = sanitizePersonPayload(form)
     const validationError = firstValidationError([
       validatePersonName(sanitized.Nombre, 'El nombre'),
-      validatePersonName(sanitized.Apellido, 'El apellido'),
-      validateDocument(sanitized.Documento),
-      validatePhone(sanitized.Telefono),
-      validateEmail(sanitized.Email),
-      !isBlank(sanitized.Calle) && validateAddress(sanitized.Calle),
-      !isBlank(sanitized.Numero) && validateHouseNumber(sanitized.Numero)
+      validatePersonName(sanitized.Apellido, 'El apellido')
     ])
 
     if (validationError) {

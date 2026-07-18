@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { apiUrl } from '@/config/api.js'
+import { serviceRequiresInstallation } from '@/utils/serviceInstallation.js'
 
-const SERVICE_REQUEST_STATUSES = ['Pendiente', 'En revision', 'Aprobada', 'Cancelada', 'Rechazada']
+const SERVICE_REQUEST_STATUSES = ['Pendiente', 'En revision', 'Aprobada', 'Pendiente instalacion', 'Instalada', 'Cancelada', 'Rechazada']
 const CLOSED_SERVICE_REQUEST_STATUS_KEYS = new Set(['rechazada', 'rechazado', 'cancelada', 'cancelado'])
 const INACTIVE_SERVICE_ASSIGNMENT_STATUS_KEYS = new Set(['inactivo', 'inactiva', 'baja', 'cancelada', 'cancelado'])
 const DUPLICATE_SERVICE_REQUEST_MESSAGE = 'Ya tenes ese servicio activo o una solicitud en curso.'
@@ -177,6 +178,18 @@ function normalizeWorkflowStatus(value) {
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase()
+}
+
+function normalizeServiceRequestStatusLabel(value) {
+  const normalized = normalizeWorkflowStatus(value)
+  if (normalized === 'en revision') return 'En revision'
+  if (normalized === 'pendiente instalacion') return 'Pendiente instalacion'
+  if (normalized === 'instalada') return 'Instalada'
+  if (normalized === 'aprobada') return 'Aprobada'
+  if (normalized === 'rechazada' || normalized === 'rechazado') return 'Rechazada'
+  if (normalized === 'cancelada' || normalized === 'cancelado') return 'Cancelada'
+  if (normalized === 'pendiente') return 'Pendiente'
+  return stripHtml(value) || 'Pendiente'
 }
 
 function entityMatchesSocio(entity, socioRef, socioUsuario = '') {
@@ -435,7 +448,7 @@ function normalizeRequest(request) {
     idServicio: Number(pickFirst(request.idServicio, request.IdServicio, request.idservicio)),
     servicioNombre: resolveServiceName(request),
     fechaSolicitud: pickFirst(request.fechaSolicitud, request.FechaSolicitud, request.fecha, new Date().toISOString()),
-    estado: pickFirst(request.estado, request.Estado, 'Pendiente'),
+    estado: normalizeServiceRequestStatusLabel(pickFirst(request.estado, request.Estado, 'Pendiente')),
     direccion: resolveAddress(request),
     observaciones: pickFirst(request.observaciones, request.Observaciones, ''),
     motivoRechazo: pickFirst(request.motivoRechazo, request.MotivoRechazo, ''),
@@ -1000,7 +1013,11 @@ const useServiceWorkflowStore = create(
           set((state) => ({
             requests: state.requests.map((item) =>
               item.idSolicitudServicio === requestId
-                ? { ...item, estado: 'Aprobada', motivoRechazo: '' }
+                ? {
+                    ...item,
+                    estado: serviceRequiresInstallation(item.servicioNombre) ? 'Pendiente instalacion' : 'Aprobada',
+                    motivoRechazo: ''
+                  }
                 : item
             ),
             serviceAssignments: existingAssignment
@@ -1062,6 +1079,10 @@ const useServiceWorkflowStore = create(
           return get().rejectServiceRequest(requestId, payload?.motivoRechazo || payload?.motivo || '')
         }
 
+        if (nextStatus === 'Instalada') {
+          return get().markServiceRequestInstalled(requestId, payload)
+        }
+
         const body = {
           estado: nextStatus,
           motivoRechazo: payload?.motivoRechazo || '',
@@ -1100,6 +1121,22 @@ const useServiceWorkflowStore = create(
         }))
 
         return true
+      },
+
+      markServiceRequestInstalled: async (requestId, payload = {}) => {
+        try {
+          const result = await jsonFetch(apiUrl(`/solicitudservicio/instalar/${requestId}`), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              observaciones: payload.observaciones || ''
+            })
+          })
+          await get().fetchServiceRequests()
+          return result
+        } catch (error) {
+          throw new Error(error.message || 'No se pudo marcar la solicitud como instalada.')
+        }
       },
 
       fetchSocioServices: async (socioRef) => {

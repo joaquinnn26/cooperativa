@@ -206,8 +206,7 @@ export default function AdminFacturas() {
 
     const selectionError = firstValidationError([
       !selectedSocio || !isPositiveNumber(selectedSocio.idSocio) ? 'Selecciona un socio valido.' : '',
-      !selectedService || !isPositiveNumber(selectedService.idServicio) ? 'Selecciona un servicio aprobado valido.' : '',
-      !isPositiveNumber(idEmpleado) ? 'No se pudo identificar un empleado valido para crear la factura.' : ''
+      !selectedService || !isPositiveNumber(selectedService.idServicio) ? 'Selecciona un servicio aprobado valido.' : ''
     ])
 
     if (selectionError) {
@@ -232,7 +231,7 @@ export default function AdminFacturas() {
     try {
       await createBill({
         idSocio: selectedSocio.idSocio,
-        idEmpleado: Number(idEmpleado),
+        idEmpleado: isPositiveNumber(idEmpleado) ? Number(idEmpleado) : 0,
         idServicio: selectedService.idServicio,
         amount: Number(form.amount),
         dueDate: form.dueDate,
@@ -614,8 +613,8 @@ export default function AdminFacturas() {
                 </div>
 
                 {!idEmpleado ? (
-                  <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    Debes iniciar sesion con un usuario que tenga idEmpleado para cargar facturas.
+                  <p className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                    La factura se emitira con autorizacion de administrador.
                   </p>
                 ) : null}
               </div>
@@ -630,7 +629,7 @@ export default function AdminFacturas() {
                 </button>
                 <button
                   type="submit"
-                  disabled={!idEmpleado || !services.length}
+                  disabled={!services.length}
                   className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Receipt className="mr-2 h-4 w-4" />

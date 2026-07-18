@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { useEmpleados } from '@/hooks/useEmpleados.js'
-import { firstValidationError, isPositiveNumber, isTodayOrPast, isValidDate } from '@/utils/validation.js'
+import { firstValidationError, isPositiveNumber } from '@/utils/validation.js'
 
 const initialForm = {
   Nombre: '',
   Apellido: '',
   Documento: '',
-  idCargo: '',
-  FechaDelInicio: ''
+  idCargo: ''
 }
 
 export default function ModalEditarEmpleado({ show, empleado, onClose, onRefresh }) {
@@ -25,8 +24,7 @@ export default function ModalEditarEmpleado({ show, empleado, onClose, onRefresh
       Nombre: empleado.Persona?.Nombre || '',
       Apellido: empleado.Persona?.Apellido || '',
       Documento: empleado.Persona?.Documento || '',
-      idCargo: empleado.idCargo ? String(empleado.idCargo) : '',
-      FechaDelInicio: String(empleado.FechaDelInicio || '').slice(0, 10)
+      idCargo: empleado.idCargo ? String(empleado.idCargo) : ''
     })
   }, [show, empleado, fetchCatalogos])
 
@@ -55,9 +53,7 @@ export default function ModalEditarEmpleado({ show, empleado, onClose, onRefresh
     const idCargo = Number(form.idCargo)
     const validationError = firstValidationError([
       !isPositiveNumber(idCargo) ? 'Selecciona un cargo valido.' : '',
-      cargos.some((cargo) => String(cargo.idCargo) === String(form.idCargo)) ? '' : 'El cargo seleccionado ya no esta disponible.',
-      !isValidDate(form.FechaDelInicio) ? 'La fecha de inicio es obligatoria y debe ser valida.' : '',
-      !isTodayOrPast(form.FechaDelInicio) ? 'La fecha de inicio no puede ser posterior a hoy.' : ''
+      cargos.some((cargo) => String(cargo.idCargo) === String(form.idCargo)) ? '' : 'El cargo seleccionado ya no esta disponible.'
     ])
 
     if (validationError) {
@@ -71,7 +67,7 @@ export default function ModalEditarEmpleado({ show, empleado, onClose, onRefresh
     try {
       await editarEmpleado(empleado.idEmpleado, {
         idCargo,
-        FechaDelInicio: form.FechaDelInicio
+        FechaDeInicio: empleado.FechaDelInicio
       })
 
       await onRefresh?.()
@@ -110,13 +106,9 @@ export default function ModalEditarEmpleado({ show, empleado, onClose, onRefresh
             ))}
           </select>
 
-          <input
-            type="date"
-            value={form.FechaDelInicio}
-            onChange={(e) => setForm((prev) => ({ ...prev, FechaDelInicio: e.target.value }))}
-            className="input-field"
-            disabled={saving}
-          />
+          <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+            La fecha de inicio no se puede modificar desde esta pantalla.
+          </div>
 
           {!loadingCatalogos && !cargos.length ? (
             <p className="text-sm text-red-600 md:col-span-2">

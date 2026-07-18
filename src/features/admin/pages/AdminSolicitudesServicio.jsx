@@ -11,14 +11,19 @@ import {
 } from 'lucide-react'
 import { API_SERVER_URL } from '@/config/api.js'
 import useAppStore from '@/store/appStore.js'
-import useServiceWorkflowStore, { SERVICE_REQUEST_STATUSES } from '@/store/serviceWorkflowStore.js'
+import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
 import { formatDate } from '@/utils/formatDate.js'
 import { cleanText, FIELD_LIMITS, validateMeaningfulText } from '@/utils/validation.js'
 
-const STATUS_FILTERS = ['Todas', 'Pendiente', 'En revision', 'Aprobada', 'Rechazada', 'Cancelada']
+const STATUS_FILTERS = ['Todas', 'Pendiente', 'En revision', 'Pendiente instalacion', 'Instalada', 'Aprobada', 'Rechazada', 'Cancelada']
+const ADMIN_STATUS_OPTIONS = ['Pendiente', 'En revision', 'Aprobada', 'Cancelada', 'Rechazada']
 
 function statusColor(estado) {
   switch (estado) {
+    case 'Pendiente instalacion':
+      return 'bg-teal-100 text-teal-700'
+    case 'Instalada':
+      return 'bg-cyan-100 text-cyan-700'
     case 'Aprobada':
       return 'bg-emerald-100 text-emerald-700'
     case 'Rechazada':
@@ -35,9 +40,15 @@ function statusColor(estado) {
 function statusPriority(estado) {
   if (estado === 'Pendiente') return 0
   if (estado === 'En revision') return 1
-  if (estado === 'Aprobada') return 2
-  if (estado === 'Rechazada') return 3
-  return 4
+  if (estado === 'Pendiente instalacion') return 2
+  if (estado === 'Instalada') return 3
+  if (estado === 'Aprobada') return 4
+  if (estado === 'Rechazada') return 5
+  return 6
+}
+
+function canResolveDocuments(estado) {
+  return estado === 'Pendiente' || estado === 'En revision' || estado === 'En Revision'
 }
 
 function documentUrl(path) {
@@ -152,7 +163,7 @@ export default function AdminSolicitudesServicio() {
       await approveServiceRequest(request.idSolicitudServicio)
       addNotification({
         title: 'Solicitud aprobada',
-        message: `Se aprobo ${request.servicioNombre} para ${request.socioNombre}.`,
+        message: `Se aprobo la documentacion de ${request.servicioNombre} para ${request.socioNombre}.`,
         type: 'success'
       })
       await loadRequests()
@@ -242,7 +253,7 @@ export default function AdminSolicitudesServicio() {
         </div>
       </div>
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         {STATUS_FILTERS.slice(1).map((status) => (
           <button
             key={status}
@@ -435,7 +446,14 @@ export default function AdminSolicitudesServicio() {
                       className="input-field"
                       disabled={saving}
                     >
-                      {SERVICE_REQUEST_STATUSES.map((status) => (
+                      {Array.from(
+                        new Set([
+                          ...ADMIN_STATUS_OPTIONS,
+                          ...(selectedRequest.estado && !ADMIN_STATUS_OPTIONS.includes(selectedRequest.estado)
+                            ? [selectedRequest.estado]
+                            : [])
+                        ])
+                      ).map((status) => (
                         <option key={status} value={status}>
                           {status}
                         </option>
@@ -456,16 +474,16 @@ export default function AdminSolicitudesServicio() {
                   <button
                     type="button"
                     onClick={() => handleApprove()}
-                    disabled={saving || selectedRequest.estado === 'Aprobada'}
+                    disabled={saving || !canResolveDocuments(selectedRequest.estado)}
                     className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <CheckCircle2 className="mr-2 h-4 w-4" />
-                    Aprobar
+                    Aprobar documentacion
                   </button>
                   <button
                     type="button"
                     onClick={() => setRejectingRequest(selectedRequest)}
-                    disabled={saving || selectedRequest.estado === 'Rechazada'}
+                    disabled={saving || !canResolveDocuments(selectedRequest.estado)}
                     className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <XCircle className="mr-2 h-4 w-4" />
