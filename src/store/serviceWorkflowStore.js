@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import { apiUrl } from '@/config/api.js'
 import { serviceRequiresInstallation } from '@/utils/serviceInstallation.js'
 
-const SERVICE_REQUEST_STATUSES = ['Pendiente', 'En revision', 'Aprobada', 'Pendiente instalacion', 'Instalada', 'Cancelada', 'Rechazada']
+const SERVICE_REQUEST_STATUSES = ['En revision', 'Pendiente instalacion', 'Aprobada', 'Cancelada', 'Rechazada']
 const CLOSED_SERVICE_REQUEST_STATUS_KEYS = new Set(['rechazada', 'rechazado', 'cancelada', 'cancelado'])
 const INACTIVE_SERVICE_ASSIGNMENT_STATUS_KEYS = new Set(['inactivo', 'inactiva', 'baja', 'cancelada', 'cancelado'])
 const DUPLICATE_SERVICE_REQUEST_MESSAGE = 'Ya tenes ese servicio activo o una solicitud en curso.'
@@ -184,7 +184,7 @@ function normalizeServiceRequestStatusLabel(value) {
   const normalized = normalizeWorkflowStatus(value)
   if (normalized === 'en revision') return 'En revision'
   if (normalized === 'pendiente instalacion') return 'Pendiente instalacion'
-  if (normalized === 'instalada') return 'Instalada'
+  if (normalized === 'instalada') return 'Aprobada'
   if (normalized === 'aprobada') return 'Aprobada'
   if (normalized === 'rechazada' || normalized === 'rechazado') return 'Rechazada'
   if (normalized === 'cancelada' || normalized === 'cancelado') return 'Cancelada'
@@ -578,6 +578,28 @@ function normalizeMeter(meter) {
   }
 }
 
+function normalizeRequirementKey(requirement) {
+  const serviceId = pickFirst(requirement?.idServicio, requirement?.IdServicio, '')
+  const name = normalizeWorkflowStatus(pickFirst(requirement?.Nombre, requirement?.nombre, requirement?.Requisito, requirement?.requisito, ''))
+  if (serviceId !== '' && name !== '') return `service:${serviceId}:name:${name}`
+
+  const id = pickFirst(requirement?.idRequisitoServicio, requirement?.IdRequisitoServicio)
+  return `id:${id}`
+}
+
+function dedupeRequirements(requirements) {
+  const map = new Map()
+
+  requirements.forEach((requirement) => {
+    const normalized = normalizeRequirement(requirement)
+    const key = normalizeRequirementKey(normalized)
+    const current = map.get(key)
+    map.set(key, { ...current, ...normalized })
+  })
+
+  return Array.from(map.values())
+}
+
 function normalizeMeasurement(measurement) {
   return {
     idMedicion: pickFirst(measurement.idMedicion, measurement.IdMedicion, measurement.id),
@@ -742,16 +764,16 @@ const useServiceWorkflowStore = create(
       fetchRequirementsByService: async (serviceId) => {
         try {
           const data = await jsonFetch(apiUrl(`/requisitoservicio/servicio/${serviceId}`))
-          const normalized = ensureArray(data).map(normalizeRequirement).filter((item) => item.Activo)
+          const normalized = dedupeRequirements(ensureArray(data)).filter((item) => item.Activo)
           set((state) => ({
-            requirementsCatalog: [
+            requirementsCatalog: dedupeRequirements([
               ...state.requirementsCatalog.filter((item) => item.idServicio !== Number(serviceId)),
               ...normalized
-            ]
+            ])
           }))
           return normalized
         } catch {
-          return get().requirementsCatalog.filter(
+          return dedupeRequirements(get().requirementsCatalog).filter(
             (item) => item.idServicio === Number(serviceId) && item.Activo
           )
         }
@@ -760,11 +782,13 @@ const useServiceWorkflowStore = create(
       fetchAllRequirements: async () => {
         try {
           const data = await jsonFetch(apiUrl('/requisitoservicio'))
-          const normalized = ensureArray(data).map(normalizeRequirement)
+          const normalized = dedupeRequirements(ensureArray(data))
           set({ requirementsCatalog: normalized })
           return normalized
         } catch {
-          return get().requirementsCatalog
+          const normalized = dedupeRequirements(get().requirementsCatalog)
+          set({ requirementsCatalog: normalized })
+          return normalized
         }
       },
 
@@ -787,7 +811,7 @@ const useServiceWorkflowStore = create(
             Activo: true
           }
           set((state) => ({
-            requirementsCatalog: [requirement, ...state.requirementsCatalog]
+            requirementsCatalog: dedupeRequirements([requirement, ...state.requirementsCatalog])
           }))
           return requirement
         }
@@ -896,7 +920,7 @@ const useServiceWorkflowStore = create(
             idServicio: Number(payload.idServicio),
             servicioNombre: service?.Nombre || 'Servicio',
             fechaSolicitud: new Date().toISOString(),
-            estado: 'Pendiente',
+            estado: 'En revision',
             direccion: payload.direccion || payload.observaciones || 'Sin direccion informada',
             observaciones: payload.observaciones,
             motivoRechazo: '',
@@ -1079,10 +1103,6 @@ const useServiceWorkflowStore = create(
           return get().rejectServiceRequest(requestId, payload?.motivoRechazo || payload?.motivo || '')
         }
 
-        if (nextStatus === 'Instalada') {
-          return get().markServiceRequestInstalled(requestId, payload)
-        }
-
         const body = {
           estado: nextStatus,
           motivoRechazo: payload?.motivoRechazo || '',
@@ -1136,6 +1156,20 @@ const useServiceWorkflowStore = create(
           return result
         } catch (error) {
           throw new Error(error.message || 'No se pudo marcar la solicitud como instalada.')
+        }
+      },
+
+      rejectServiceInstallation: async (requestId, motivoRechazo) => {
+        try {
+          const result = await jsonFetch(apiUrl(`/solicitudservicio/rechazar-instalacion/${requestId}`), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ motivo: motivoRechazo })
+          })
+          await get().fetchServiceRequests()
+          return result
+        } catch (error) {
+          throw new Error(error.message || 'No se pudo rechazar la instalacion.')
         }
       },
 

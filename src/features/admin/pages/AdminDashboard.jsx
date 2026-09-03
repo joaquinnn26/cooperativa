@@ -488,9 +488,9 @@ export default function AdminDashboard() {
   const kpiCards = useMemo(
     () => [
       {
-        label: 'Cobertura de servicios',
-        value: `${statsData.coberturaServicios}%`,
-        detail: `${statsData.sociosConServicio}/${statsData.sociosActivos} socios activos con servicio`,
+        label: 'Socios activos',
+        value: statsData.sociosActivos,
+        detail: `${statsData.sociosTotal} socios totales, ${statsData.sociosInactivos} inactivos`,
         icon: Users,
         accent: 'text-blue-700',
         bg: 'bg-blue-50',

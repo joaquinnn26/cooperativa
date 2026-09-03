@@ -3,6 +3,7 @@ import { AlertTriangle, ChevronLeft, ChevronRight, FileDown, FileSpreadsheet, Ph
 import { apiUrl } from '@/config/api.js'
 import { exportTable } from '@/utils/exportTable.js'
 import { formatDate } from '@/utils/formatDate.js'
+import { cleanText, FIELD_LIMITS, validateMeaningfulText } from '@/utils/validation.js'
 import {
   CLAIM_STATUS_OPTIONS,
   getAllowedClaimStatuses,
@@ -116,6 +117,7 @@ export default function AdminReclamos() {
   const [exporting, setExporting] = useState(null)
   const [selectedClaim, setSelectedClaim] = useState(null)
   const [editingStatus, setEditingStatus] = useState('Pendiente')
+  const [finalResponse, setFinalResponse] = useState('')
   const [savingStatus, setSavingStatus] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -238,11 +240,13 @@ export default function AdminReclamos() {
     setError('')
     setSelectedClaim(claim)
     setEditingStatus(currentStatus)
+    setFinalResponse(formatTextValue(getClaimValue(claim, ['RespuestaFinal', 'respuestaFinal']), ''))
   }
 
   const closeClaimManager = () => {
     setSelectedClaim(null)
     setEditingStatus('Pendiente')
+    setFinalResponse('')
     setSavingStatus(false)
   }
 
@@ -272,6 +276,17 @@ export default function AdminReclamos() {
       return
     }
 
+    if (normalizeClaimStatus(editingStatus) === 'Resuelto') {
+      const validationError = validateMeaningfulText(finalResponse, 'La respuesta final', {
+        min: FIELD_LIMITS.rejectionReason.min,
+        max: 500
+      })
+      if (validationError) {
+        setError(validationError)
+        return
+      }
+    }
+
     setSavingStatus(true)
     setError('')
 
@@ -279,21 +294,29 @@ export default function AdminReclamos() {
       const response = await fetch(apiUrl(`/reclamo/${claimId}`), {
         method: 'PUT',
         headers: getJsonHeaders(),
-        body: JSON.stringify({ idEstadoReclamo: nextStatusId })
+        body: JSON.stringify({
+          idEstadoReclamo: nextStatusId,
+          RespuestaFinal: normalizeClaimStatus(editingStatus) === 'Resuelto' ? cleanText(finalResponse) : undefined
+        })
       })
       if (!response.ok) {
         throw new Error(await readError(response, 'No se pudo actualizar el estado del reclamo.'))
       }
 
+      const updatedPayload = await response.json().catch(() => null)
+      const updatedClaim = updatedPayload?.reclamo
+
       setClaims((current) =>
         current.map((claim) =>
           String(getClaimValue(claim, ['idReclamo', 'IdReclamo'])) === String(claimId)
-            ? {
+            ? (updatedClaim || {
                 ...claim,
                 Estado: editingStatus,
                 estado: editingStatus,
+                RespuestaFinal: normalizeClaimStatus(editingStatus) === 'Resuelto' ? cleanText(finalResponse) : getClaimValue(claim, ['RespuestaFinal', 'respuestaFinal'], ''),
+                respuestaFinal: normalizeClaimStatus(editingStatus) === 'Resuelto' ? cleanText(finalResponse) : getClaimValue(claim, ['RespuestaFinal', 'respuestaFinal'], ''),
                 ...(nextStatusId ? { idEstadoReclamo: nextStatusId, IdEstadoReclamo: nextStatusId } : {})
-              }
+              })
             : claim
         )
       )
@@ -329,6 +352,7 @@ export default function AdminReclamos() {
           { header: 'Fecha', value: (claim) => safeFormatDate(getClaimValue(claim, ['Fecha', 'fecha'])) },
           { header: 'Estado', value: (claim) => normalizeClaimStatus(getClaimValue(claim, ['Estado', 'estado'])) },
           { header: 'Descripcion', value: (claim) => formatTextValue(getClaimValue(claim, ['Descripcion', 'descripcion']), 'Sin descripcion') },
+          { header: 'Respuesta final', value: (claim) => formatTextValue(getClaimValue(claim, ['RespuestaFinal', 'respuestaFinal']), 'Sin respuesta') },
           { header: 'Telefono', value: (claim) => resolvePhone(claim) || 'No informado' }
         ],
         rows: filteredClaims
@@ -545,6 +569,14 @@ export default function AdminReclamos() {
                     {formatTextValue(getClaimValue(claim, ['Descripcion', 'descripcion']), 'Sin descripcion')}
                   </p>
                 </div>
+                {getClaimValue(claim, ['RespuestaFinal', 'respuestaFinal']) ? (
+                  <div>
+                    <p className="text-xs uppercase text-gray-500">Respuesta final</p>
+                    <p className="text-sm text-gray-700">
+                      {formatTextValue(getClaimValue(claim, ['RespuestaFinal', 'respuestaFinal']), 'Sin respuesta')}
+                    </p>
+                  </div>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => openClaimManager(claim)}
@@ -595,6 +627,11 @@ export default function AdminReclamos() {
                       <p className="line-clamp-2 max-w-xl text-xs text-gray-500">
                         {formatTextValue(getClaimValue(claim, ['Descripcion', 'descripcion']), 'Sin descripcion')}
                       </p>
+                      {getClaimValue(claim, ['RespuestaFinal', 'respuestaFinal']) ? (
+                        <p className="line-clamp-2 max-w-xl text-xs text-emerald-700">
+                          Respuesta final: {formatTextValue(getClaimValue(claim, ['RespuestaFinal', 'respuestaFinal']))}
+                        </p>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -699,6 +736,15 @@ export default function AdminReclamos() {
                 </p>
               </div>
 
+              {getClaimValue(selectedClaim, ['RespuestaFinal', 'respuestaFinal']) ? (
+                <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-xs uppercase text-emerald-700">Respuesta final registrada</p>
+                  <p className="mt-1 text-sm text-emerald-800">
+                    {formatTextValue(getClaimValue(selectedClaim, ['RespuestaFinal', 'respuestaFinal']))}
+                  </p>
+                </div>
+              ) : null}
+
               <div className="mt-4">
                 <label className="mb-2 block text-sm font-medium text-gray-700">Estado del reclamo</label>
                 <select
@@ -717,6 +763,24 @@ export default function AdminReclamos() {
                     ))}
                 </select>
               </div>
+
+              {normalizeClaimStatus(editingStatus) === 'Resuelto' ? (
+                <div className="mt-4">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Respuesta final</label>
+                  <textarea
+                    value={finalResponse}
+                    onChange={(event) => setFinalResponse(event.target.value)}
+                    minLength={FIELD_LIMITS.rejectionReason.min}
+                    maxLength={500}
+                    className="input-field min-h-28"
+                    placeholder="Indica la solucion aplicada o la respuesta final para el socio"
+                    disabled={savingStatus}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    {cleanText(finalResponse).length}/500 caracteres. Minimo {FIELD_LIMITS.rejectionReason.min}.
+                  </p>
+                </div>
+              ) : null}
             </div>
 
             <div className="flex justify-end gap-2 border-t border-gray-100 px-4 py-4 md:px-6">

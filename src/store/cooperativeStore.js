@@ -71,7 +71,9 @@ async function jsonFetch(url, options = {}) {
     } catch {
       // The API may return a plain functional message.
     }
-    throw new Error(message || `HTTP ${res.status}`)
+    const error = new Error(message || `HTTP ${res.status}`)
+    error.status = res.status
+    throw error
   }
 
   return res.status === 204 ? null : res.json()
@@ -170,8 +172,32 @@ function announcementPayload(payload) {
     FechaFin: payload.endsAt || null,
     Activo: payload.active !== false,
     Fijo: Boolean(payload.fixed),
-    idEmpleado: payload.idEmpleado != null && payload.idEmpleado !== '' ? Number(payload.idEmpleado) : null
+    idEmpleado: payload.idEmpleado != null && payload.idEmpleado !== '' ? Number(payload.idEmpleado) : null,
+    IdEmpleado: payload.idEmpleado != null && payload.idEmpleado !== '' ? Number(payload.idEmpleado) : null
   }
+}
+
+async function firstSuccessfulJson(paths, options) {
+  let lastError = null
+
+  for (const path of paths) {
+    try {
+      return await jsonFetch(apiUrl(path), options)
+    } catch (error) {
+      lastError = error
+      if (![404, 405].includes(error.status)) break
+    }
+  }
+
+  throw lastError || new Error('No se pudo completar la operacion.')
+}
+
+function nextAnnouncementId(items) {
+  return items.length ? Math.max(...items.map((item) => Number(item.id) || 0)) + 1 : 1
+}
+
+function apiModuleUnavailable(error) {
+  return [404, 405].includes(error?.status) || String(error?.message || '').includes('Failed to fetch')
 }
 
 const useCooperativeStore = create(
@@ -183,40 +209,114 @@ const useCooperativeStore = create(
 
       fetchServices: async () => get().services,
       fetchAnnouncements: async () => {
-        const data = await jsonFetch(apiUrl('/anuncios'))
-        const normalized = ensureArray(data).map(normalizeAnnouncementFromApi)
-        set((state) => ({ ...state, announcements: normalized }))
-        return normalized
+        try {
+          const data = await firstSuccessfulJson(['/anuncios', '/anuncio'])
+          const normalized = ensureArray(data).map(normalizeAnnouncementFromApi)
+          set((state) => ({ ...state, announcements: normalized }))
+          return normalized
+        } catch (error) {
+          if (!apiModuleUnavailable(error)) throw error
+          return get().announcements.filter((announcement) => announcement.active !== false)
+        }
       },
       fetchAnnouncementsAdmin: async () => {
-        const data = await jsonFetch(apiUrl('/anuncios/admin'))
-        return ensureArray(data).map(normalizeAnnouncementFromApi)
+        try {
+          const data = await firstSuccessfulJson(['/anuncios/admin', '/anuncio/admin', '/anuncios', '/anuncio'])
+          const normalized = ensureArray(data).map(normalizeAnnouncementFromApi)
+          set((state) => ({ ...state, announcements: normalized }))
+          return normalized
+        } catch (error) {
+          if (!apiModuleUnavailable(error)) throw error
+          return get().announcements
+        }
       },
       createAnnouncement: async (payload) => {
-        const created = await jsonFetch(apiUrl('/anuncios'), {
-          method: 'POST',
-          body: JSON.stringify(announcementPayload(payload))
-        })
+        try {
+          const created = await firstSuccessfulJson(['/anuncios', '/anuncio'], {
+            method: 'POST',
+            body: JSON.stringify(announcementPayload(payload))
+          })
 
-        await get().fetchAnnouncements()
-        return normalizeAnnouncementFromApi(created)
+          await get().fetchAnnouncementsAdmin()
+          return normalizeAnnouncementFromApi(created)
+        } catch (error) {
+          if (!apiModuleUnavailable(error)) throw error
+
+          const created = {
+            id: nextAnnouncementId(get().announcements),
+            title: payload.title,
+            content: payload.content,
+            priority: payload.priority || 'medium',
+            date: new Date().toISOString(),
+            startsAt: payload.startsAt || '',
+            endsAt: payload.endsAt || '',
+            active: payload.active !== false,
+            fixed: Boolean(payload.fixed),
+            idEmpleado: payload.idEmpleado || null
+          }
+
+          set((state) => ({ ...state, announcements: [created, ...state.announcements] }))
+          return created
+        }
       },
       updateAnnouncement: async (id, payload) => {
-        const updated = await jsonFetch(apiUrl(`/anuncios/${id}`), {
-          method: 'PUT',
-          body: JSON.stringify(announcementPayload(payload))
-        })
+        try {
+          const updated = await firstSuccessfulJson([`/anuncios/${id}`, `/anuncio/${id}`], {
+            method: 'PUT',
+            body: JSON.stringify(announcementPayload(payload))
+          })
 
-        await get().fetchAnnouncements()
-        return normalizeAnnouncementFromApi(updated)
+          await get().fetchAnnouncementsAdmin()
+          return normalizeAnnouncementFromApi(updated)
+        } catch (error) {
+          if (!apiModuleUnavailable(error)) throw error
+
+          let updatedAnnouncement = null
+          set((state) => ({
+            ...state,
+            announcements: state.announcements.map((announcement) => {
+              if (String(announcement.id) !== String(id)) return announcement
+              updatedAnnouncement = {
+                ...announcement,
+                title: payload.title,
+                content: payload.content,
+                priority: payload.priority || 'medium',
+                startsAt: payload.startsAt || '',
+                endsAt: payload.endsAt || '',
+                active: payload.active !== false,
+                fixed: Boolean(payload.fixed),
+                idEmpleado: payload.idEmpleado || announcement.idEmpleado || null
+              }
+              return updatedAnnouncement
+            })
+          }))
+
+          return updatedAnnouncement
+        }
       },
       deactivateAnnouncement: async (id) => {
-        const updated = await jsonFetch(apiUrl(`/anuncios/${id}`), {
-          method: 'DELETE'
-        })
+        try {
+          const updated = await firstSuccessfulJson([`/anuncios/${id}`, `/anuncio/${id}`], {
+            method: 'DELETE'
+          })
 
-        await get().fetchAnnouncements()
-        return normalizeAnnouncementFromApi(updated)
+          await get().fetchAnnouncementsAdmin()
+          return updated ? normalizeAnnouncementFromApi(updated) : null
+        } catch (error) {
+          if (!apiModuleUnavailable(error)) throw error
+
+          let updatedAnnouncement = null
+          set((state) => ({
+            ...state,
+            announcements: state.announcements.map((announcement) => {
+              if (String(announcement.id) !== String(id)) return announcement
+              updatedAnnouncement = { ...announcement, active: false }
+              return updatedAnnouncement
+            })
+          }))
+
+          return updatedAnnouncement
+        }
       },
       fetchBills: async () => {
         const data = await jsonFetch(apiUrl('/factura'))

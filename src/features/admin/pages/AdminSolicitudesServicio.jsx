@@ -15,15 +15,14 @@ import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
 import { formatDate } from '@/utils/formatDate.js'
 import { cleanText, FIELD_LIMITS, validateMeaningfulText } from '@/utils/validation.js'
 
-const STATUS_FILTERS = ['Todas', 'Pendiente', 'En revision', 'Pendiente instalacion', 'Instalada', 'Aprobada', 'Rechazada', 'Cancelada']
-const ADMIN_STATUS_OPTIONS = ['Pendiente', 'En revision', 'Aprobada', 'Cancelada', 'Rechazada']
+const STATUS_FILTERS = ['Todas', 'Pendiente', 'En revision', 'Pendiente instalacion', 'Aprobada', 'Rechazada', 'Cancelada']
 
 function statusColor(estado) {
   switch (estado) {
+    case 'Pendiente':
+      return 'bg-amber-100 text-amber-700'
     case 'Pendiente instalacion':
       return 'bg-teal-100 text-teal-700'
-    case 'Instalada':
-      return 'bg-cyan-100 text-cyan-700'
     case 'Aprobada':
       return 'bg-emerald-100 text-emerald-700'
     case 'Rechazada':
@@ -41,10 +40,9 @@ function statusPriority(estado) {
   if (estado === 'Pendiente') return 0
   if (estado === 'En revision') return 1
   if (estado === 'Pendiente instalacion') return 2
-  if (estado === 'Instalada') return 3
-  if (estado === 'Aprobada') return 4
-  if (estado === 'Rechazada') return 5
-  return 6
+  if (estado === 'Aprobada') return 3
+  if (estado === 'Rechazada') return 4
+  return 5
 }
 
 function canResolveDocuments(estado) {
@@ -81,16 +79,14 @@ export default function AdminSolicitudesServicio() {
   const fetchServiceRequests = useServiceWorkflowStore((state) => state.fetchServiceRequests)
   const approveServiceRequest = useServiceWorkflowStore((state) => state.approveServiceRequest)
   const rejectServiceRequest = useServiceWorkflowStore((state) => state.rejectServiceRequest)
-  const updateServiceRequestStatus = useServiceWorkflowStore((state) => state.updateServiceRequestStatus)
 
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('Pendiente')
+  const [statusFilter, setStatusFilter] = useState('En revision')
   const [selectedRequestId, setSelectedRequestId] = useState(null)
   const [rejectingRequest, setRejectingRequest] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
-  const [nextStatus, setNextStatus] = useState('')
   const [saving, setSaving] = useState(false)
 
   const loadRequests = async () => {
@@ -148,13 +144,11 @@ export default function AdminSolicitudesServicio() {
   useEffect(() => {
     if (!selectedRequest) {
       setSelectedRequestId(null)
-      setNextStatus('')
       return
     }
 
     setSelectedRequestId(selectedRequest.idSolicitudServicio)
-    setNextStatus(selectedRequest.estado)
-  }, [selectedRequest?.idSolicitudServicio, selectedRequest?.estado])
+  }, [selectedRequest?.idSolicitudServicio])
 
   const handleApprove = async (request = selectedRequest) => {
     if (!request) return
@@ -201,39 +195,6 @@ export default function AdminSolicitudesServicio() {
       addNotification({
         title: 'Error',
         message: error.message || 'No se pudo rechazar la solicitud.',
-        type: 'error'
-      })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleStatusUpdate = async () => {
-    if (!selectedRequest || !nextStatus || nextStatus === selectedRequest.estado) return
-
-    if (nextStatus === 'Rechazada') {
-      setRejectingRequest(selectedRequest)
-      return
-    }
-
-    setSaving(true)
-    try {
-      if (nextStatus === 'Aprobada') {
-        await approveServiceRequest(selectedRequest.idSolicitudServicio)
-      } else {
-        await updateServiceRequestStatus(selectedRequest.idSolicitudServicio, { estado: nextStatus })
-      }
-
-      addNotification({
-        title: 'Estado actualizado',
-        message: `La solicitud de ${selectedRequest.socioNombre} quedo en estado ${nextStatus}.`,
-        type: 'success'
-      })
-      await loadRequests()
-    } catch (error) {
-      addNotification({
-        title: 'Error',
-        message: error.message || 'No se pudo actualizar el estado.',
         type: 'error'
       })
     } finally {
@@ -396,7 +357,9 @@ export default function AdminSolicitudesServicio() {
 
                 {selectedRequest.motivoRechazo ? (
                   <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                    <p className="text-xs font-semibold uppercase">Motivo rechazo</p>
+                    <p className="text-xs font-semibold uppercase">
+                      {selectedRequest.estado === 'En revision' ? 'Motivo rechazo instalacion' : 'Motivo rechazo'}
+                    </p>
                     <p className="mt-1">{selectedRequest.motivoRechazo}</p>
                   </div>
                 ) : null}
@@ -434,39 +397,6 @@ export default function AdminSolicitudesServicio() {
                     {!selectedRequest.documentos.length ? (
                       <div className="px-3 py-5 text-sm text-gray-500">No hay documentos cargados.</div>
                     ) : null}
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-gray-200 p-3">
-                  <label className="mb-2 block text-sm font-semibold text-gray-900">Cambiar estado</label>
-                  <div className="flex gap-2">
-                    <select
-                      value={nextStatus}
-                      onChange={(event) => setNextStatus(event.target.value)}
-                      className="input-field"
-                      disabled={saving}
-                    >
-                      {Array.from(
-                        new Set([
-                          ...ADMIN_STATUS_OPTIONS,
-                          ...(selectedRequest.estado && !ADMIN_STATUS_OPTIONS.includes(selectedRequest.estado)
-                            ? [selectedRequest.estado]
-                            : [])
-                        ])
-                      ).map((status) => (
-                        <option key={status} value={status}>
-                          {status}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={handleStatusUpdate}
-                      disabled={saving || nextStatus === selectedRequest.estado}
-                      className="inline-flex items-center rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      Guardar
-                    </button>
                   </div>
                 </div>
 

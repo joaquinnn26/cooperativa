@@ -83,28 +83,6 @@ export default function EmpleadoDashboard() {
             El cargo actual no tiene vistas asignadas. Revisar la tabla Cargo o la configuracion de permisos.
           </div>
         ) : null}
-
-        <div className="card flex items-center gap-4">
-          <div className="rounded-full bg-emerald-100 p-3 text-emerald-700">
-            <ShieldCheck className="h-6 w-6" />
-          </div>
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">Acceso por cargo</h2>
-            <p className="text-sm text-gray-600">El menu y las rutas se habilitan segun el cargo asignado al empleado.</p>
-          </div>
-        </div>
-
-        <div className="card flex items-center gap-4">
-          <div className="rounded-full bg-amber-100 p-3 text-amber-700">
-            <Gauge className="h-6 w-6" />
-          </div>
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">Trabajo asignado</h2>
-            <p className="text-sm text-gray-600">
-              Cada vista muestra tareas propias del sector y bloquea accesos que no corresponden al cargo.
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   )

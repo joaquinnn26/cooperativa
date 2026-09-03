@@ -21,6 +21,22 @@ function normalizeStatus(value) {
     .toLowerCase()
 }
 
+function requirementKey(requirement) {
+  const serviceId = requirement?.idServicio ?? ''
+  const name = normalizeStatus(requirement?.Nombre || requirement?.nombre || '')
+  return serviceId !== '' && name ? `service:${serviceId}:name:${name}` : `id:${requirement?.idRequisitoServicio}`
+}
+
+function dedupeRequirements(requirements) {
+  const map = new Map()
+
+  ;(requirements || []).forEach((requirement) => {
+    map.set(requirementKey(requirement), requirement)
+  })
+
+  return Array.from(map.values())
+}
+
 function isBlockingServiceAssignment(assignment) {
   const status = normalizeStatus(assignment?.estado ?? assignment?.Estado ?? 'Activo')
   return !INACTIVE_SERVICE_STATUSES.has(status)
@@ -126,10 +142,11 @@ export default function SocioSolicitudServicioNueva() {
     fetchRequirementsByService(form.idServicio)
       .then((data) => {
         if (cancelled) return
-        setRequirements(data)
+        const uniqueRequirements = dedupeRequirements(data)
+        setRequirements(uniqueRequirements)
         setFilesByRequirement((prev) => {
           const next = {}
-          data.forEach((requirement) => {
+          uniqueRequirements.forEach((requirement) => {
             if (prev[requirement.idRequisitoServicio]) {
               next[requirement.idRequisitoServicio] = prev[requirement.idRequisitoServicio]
             }

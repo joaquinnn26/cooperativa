@@ -105,7 +105,7 @@ export function useSocios(autoLoad = true) {
   const eliminarSocio = useCallback(
     async (id) => {
       await jsonFetch(apiUrl(`/socio/${id}`), { method: 'DELETE' })
-      setSocios((prev) => prev.filter((s) => s.idSocio !== id))
+      setSocios((prev) => prev.map((s) => (s.idSocio === id ? { ...s, Activo: false } : s)))
     },
     []
   )

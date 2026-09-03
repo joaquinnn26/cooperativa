@@ -10,6 +10,27 @@ const initialForm = {
   Descripcion: ''
 }
 
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+}
+
+function dedupeRequirements(requirements) {
+  const map = new Map()
+
+  requirements.forEach((requirement) => {
+    const key = requirement.idRequisitoServicio
+      ? `id:${requirement.idRequisitoServicio}`
+      : `service:${requirement.idServicio}:name:${normalizeText(requirement.Nombre)}`
+    map.set(key, requirement)
+  })
+
+  return Array.from(map.values())
+}
+
 export default function AdminRequisitosServicio() {
   const addNotification = useAppStore((state) => state.addNotification)
   const fetchServicesCatalog = useServiceWorkflowStore((state) => state.fetchServicesCatalog)
@@ -29,7 +50,7 @@ export default function AdminRequisitosServicio() {
     const [servicesData, requirementsData] = await Promise.all([fetchServicesCatalog(), fetchAllRequirements()])
     const activeServices = (servicesData || []).filter((item) => item.Activo)
     setServices(activeServices)
-    setRequirements(requirementsData || [])
+    setRequirements(dedupeRequirements(requirementsData || []))
 
     if (selectedServiceId === 'todos' && activeServices[0]?.idServicio) {
       setSelectedServiceId(String(activeServices[0].idServicio))

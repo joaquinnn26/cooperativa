@@ -380,9 +380,11 @@ export default function EmpleadoMediciones({ adminMode = false }) {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase text-blue-600">{adminMode ? 'Administracion' : 'Lecturista'}</p>
-          <h1 className="text-3xl font-bold text-gray-900">{adminMode ? 'Gestion de lecturas' : 'Cargar mediciones'}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{adminMode ? 'Consulta de lecturas' : 'Cargar mediciones'}</h1>
           <p className="mt-1 text-gray-600">
-            Busca el medidor correcto, registra la lectura y revisa el historial sin recorrer listas largas.
+            {adminMode
+              ? 'Busca un medidor y revisa el historial de lecturas registradas por lecturistas.'
+              : 'Busca el medidor correcto, registra la lectura y revisa el historial sin recorrer listas largas.'}
           </p>
         </div>
       </div>
@@ -547,52 +549,32 @@ export default function EmpleadoMediciones({ adminMode = false }) {
             </div>
           ) : null}
 
-          <form onSubmit={handleSubmit} className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-            <div className="mb-5 flex items-center gap-3">
-              <span className="rounded-lg bg-blue-100 p-2 text-blue-700">
-                <Gauge className="h-5 w-5" />
-              </span>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">Nueva lectura</h2>
-                <p className="text-sm text-gray-500">La lectura no puede ser menor que la ultima registrada.</p>
+          {!adminMode ? (
+            <form onSubmit={handleSubmit} className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+              <div className="mb-5 flex items-center gap-3">
+                <span className="rounded-lg bg-blue-100 p-2 text-blue-700">
+                  <Gauge className="h-5 w-5" />
+                </span>
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Nueva lectura</h2>
+                  <p className="text-sm text-gray-500">La lectura no puede ser menor que la ultima registrada.</p>
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-4">
-              {adminMode ? (
-                <>
-                  <select
-                    value={selectedEmployeeId}
-                    onChange={(event) => setSelectedEmployeeId(event.target.value)}
-                    className="input-field"
-                    required
-                  >
-                    <option value="">Seleccionar lecturista...</option>
-                    {employees.map((employee) => (
-                      <option key={employee.idEmpleado} value={employee.idEmpleado}>
-                        {employeeFullName(employee)} - {employee.Cargo?.Nombre}
-                      </option>
-                    ))}
-                  </select>
-                  {!employees.length ? (
-                    <p className="text-sm text-amber-700">No hay empleados activos con cargo Lecturista para asignar la lectura.</p>
-                  ) : null}
-                </>
-              ) : null}
-
-              <select
-                value={form.idMedidor}
-                onChange={(event) => setForm((prev) => ({ ...prev, idMedidor: event.target.value }))}
-                className="input-field"
-                required
-              >
-                <option value="">Seleccionar medidor...</option>
-                {meters.map((meter) => (
-                  <option key={meter.idMedidor} value={meter.idMedidor}>
-                    {meter.NumeroMedidor} - {meter.socioNombre} - {meter.servicioNombre}
-                  </option>
-                ))}
-              </select>
+              <div className="space-y-4">
+                <select
+                  value={form.idMedidor}
+                  onChange={(event) => setForm((prev) => ({ ...prev, idMedidor: event.target.value }))}
+                  className="input-field"
+                  required
+                >
+                  <option value="">Seleccionar medidor...</option>
+                  {meters.map((meter) => (
+                    <option key={meter.idMedidor} value={meter.idMedidor}>
+                      {meter.NumeroMedidor} - {meter.socioNombre} - {meter.servicioNombre}
+                    </option>
+                  ))}
+                </select>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <select
@@ -644,8 +626,9 @@ export default function EmpleadoMediciones({ adminMode = false }) {
               {adminMode && rol === 'Administrador' ? (
                 <p className="text-sm text-gray-500">La lectura quedara registrada a nombre del empleado seleccionado.</p>
               ) : null}
-            </div>
-          </form>
+              </div>
+            </form>
+          ) : null}
         </aside>
       </div>
 

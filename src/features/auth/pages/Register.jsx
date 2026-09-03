@@ -8,8 +8,10 @@ import {
   cleanText,
   FIELD_LIMITS,
   firstValidationError,
+  validateAddress,
   validateDocument,
   validateEmail,
+  validateHouseNumber,
   validatePersonName,
   validatePhone
 } from '@/utils/validation.js'
@@ -25,6 +27,8 @@ export default function Register() {
     apellido: '',
     email: '',
     telefono: '',
+    calle: '',
+    numero: '',
     accept: false
   })
 
@@ -42,6 +46,8 @@ export default function Register() {
       validatePersonName(form.apellido, 'El apellido'),
       validatePhone(form.telefono),
       validateEmail(form.email),
+      validateAddress(form.calle),
+      validateHouseNumber(form.numero),
       !form.accept ? 'Debes aceptar los terminos y condiciones.' : ''
     ])
 
@@ -57,7 +63,9 @@ export default function Register() {
         nombre: cleanText(form.nombre),
         apellido: cleanText(form.apellido),
         telefono: cleanText(form.telefono),
-        email: cleanText(form.email).toLowerCase()
+        email: cleanText(form.email).toLowerCase(),
+        calle: cleanText(form.calle),
+        numero: cleanText(form.numero)
       })
 
       await showInfo({
@@ -163,6 +171,40 @@ export default function Register() {
               className="input-field"
               placeholder="tu@email.com"
             />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_140px]">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">Calle</label>
+              <input
+                name="calle"
+                value={form.calle}
+                onChange={handleChange}
+                required
+                minLength={FIELD_LIMITS.address.min}
+                maxLength={FIELD_LIMITS.address.max}
+                pattern="[\p{L}0-9 .'\-]+"
+                title="La calle solo puede contener letras, numeros, espacios, puntos, guiones y apostrofes."
+                className="input-field"
+                placeholder="Calle del domicilio"
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">Numero</label>
+              <input
+                name="numero"
+                value={form.numero}
+                onChange={handleChange}
+                required
+                minLength={FIELD_LIMITS.houseNumber.min}
+                maxLength={FIELD_LIMITS.houseNumber.max}
+                inputMode="numeric"
+                pattern="\d{1,6}[A-Za-z]?"
+                title="El numero debe tener hasta 6 digitos y opcionalmente una letra al final."
+                className="input-field"
+                placeholder="Altura"
+              />
+            </div>
           </div>
 
           <label className="flex items-start space-x-3 text-sm text-gray-700">

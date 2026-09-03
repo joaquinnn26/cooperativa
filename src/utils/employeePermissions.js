@@ -50,8 +50,8 @@ export const EMPLOYEE_CARGO_PERMISSIONS = {
       {
         to: '/empleado/instalaciones',
         label: 'Instalaciones',
-        description: 'Registra avances de instalaciones y trabajos tecnicos realizados.',
-        status: 'planned'
+        description: 'Consulta pendientes, instaladas y rechazadas; registra el resultado de la instalacion.',
+        status: 'active'
       }
     ]
   },

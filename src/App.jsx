@@ -33,6 +33,7 @@ import AdminTurnos from '@/features/admin/pages/AdminTurnos.jsx'
 import EmpleadoDashboard from '@/features/empleado/pages/EmpleadoDashboard.jsx'
 import EmpleadoMediciones from '@/features/empleado/pages/EmpleadoMediciones.jsx'
 import EmpleadoHojaRuta from '@/features/empleado/pages/EmpleadoHojaRuta.jsx'
+import EmpleadoInstalaciones from '@/features/empleado/pages/EmpleadoInstalaciones.jsx'
 import EmpleadoSolicitudesTecnicas from '@/features/empleado/pages/EmpleadoSolicitudesTecnicas.jsx'
 import EmpleadoCargoVista from '@/features/empleado/pages/EmpleadoCargoVista.jsx'
 import HelpCenter from '@/features/help/pages/HelpCenter.jsx'
@@ -135,7 +136,7 @@ export default function App() {
             <Route path="/empleado/hoja-ruta" element={<EmpleadoHojaRuta />} />
             <Route path="/empleado/incidencias" element={<EmpleadoCargoVista />} />
             <Route path="/empleado/indicadores" element={<EmpleadoCargoVista />} />
-            <Route path="/empleado/instalaciones" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/instalaciones" element={<EmpleadoInstalaciones />} />
             <Route path="/empleado/mediciones" element={<EmpleadoMediciones />} />
             <Route path="/empleado/medidores" element={<EmpleadoCargoVista />} />
             <Route path="/empleado/operaciones" element={<EmpleadoCargoVista />} />

@@ -170,7 +170,9 @@ const useAuthStore = create((set) => ({
         Nombre: form.nombre,
         Apellido: form.apellido,
         Email: form.email,
-        Telefono: form.telefono
+        Telefono: form.telefono,
+        Calle: form.calle,
+        Numero: form.numero
       })
     })
 

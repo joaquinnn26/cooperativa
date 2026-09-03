@@ -11,6 +11,8 @@ function estadoColor(estado) {
   switch (estado) {
     case 'Aprobada':
       return 'bg-emerald-100 text-emerald-700'
+    case 'Pendiente instalacion':
+      return 'bg-teal-100 text-teal-700'
     case 'Rechazada':
       return 'bg-red-100 text-red-700'
     case 'En revision':
@@ -28,20 +30,33 @@ export default function SocioSolicitudesServicio() {
   const [requests, setRequests] = useState([])
 
   useEffect(() => {
+    const matchesSocio = (item) =>
+      String(item.idSocio || '') === String(socioId || '') ||
+      String(item.socioUsuario || '') === String(usuario || '')
+
     if (socioId != null) {
-      fetchServiceRequestsBySocio(socioId).then(setRequests)
+      fetchServiceRequests()
+        .then((data) => {
+          const filtered = (data || []).filter(matchesSocio)
+          if (filtered.length) {
+            setRequests(filtered)
+            return
+          }
+          fetchServiceRequestsBySocio(socioId).then(setRequests)
+        })
+        .catch(() => fetchServiceRequestsBySocio(socioId).then(setRequests))
       return
     }
 
     fetchServiceRequests().then((data) => {
-      setRequests(data.filter((item) => String(item.socioUsuario) === String(usuario)))
+      setRequests((data || []).filter(matchesSocio))
     })
   }, [fetchServiceRequests, fetchServiceRequestsBySocio, socioId, usuario])
 
   const summary = useMemo(
     () => ({
       total: requests.length,
-      pending: requests.filter((item) => ['Pendiente', 'En revision'].includes(item.estado)).length,
+      pending: requests.filter((item) => ['Pendiente', 'En revision', 'Pendiente instalacion'].includes(item.estado)).length,
       rejected: requests.filter((item) => item.estado === 'Rechazada').length
     }),
     [requests]
@@ -102,7 +117,7 @@ export default function SocioSolicitudesServicio() {
                     </span>
                   ))}
                 </div>
-                {request.motivoRechazo ? (
+                {request.estado === 'Rechazada' && request.motivoRechazo ? (
                   <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                     <strong>Motivo rechazo:</strong> {request.motivoRechazo}
                   </div>
