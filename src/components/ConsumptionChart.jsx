@@ -33,7 +33,7 @@ export default function ConsumptionChart({ measurements }) {
     <div className="space-y-3">
       {chartData.map((item) => (
         <div key={item.key} className="grid grid-cols-[40px_1fr_70px] items-center gap-3">
-          <span className="text-sm font-medium uppercase text-gray-500">{item.label}</span>
+               <span className="text-sm font-medium uppercase text-gray-500">{item.label}</span>
           <div className="h-3 overflow-hidden rounded-full bg-gray-100">
             <div
               className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400"
