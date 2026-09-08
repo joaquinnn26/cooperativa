@@ -1,446 +1,876 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
-  Users,
-  Droplet,
-  Zap,
-  AlertCircle,
-  UserPlus,
-  Settings,
-  BarChart3,
-  Receipt,
-  CreditCard,
-  Megaphone,
-  FileText,
-  User,
+  Activity,
   AlertTriangle,
-  CheckCircle
+  ArrowUpRight,
+  BarChart3,
+  Briefcase,
+  CalendarCheck,
+  CheckCircle2,
+  ChevronRight,
+  ClipboardList,
+  DollarSign,
+  FileText,
+  MapPinned,
+  Megaphone,
+  Receipt,
+  Settings,
+  TrendingUp,
+  Users,
+  Zap
 } from 'lucide-react'
-import { formatDate } from '@/utils/formatDate.js'
+import {
+  Bar,
+  BarChart as RechartsBarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
+} from 'recharts'
 import { apiUrl } from '@/config/api.js'
+import useCooperativeStore from '@/store/cooperativeStore.js'
+import { obtenerTodosLosTurnos } from '@/hooks/useAdminTurnos.jsx'
 
-const estadosMap = {
-  Pendiente: 1,
-  'En Proceso': 2,
-  Resuelto: 3,
-  Cancelado: 4
+function getAuthHeaders() {
+  const token = localStorage.getItem('token')
+  return {
+    ...(token && { Authorization: `Bearer ${token}` })
+  }
 }
 
-export default function AdminDashboard() {
-  const [reclamos, setReclamos] = useState([])
-  const [modalDetalle, setModalDetalle] = useState(null)
-
-  useEffect(() => {
-    const fetchReclamos = async () => {
-      try {
-        const res = await fetch(apiUrl('/reclamo'))
-        if (res.ok) {
-          const data = await res.json()
-          setReclamos(
-            data.map((r) => ({
-              idReclamo: r.idReclamo,
-              socioNombre: `${r.Socio?.Nombre ?? ''} ${r.Socio?.Apellido ?? ''}`,
-              tipoReclamo: r.Tipo,
-              fecha: r.Fecha,
-              estado: r.Estado,
-              Descripcion: r.Descripcion,
-              nuevoEstado: ''
-            }))
-          )
-        } else {
-          setReclamos(mockReclamos)
-        }
-      } catch (error) {
-        console.error('Error al cargar reclamos', error)
-        setReclamos(mockReclamos)
-      }
-    }
-    fetchReclamos()
-  }, [])
-
-  const guardarEstado = async (reclamo) => {
-    try {
-      const idEstado = estadosMap[reclamo.nuevoEstado]
-      if (!idEstado) return alert('Estado no válido')
-
-      await fetch(apiUrl(`/reclamo/${reclamo.idReclamo}`), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idEstadoReclamo: idEstado })
-      })
-
-      setReclamos((prev) =>
-        prev.map((r) =>
-          r.idReclamo === reclamo.idReclamo
-            ? { ...r, estado: reclamo.nuevoEstado, nuevoEstado: '' }
-            : r
-        )
-      )
-    } catch (error) {
-      console.error('Error al cambiar estado', error)
-    }
+function normalizeBoolean(value, fallback = true) {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value === 1
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (['true', '1', 'activo', 'si'].includes(normalized)) return true
+    if (['false', '0', 'inactivo', 'no'].includes(normalized)) return false
   }
+  return fallback
+}
 
-  const stats = useMemo(
-    () => [
-      { label: 'Socios', value: 1240, icon: Users, bgColor: 'bg-blue-100', iconColor: 'text-blue-600' },
-      { label: 'Reclamos activos', value: reclamos.length, icon: AlertCircle, bgColor: 'bg-red-100', iconColor: 'text-red-600' },
-      { label: 'Servicios', value: 2, icon: Settings, bgColor: 'bg-purple-100', iconColor: 'text-purple-600' },
-      { label: 'Facturas pendientes', value: 86, icon: Receipt, bgColor: 'bg-green-100', iconColor: 'text-green-600' }
-    ],
-    [reclamos.length]
+function ensureArray(data) {
+  if (Array.isArray(data)) return data
+  if (Array.isArray(data?.$values)) return data.$values
+  if (Array.isArray(data?.value)) return data.value
+  if (Array.isArray(data?.data)) return data.data
+  if (Array.isArray(data?.items)) return data.items
+  return []
+}
+
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+}
+
+function pickStatus(item) {
+  return (
+    item?.estado ||
+    item?.Estado ||
+    item?.estadoSolicitud ||
+    item?.EstadoSolicitud?.Nombre ||
+    item?.EstadoSolicitud?.nombre ||
+    item?.estadoReclamo ||
+    item?.EstadoReclamo?.Nombre ||
+    item?.EstadoReclamo?.nombre ||
+    ''
   )
+}
+
+function pickFirst(...values) {
+  return values.find((value) => value !== undefined && value !== null && String(value).trim() !== '')
+}
+
+function isClosedWorkflow(item) {
+  const status = normalizeText(pickStatus(item))
+  return ['aprobado', 'aprobada', 'rechazado', 'rechazada', 'cancelado', 'cancelada', 'cerrado', 'cerrada', 'resuelto', 'resuelta', 'finalizado', 'finalizada'].includes(status)
+}
+
+function isResolvedWorkflow(item) {
+  const status = normalizeText(pickStatus(item))
+  return ['aprobado', 'aprobada', 'resuelto', 'resuelta', 'finalizado', 'finalizada'].includes(status)
+}
+
+function isRejectedWorkflow(item) {
+  const status = normalizeText(pickStatus(item))
+  return ['rechazado', 'rechazada', 'cancelado', 'cancelada'].includes(status)
+}
+
+function turnoStatusKey(status) {
+  const normalized = normalizeText(status)
+  if (normalized === 'aprobada') return 'aprobado'
+  if (normalized === 'aceptada') return 'aceptado'
+  if (normalized === 'rechazada') return 'rechazado'
+  if (normalized === 'cancelada') return 'cancelado'
+  if (normalized === 'propuesta') return 'propuesto'
+  return normalized
+}
+
+function parseDate(value) {
+  if (!value) return null
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function isWithinLastDays(value, days) {
+  const parsed = parseDate(value)
+  if (!parsed) return false
+  const limit = new Date()
+  limit.setDate(limit.getDate() - days)
+  return parsed >= limit
+}
+
+function percent(value, total) {
+  if (!total) return 0
+  return Math.round((Number(value || 0) / Number(total || 0)) * 100)
+}
+
+function formatMoney(value) {
+  return `$${Number(value || 0).toLocaleString('es-AR')}`
+}
+
+function resolveServiceName(item) {
+  return pickFirst(
+    item?.servicioNombre,
+    item?.ServicioNombre,
+    item?.Servicio?.Nombre,
+    item?.servicio?.Nombre,
+    item?.service,
+    item?.NombreServicio,
+    'Servicio'
+  )
+}
+
+function resolveDate(item) {
+  return pickFirst(
+    item?.fechaSolicitud,
+    item?.FechaSolicitud,
+    item?.fecha,
+    item?.Fecha,
+    item?.createdAt,
+    item?.FechaCreacion,
+    item?.createdAt
+  )
+}
+
+const EMPTY_DASHBOARD_STATS = {
+  sociosTotal: 0,
+  sociosActivos: 0,
+  sociosInactivos: 0,
+  servicios: 0,
+  serviciosAsignados: 0,
+  sociosConServicio: 0,
+  coberturaServicios: 0,
+  solicitudes: 0,
+  solicitudesPendientes: 0,
+  solicitudesResueltas: 0,
+  solicitudesRechazadas: 0,
+  solicitudesUltimos30: 0,
+  solicitudesTasaResolucion: 0,
+  facturasTotal: 0,
+  facturasPendientes: 0,
+  facturasVencidas: 0,
+  facturasPagadas: 0,
+  facturasMontoTotal: 0,
+  facturasMontoPagado: 0,
+  facturasMontoPendiente: 0,
+  facturasMontoVencido: 0,
+  cobranzaPorcentaje: 0,
+  deudaPromedio: 0,
+  reclamosTotal: 0,
+  reclamosActivos: 0,
+  reclamosPendientes: 0,
+  reclamosEnProceso: 0,
+  reclamosResueltos: 0,
+  reclamosUltimos30: 0,
+  reclamosTasaResolucion: 0,
+  turnosTotal: 0,
+  turnosPendientes: 0,
+  turnosPropuestos: 0,
+  turnosConfirmados: 0,
+  turnosRechazados: 0,
+  turnosCancelados: 0,
+  turnosTasaConfirmacion: 0,
+  serviciosPorTipo: [],
+  trabajoOperativo: [],
+  flujoSolicitudes: [],
+  finanzasPorEstado: [],
+  saludOperativa: [],
+  prioridades: []
+}
+
+async function fetchJson(path) {
+  const response = await fetch(apiUrl(path), { headers: getAuthHeaders() })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
+
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null
+  const data = payload[0]?.payload || {}
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Panel de Administración</h1>
-        <p className="text-lg text-gray-600">Gestiona la cooperativa desde aquí</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        {stats.map((stat) => (
-          <div className="card" key={stat.label}>
-            <div className="flex items-center">
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center mr-4 ${stat.bgColor}`}>
-                <stat.icon className={`w-6 h-6 ${stat.iconColor}`} />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">{stat.label}</p>
-                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-        <div className="card">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Gestión de Socios</h2>
-          <div className="space-y-4">
-            <a
-              href="/admin/socios"
-              className="flex items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-            >
-              <Users className="w-8 h-8 text-blue-600 mr-4" />
-              <div>
-                <h3 className="font-semibold text-gray-900">Ver Todos los Socios</h3>
-                <p className="text-sm text-gray-600">Gestionar cuentas de socios</p>
-              </div>
-            </a>
-
-            <button
-              type="button"
-              className="w-full flex items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors cursor-pointer"
-            >
-              <UserPlus className="w-8 h-8 text-green-600 mr-4" />
-              <div className="text-left">
-                <h3 className="font-semibold text-gray-900">Agregar Nuevo Socio</h3>
-                <p className="text-sm text-gray-600">Registrar nuevo socio</p>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        <div className="card">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Gestión de Servicios</h2>
-          <div className="space-y-4">
-            <a
-              href="/admin/servicios"
-              className="flex items-center p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
-            >
-              <Settings className="w-8 h-8 text-purple-600 mr-4" />
-              <div>
-                <h3 className="font-semibold text-gray-900">Configurar Servicios</h3>
-                <p className="text-sm text-gray-600">Gestionar servicios disponibles</p>
-              </div>
-            </a>
-
-            <a
-              href="/admin/lecturas"
-              className="flex items-center p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
-            >
-              <BarChart3 className="w-8 h-8 text-orange-600 mr-4" />
-              <div>
-                <h3 className="font-semibold text-gray-900">Registrar Lecturas</h3>
-                <p className="text-sm text-gray-600">Ingresar lecturas de medidores</p>
-              </div>
-            </a>
-          </div>
-        </div>
-      </div>
-
-      <div className="mb-12">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Gestión de Reclamos</h1>
-            <p className="text-gray-600">Administra y actualiza el estado de los reclamos</p>
-          </div>
-        </div>
-
-        <div className="bg-white shadow rounded-lg overflow-hidden">
-          <table className="min-w-full text-sm text-left">
-            <thead className="bg-gray-100 text-gray-700 uppercase text-xs">
-              <tr>
-                <th className="px-6 py-3">#</th>
-                <th className="px-6 py-3">Socio</th>
-                <th className="px-6 py-3">Tipo</th>
-                <th className="px-6 py-3">Fecha</th>
-                <th className="px-6 py-3">Estado Actual</th>
-                <th className="px-6 py-3">Nuevo Estado</th>
-                <th className="px-6 py-3 text-center">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reclamos.map((reclamo) => (
-                <tr key={reclamo.idReclamo} className="border-b hover:bg-gray-50 transition">
-                  <td className="px-6 py-3">{reclamo.idReclamo}</td>
-                  <td className="px-6 py-3">{reclamo.socioNombre}</td>
-                  <td className="px-6 py-3">{reclamo.tipoReclamo}</td>
-                  <td className="px-6 py-3">{formatDate(reclamo.fecha, 'es-AR')}</td>
-                  <td className="px-6 py-3">
-                    <span className={`px-3 py-1 rounded-full font-medium text-xs ${estadoColor(reclamo.estado)}`}>
-                      {reclamo.estado}
-                    </span>
-                  </td>
-                  <td className="px-6 py-3">
-                    <select
-                      value={reclamo.nuevoEstado}
-                      onChange={(e) =>
-                        setReclamos((prev) =>
-                          prev.map((r) =>
-                            r.idReclamo === reclamo.idReclamo ? { ...r, nuevoEstado: e.target.value } : r
-                          )
-                        )
-                      }
-                      className="border rounded px-2 py-1 text-sm focus:ring focus:ring-blue-200"
-                    >
-                      <option value="">Seleccionar...</option>
-                      <option value="Pendiente">Pendiente</option>
-                      <option value="En Proceso">En Proceso</option>
-                      <option value="Resuelto">Resuelto</option>
-                      <option value="Cancelado">Cancelado</option>
-                    </select>
-                  </td>
-                  <td className="px-6 py-3 flex justify-center space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => setModalDetalle(reclamo)}
-                      className="text-blue-600 hover:text-blue-800 font-semibold"
-                    >
-                      Ver
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => guardarEstado(reclamo)}
-                      className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium disabled:opacity-50"
-                      disabled={!reclamo.nuevoEstado || reclamo.nuevoEstado === reclamo.estado}
-                    >
-                      Guardar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!reclamos.length && (
-            <div className="text-center py-10 text-gray-500">No hay reclamos registrados</div>
-          )}
-        </div>
-      </div>
-
-      {modalDetalle && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-lg w-full p-6 relative">
-            <button
-              type="button"
-              onClick={() => setModalDetalle(null)}
-              className="absolute top-3 right-3 text-gray-400 hover:text-gray-600"
-            >
-              ✖
-            </button>
-
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Detalle del Reclamo</h2>
-
-            <div className="space-y-2">
-              <p>
-                <strong>ID:</strong> {modalDetalle.idReclamo}
-              </p>
-              <p>
-                <strong>Socio:</strong> {modalDetalle.socioNombre}
-              </p>
-              <p>
-                <strong>Tipo:</strong> {modalDetalle.tipoReclamo}
-              </p>
-              <p>
-                <strong>Fecha:</strong> {formatDate(modalDetalle.fecha, 'es-AR')}
-              </p>
-              <p>
-                <strong>Estado:</strong> {modalDetalle.estado}
-              </p>
-              <p className="bg-gray-100 p-3 rounded text-gray-700">
-                {modalDetalle.Descripcion || 'Sin descripción'}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-        <div className="card">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Facturación</h2>
-          <div className="space-y-4">
-            <a
-              href="/admin/facturas"
-              className="flex items-center p-4 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
-            >
-              <Receipt className="w-8 h-8 text-indigo-600 mr-4" />
-              <div>
-                <h3 className="font-semibold text-gray-900">Generar Facturas</h3>
-                <p className="text-sm text-gray-600">Crear facturas mensuales</p>
-              </div>
-            </a>
-
-            <a
-              href="/admin/pagos"
-              className="flex items-center p-4 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
-            >
-              <CreditCard className="w-8 h-8 text-emerald-600 mr-4" />
-              <div>
-                <h3 className="font-semibold text-gray-900">Gestionar Pagos</h3>
-                <p className="text-sm text-gray-600">Ver y procesar pagos</p>
-              </div>
-            </a>
-          </div>
-        </div>
-
-        <div className="card">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Comunicación</h2>
-          <div className="space-y-4">
-            <a
-              href="/admin/anuncios"
-              className="flex items-center p-4 bg-pink-50 rounded-lg hover:bg-pink-100 transition-colors"
-            >
-              <Megaphone className="w-8 h-8 text-pink-600 mr-4" />
-              <div>
-                <h3 className="font-semibold text-gray-900">Crear Anuncios</h3>
-                <p className="text-sm text-gray-600">Publicar comunicados</p>
-              </div>
-            </a>
-
-            <a
-              href="/admin/reportes"
-              className="flex items-center p-4 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors"
-            >
-              <FileText className="w-8 h-8 text-teal-600 mr-4" />
-              <div>
-                <h3 className="font-semibold text-gray-900">Generar Reportes</h3>
-                <p className="text-sm text-gray-600">Estadísticas y análisis</p>
-              </div>
-            </a>
-          </div>
-        </div>
-      </div>
-
-      <div className="card">
-        <h2 className="text-xl font-bold text-gray-900 mb-6">Actividad Reciente</h2>
-        <div className="space-y-4">
-          {recentActivities.map((activity) => (
-            <div key={activity.id} className="flex items-center p-4 bg-gray-50 rounded-lg">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-4 ${getActivityColor(activity.type)}`}>
-                {React.createElement(getActivityIcon(activity.type), { className: 'w-5 h-5' })}
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-gray-900">{activity.title}</h3>
-                <p className="text-sm text-gray-600">{activity.description}</p>
-              </div>
-              <div className="text-sm text-gray-500">{formatTime(activity.timestamp)}</div>
-            </div>
-          ))}
-        </div>
-      </div>
+    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-lg">
+      <p className="font-semibold text-gray-900">{label || payload[0]?.name}</p>
+      <p className="text-gray-600">{payload[0]?.value}</p>
+      {data.amount != null ? <p className="text-gray-600">{formatMoney(data.amount)}</p> : null}
+      {data.percent != null ? <p className="text-gray-600">{data.percent}%</p> : null}
     </div>
   )
 }
 
-const mockReclamos = [
+const QUICK_MODULES = [
   {
-    idReclamo: 1,
-    socioNombre: 'María González',
-    tipoReclamo: 'Corte de agua',
-    fecha: '2024-01-10',
-    estado: 'Pendiente',
-    Descripcion: 'Sin servicio desde las 8am',
-    nuevoEstado: ''
+    title: 'Socios',
+    description: 'Alta, edicion y estado de socios.',
+    to: '/admin/socios',
+    icon: Users,
+    bg: 'bg-blue-50',
+    color: 'text-blue-600'
   },
   {
-    idReclamo: 2,
-    socioNombre: 'Juan Pérez',
-    tipoReclamo: 'Medidor eléctrico',
-    fecha: '2024-01-11',
-    estado: 'En Proceso',
-    Descripcion: 'Lectura incorrecta',
-    nuevoEstado: ''
+    title: 'Empleados',
+    description: 'Cargos, altas y bajas.',
+    to: '/admin/empleados',
+    icon: Briefcase,
+    bg: 'bg-amber-50',
+    color: 'text-amber-600'
+  },
+  {
+    title: 'Solicitudes',
+    description: 'Revisar tramites y documentos.',
+    to: '/admin/solicitudes-servicio',
+    icon: ClipboardList,
+    bg: 'bg-sky-50',
+    color: 'text-sky-600'
+  },
+  {
+    title: 'Facturas',
+    description: 'Cargar y gestionar estados.',
+    to: '/admin/facturas',
+    icon: Receipt,
+    bg: 'bg-indigo-50',
+    color: 'text-indigo-600'
+  },
+  {
+    title: 'Instalacion',
+    description: 'Pendientes, altas y control.',
+    to: '/admin/medidores',
+    icon: Zap,
+    bg: 'bg-yellow-50',
+    color: 'text-yellow-600'
+  },
+  {
+    title: 'Lecturas',
+    description: 'Registro de mediciones.',
+    to: '/admin/lecturas',
+    icon: BarChart3,
+    bg: 'bg-orange-50',
+    color: 'text-orange-600'
+  },
+  {
+    title: 'Rutas',
+    description: 'Asignar hojas de ruta a lecturistas.',
+    to: '/admin/rutas-medicion',
+    icon: MapPinned,
+    bg: 'bg-emerald-50',
+    color: 'text-emerald-600'
+  },
+  {
+    title: 'Reclamos',
+    description: 'Seguimiento de reclamos de socios.',
+    to: '/admin/reclamos',
+    icon: AlertTriangle,
+    bg: 'bg-red-50',
+    color: 'text-red-600'
+  },
+  {
+    title: 'Turnos',
+    description: 'Aprobar o rechazar solicitudes.',
+    to: '/admin/turnos',
+    icon: CalendarCheck,
+    bg: 'bg-cyan-50',
+    color: 'text-cyan-600'
   }
 ]
 
-const recentActivities = [
-  {
-    id: 1,
-    type: 'user',
-    title: 'Nuevo socio registrado',
-    description: 'María González se registró en el sistema',
-    timestamp: new Date(Date.now() - 1000 * 60 * 30)
-  },
-  {
-    id: 2,
-    type: 'payment',
-    title: 'Pago procesado',
-    description: 'Factura #1234 pagada por Juan Pérez',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2)
-  },
-  {
-    id: 3,
-    type: 'alert',
-    title: 'Reporte de problema',
-    description: 'Corte de agua reportado en Calle Principal',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4)
-  }
+const SECONDARY_MODULES = [
+  { title: 'Servicios', to: '/admin/servicios', icon: Settings },
+  { title: 'Requisitos', to: '/admin/requisitos-servicio', icon: FileText },
+  { title: 'Anuncios', to: '/admin/anuncios', icon: Megaphone }
 ]
 
-const getActivityIcon = (type) => {
-  const icons = { user: User, payment: CheckCircle, alert: AlertTriangle }
-  return icons[type] || AlertCircle
-}
+export default function AdminDashboard() {
+  const fetchBills = useCooperativeStore((state) => state.fetchBills)
+  const [statsData, setStatsData] = useState(EMPTY_DASHBOARD_STATS)
 
-const getActivityColor = (type) => {
-  const colors = {
-    user: 'bg-blue-100 text-blue-600',
-    payment: 'bg-green-100 text-green-600',
-    alert: 'bg-red-100 text-red-600'
-  }
-  return colors[type] || 'bg-gray-100 text-gray-600'
-}
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        const [sociosData, serviciosData, solicitudesData, reclamosData, billsData, turnosData, serviciosSocioData] = await Promise.all([
+          fetchJson('/socio').catch(() => []),
+          fetchJson('/servicio').catch(() => []),
+          fetchJson('/solicitudservicio').catch(() => []),
+          fetchJson('/reclamo').catch(() => []),
+          fetchBills().catch(() => []),
+          obtenerTodosLosTurnos().catch(() => []),
+          fetchJson('/serviciosocio').catch(() => [])
+        ])
 
-const formatTime = (timestamp) => {
-  const now = new Date()
-  const diff = now - timestamp
-  const minutes = Math.floor(diff / (1000 * 60))
-  const hours = Math.floor(diff / (1000 * 60 * 60))
+        const socios = ensureArray(sociosData)
+        const servicios = ensureArray(serviciosData)
+        const solicitudes = ensureArray(solicitudesData)
+        const reclamos = ensureArray(reclamosData)
+        const bills = ensureArray(billsData)
+        const turnos = ensureArray(turnosData)
+        const serviciosSocio = ensureArray(serviciosSocioData)
 
-  if (minutes < 60) return `Hace ${minutes} minutos`
-  if (hours < 24) return `Hace ${hours} horas`
-  return timestamp.toLocaleDateString('es-ES')
-}
+        const sociosActivos = socios.filter((item) =>
+          normalizeBoolean(item.Activo ?? item.activo, true)
+        ).length
+        const sociosConServicio = new Set(
+          serviciosSocio
+            .map((item) => pickFirst(item.idSocio, item.IdSocio, item.Socio?.idSocio, item.socio?.idSocio))
+            .filter(Boolean)
+            .map(String)
+        ).size
 
-const estadoColor = (estado) => {
-  switch (estado) {
-    case 'Pendiente':
-      return 'bg-yellow-100 text-yellow-700'
-    case 'En Proceso':
-      return 'bg-blue-100 text-blue-700'
-    case 'Resuelto':
-      return 'bg-green-100 text-green-700'
-    default:
-      return 'bg-gray-100 text-gray-600'
-  }
+        const facturasPendientes = bills.filter((bill) => bill.status !== 'paid')
+        const facturasVencidas = bills.filter((bill) => bill.status === 'overdue')
+        const facturasPagadas = bills.filter((bill) => bill.status === 'paid')
+        const montoTotal = bills.reduce((total, bill) => total + Number(bill.amount || 0), 0)
+        const montoPagado = facturasPagadas.reduce((total, bill) => total + Number(bill.amount || 0), 0)
+        const montoPendiente = facturasPendientes.reduce((total, bill) => total + Number(bill.amount || 0), 0)
+        const montoVencido = facturasVencidas.reduce((total, bill) => total + Number(bill.amount || 0), 0)
+
+        const solicitudesPendientes = solicitudes.filter((item) => !isClosedWorkflow(item))
+        const solicitudesResueltas = solicitudes.filter(isResolvedWorkflow)
+        const solicitudesRechazadas = solicitudes.filter(isRejectedWorkflow)
+        const solicitudesUltimos30 = solicitudes.filter((item) => isWithinLastDays(resolveDate(item), 30)).length
+
+        const reclamosActivos = reclamos.filter((item) => !isClosedWorkflow(item))
+        const reclamosResueltos = reclamos.filter(isResolvedWorkflow)
+        const reclamosPendientes = reclamos.filter((item) => normalizeText(pickStatus(item)) === 'pendiente')
+        const reclamosEnProceso = reclamos.filter((item) => normalizeText(pickStatus(item)) === 'en proceso')
+        const reclamosUltimos30 = reclamos.filter((item) => isWithinLastDays(resolveDate(item), 30)).length
+
+        const turnosPendientes = turnos.filter((turno) =>
+          ['pendiente', 'propuesto'].includes(turnoStatusKey(turno.estado))
+        )
+        const turnosPropuestos = turnos.filter((turno) => turnoStatusKey(turno.estado) === 'propuesto')
+        const turnosConfirmados = turnos.filter((turno) =>
+          ['aprobado', 'aceptado'].includes(turnoStatusKey(turno.estado))
+        )
+        const turnosRechazados = turnos.filter((turno) => turnoStatusKey(turno.estado) === 'rechazado')
+        const turnosCancelados = turnos.filter((turno) => turnoStatusKey(turno.estado) === 'cancelado')
+
+        const serviciosPorTipoMap = serviciosSocio.reduce((acc, item) => {
+          const serviceName = resolveServiceName(item)
+          acc[serviceName] = (acc[serviceName] || 0) + 1
+          return acc
+        }, {})
+        const serviciosPorTipo = Object.entries(serviciosPorTipoMap)
+          .map(([name, value]) => ({ name, value }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 6)
+
+        const trabajoOperativo = [
+          { name: 'Solicitudes', label: 'Solicitudes abiertas', value: solicitudesPendientes.length, color: '#0ea5e9' },
+          { name: 'Reclamos', label: 'Reclamos activos', value: reclamosActivos.length, color: '#f43f5e' },
+          { name: 'Turnos', label: 'Turnos pendientes', value: turnosPendientes.length, color: '#6366f1' },
+          { name: 'Facturas', label: 'Facturas vencidas', value: facturasVencidas.length, color: '#f59e0b' }
+        ]
+
+        const flujoSolicitudes = [
+          { name: 'Abiertas', value: solicitudesPendientes.length, color: '#0ea5e9' },
+          { name: 'Aprobadas', value: solicitudesResueltas.length, color: '#10b981' },
+          { name: 'Rechazadas', value: solicitudesRechazadas.length, color: '#f43f5e' }
+        ]
+
+        const finanzasPorEstado = [
+          { label: 'Pagadas', value: facturasPagadas.length, amount: montoPagado, color: '#10b981' },
+          { label: 'Pendientes', value: Math.max(facturasPendientes.length - facturasVencidas.length, 0), amount: Math.max(montoPendiente - montoVencido, 0), color: '#f59e0b' },
+          { label: 'Vencidas', value: facturasVencidas.length, amount: montoVencido, color: '#ef4444' }
+        ]
+
+        const saludOperativa = [
+          { label: 'Cobertura socios', value: sociosConServicio, total: Math.max(sociosActivos, 1), color: '#2563eb' },
+          { label: 'Cobranza', value: montoPagado, total: Math.max(montoTotal, 1), color: '#059669' },
+          { label: 'Solicitudes resueltas', value: solicitudesResueltas.length, total: Math.max(solicitudes.length, 1), color: '#0ea5e9' },
+          { label: 'Reclamos resueltos', value: reclamosResueltos.length, total: Math.max(reclamos.length, 1), color: '#f43f5e' }
+        ]
+
+        const prioridades = [
+          {
+            title: 'Deuda vencida',
+            detail: `${formatMoney(montoVencido)} en ${facturasVencidas.length} factura${facturasVencidas.length === 1 ? '' : 's'}`,
+            to: '/admin/facturas',
+            icon: Receipt,
+            classes: 'border-red-100 bg-red-50 text-red-800'
+          },
+          {
+            title: 'Solicitudes abiertas',
+            detail: `${solicitudesPendientes.length} pendientes, ${solicitudesUltimos30} nuevas en 30 dias`,
+            to: '/admin/solicitudes-servicio',
+            icon: ClipboardList,
+            classes: 'border-sky-100 bg-sky-50 text-sky-800'
+          },
+          {
+            title: 'Reclamos activos',
+            detail: `${reclamosActivos.length} abiertos, ${reclamosUltimos30} nuevos en 30 dias`,
+            to: '/admin/reclamos',
+            icon: AlertTriangle,
+            classes: 'border-rose-100 bg-rose-50 text-rose-800'
+          }
+        ]
+
+        setStatsData({
+          sociosTotal: socios.length,
+          sociosActivos,
+          sociosInactivos: Math.max(socios.length - sociosActivos, 0),
+          servicios: servicios.length,
+          serviciosAsignados: serviciosSocio.length,
+          sociosConServicio,
+          coberturaServicios: percent(sociosConServicio, sociosActivos),
+          solicitudes: solicitudes.length,
+          solicitudesPendientes: solicitudesPendientes.length,
+          solicitudesResueltas: solicitudesResueltas.length,
+          solicitudesRechazadas: solicitudesRechazadas.length,
+          solicitudesUltimos30,
+          solicitudesTasaResolucion: percent(solicitudesResueltas.length + solicitudesRechazadas.length, solicitudes.length),
+          facturasTotal: bills.length,
+          facturasPendientes: facturasPendientes.length,
+          facturasVencidas: facturasVencidas.length,
+          facturasPagadas: facturasPagadas.length,
+          facturasMontoTotal: montoTotal,
+          facturasMontoPagado: montoPagado,
+          facturasMontoPendiente: montoPendiente,
+          facturasMontoVencido: montoVencido,
+          cobranzaPorcentaje: percent(montoPagado, montoTotal),
+          deudaPromedio: facturasPendientes.length ? Math.round(montoPendiente / facturasPendientes.length) : 0,
+          reclamosTotal: reclamos.length,
+          reclamosActivos: reclamosActivos.length,
+          reclamosPendientes: reclamosPendientes.length,
+          reclamosEnProceso: reclamosEnProceso.length,
+          reclamosResueltos: reclamosResueltos.length,
+          reclamosUltimos30,
+          reclamosTasaResolucion: percent(reclamosResueltos.length, reclamos.length),
+          turnosTotal: turnos.length,
+          turnosPendientes: turnosPendientes.length,
+          turnosPropuestos: turnosPropuestos.length,
+          turnosConfirmados: turnosConfirmados.length,
+          turnosRechazados: turnosRechazados.length,
+          turnosCancelados: turnosCancelados.length,
+          turnosTasaConfirmacion: percent(turnosConfirmados.length, turnos.length),
+          serviciosPorTipo,
+          trabajoOperativo,
+          flujoSolicitudes,
+          finanzasPorEstado,
+          saludOperativa,
+          prioridades
+        })
+      } catch (error) {
+        console.error('Error al cargar metricas del panel admin', error)
+      }
+    }
+
+    loadStats()
+  }, [fetchBills])
+
+  const kpiCards = useMemo(
+    () => [
+      {
+        label: 'Socios activos',
+        value: statsData.sociosActivos,
+        detail: `${statsData.sociosTotal} socios totales, ${statsData.sociosInactivos} inactivos`,
+        icon: Users,
+        accent: 'text-blue-700',
+        bg: 'bg-blue-50',
+        border: 'border-blue-100'
+      },
+      {
+        label: 'Pendientes operativos',
+        value: statsData.solicitudesPendientes + statsData.reclamosActivos + statsData.turnosPendientes,
+        detail: `${statsData.solicitudesPendientes} solicitudes, ${statsData.reclamosActivos} reclamos, ${statsData.turnosPendientes} turnos`,
+        icon: Activity,
+        accent: 'text-rose-700',
+        bg: 'bg-rose-50',
+        border: 'border-rose-100'
+      },
+      {
+        label: 'Deuda vencida',
+        value: formatMoney(statsData.facturasMontoVencido),
+        detail: `${statsData.facturasVencidas} facturas vencidas. Promedio deuda: ${formatMoney(statsData.deudaPromedio)}`,
+        icon: DollarSign,
+        accent: 'text-amber-700',
+        bg: 'bg-amber-50',
+        border: 'border-amber-100'
+      },
+      {
+        label: 'Cobranza',
+        value: `${statsData.cobranzaPorcentaje}%`,
+        detail: `${formatMoney(statsData.facturasMontoPagado)} cobrado de ${formatMoney(statsData.facturasMontoTotal)}`,
+        icon: Receipt,
+        accent: 'text-indigo-700',
+        bg: 'bg-indigo-50',
+        border: 'border-indigo-100'
+      }
+    ],
+    [statsData]
+  )
+
+  const workloadItems = useMemo(
+    () => statsData.trabajoOperativo,
+    [statsData]
+  )
+
+  const billingSegments = useMemo(
+    () => statsData.finanzasPorEstado,
+    [statsData.finanzasPorEstado]
+  )
+
+  const healthRows = useMemo(
+    () => statsData.saludOperativa,
+    [statsData.saludOperativa]
+  )
+
+  const healthChartData = useMemo(
+    () =>
+      healthRows.map((row) => ({
+        ...row,
+        percent: Math.round((row.value / row.total) * 100)
+      })),
+    [healthRows]
+  )
+
+  const priorityItems = useMemo(
+    () => statsData.prioridades,
+    [statsData.prioridades]
+  )
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-8">
+      <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase text-gray-500">Vista ejecutiva</p>
+          <h1 className="mt-1 text-3xl font-bold text-gray-900">Panel de administracion</h1>
+          <p className="mt-2 text-gray-600">Metricas reales para priorizar cobranza, atencion, instalaciones y resolucion operativa.</p>
+        </div>
+        <Link
+          to="/admin/reportes"
+          className="inline-flex w-fit items-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+        >
+          Ver reportes
+          <ArrowUpRight className="ml-2 h-4 w-4" />
+        </Link>
+      </header>
+
+      <section className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {kpiCards.map((stat) => {
+          const Icon = stat.icon
+          return (
+            <div key={stat.label} className={`rounded-lg border ${stat.border} bg-white p-5 shadow-sm`}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">{stat.label}</p>
+                  <p className={`mt-2 text-3xl font-bold ${stat.accent}`}>{stat.value}</p>
+                </div>
+                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${stat.bg}`}>
+                  <Icon className={`h-5 w-5 ${stat.accent}`} />
+                </span>
+              </div>
+              <p className="mt-3 text-sm text-gray-600">{stat.detail}</p>
+            </div>
+          )
+        })}
+      </section>
+
+      <section className="mb-8 grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
+        <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="mb-5 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Carga operativa</h2>
+              <p className="mt-1 text-sm text-gray-500">Pendientes reales que requieren accion administrativa.</p>
+            </div>
+            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
+              {workloadItems.reduce((total, item) => total + item.value, 0)} pendientes
+            </span>
+          </div>
+
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <RechartsBarChart data={workloadItems} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
+                <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: '#f8fafc' }} />
+                <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={54}>
+                  {workloadItems.map((item) => (
+                    <Cell key={item.label} fill={item.color} />
+                  ))}
+                </Bar>
+              </RechartsBarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <Link to="/admin/solicitudes-servicio" className="rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm font-semibold text-sky-800 hover:bg-white">
+              Revisar solicitudes
+            </Link>
+            <Link to="/admin/reclamos" className="rounded-lg border border-rose-100 bg-rose-50 p-3 text-sm font-semibold text-rose-800 hover:bg-white">
+              Ver reclamos
+            </Link>
+            <Link to="/admin/turnos" className="rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-sm font-semibold text-indigo-800 hover:bg-white">
+              Gestionar turnos
+            </Link>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg bg-gray-50 p-3">
+              <p className="text-xs font-semibold uppercase text-gray-500">Solicitudes resueltas</p>
+              <p className="mt-1 text-2xl font-bold text-gray-900">{statsData.solicitudesTasaResolucion}%</p>
+              <p className="text-xs text-gray-500">{statsData.solicitudesResueltas + statsData.solicitudesRechazadas}/{statsData.solicitudes} cerradas</p>
+            </div>
+            <div className="rounded-lg bg-gray-50 p-3">
+              <p className="text-xs font-semibold uppercase text-gray-500">Reclamos resueltos</p>
+              <p className="mt-1 text-2xl font-bold text-gray-900">{statsData.reclamosTasaResolucion}%</p>
+              <p className="text-xs text-gray-500">{statsData.reclamosResueltos}/{statsData.reclamosTotal} cerrados</p>
+            </div>
+            <div className="rounded-lg bg-gray-50 p-3">
+              <p className="text-xs font-semibold uppercase text-gray-500">Turnos confirmados</p>
+              <p className="mt-1 text-2xl font-bold text-gray-900">{statsData.turnosTasaConfirmacion}%</p>
+              <p className="text-xs text-gray-500">{statsData.turnosConfirmados}/{statsData.turnosTotal} confirmados</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-6">
+          <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Facturacion</h2>
+                <p className="mt-1 text-sm text-gray-500">Cantidad y monto por estado de cobro.</p>
+              </div>
+              <Receipt className="h-5 w-5 text-amber-600" />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-[190px_1fr] sm:items-center">
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={billingSegments}
+                      dataKey="value"
+                      nameKey="label"
+                      innerRadius={52}
+                      outerRadius={78}
+                      paddingAngle={4}
+                    >
+                      {billingSegments.map((item) => (
+                        <Cell key={item.label} fill={item.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<ChartTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="space-y-3">
+                {billingSegments.map((item) => (
+                  <div key={item.label} className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2">
+                    <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <span className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
+                      {item.label}
+                    </span>
+                    <span className="text-right">
+                      <span className="block font-semibold text-gray-900">{item.value}</span>
+                      <span className="text-xs text-gray-500">{formatMoney(item.amount)}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Salud del sistema</h2>
+                <p className="mt-1 text-sm text-gray-500">Porcentajes reales sobre cobertura, cobranza y resolucion.</p>
+              </div>
+              <TrendingUp className="h-5 w-5 text-emerald-600" />
+            </div>
+
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <RechartsBarChart data={healthChartData} layout="vertical" margin={{ top: 8, right: 24, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" domain={[0, 100]} tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
+                  <YAxis dataKey="label" type="category" width={108} tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#374151' }} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: '#f8fafc' }} />
+                  <Bar dataKey="percent" radius={[0, 8, 8, 0]} barSize={16}>
+                    {healthChartData.map((item) => (
+                      <Cell key={item.label} fill={item.color} />
+                    ))}
+                  </Bar>
+                </RechartsBarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mb-8 grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="mb-5">
+            <h2 className="text-xl font-bold text-gray-900">Servicios asignados</h2>
+            <p className="mt-1 text-sm text-gray-500">Distribucion real de servicios activos/asignados por tipo.</p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-[180px_1fr] md:items-center">
+            <div className="h-44">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={statsData.serviciosPorTipo}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={44}
+                    outerRadius={72}
+                    paddingAngle={4}
+                  >
+                    {statsData.serviciosPorTipo.map((item, index) => (
+                      <Cell key={item.name} fill={['#2563eb', '#059669', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2'][index % 6]} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<ChartTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="space-y-2">
+              {statsData.serviciosPorTipo.length ? statsData.serviciosPorTipo.map((item, index) => (
+                <div key={item.name} className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2">
+                  <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <span className="h-3 w-3 rounded-full" style={{ backgroundColor: ['#2563eb', '#059669', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2'][index % 6] }} />
+                    {item.name}
+                  </span>
+                  <span className="font-semibold text-gray-900">{item.value}</span>
+                </div>
+              )) : (
+                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
+                  No hay servicios asignados para calcular distribucion.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="mb-5">
+            <h2 className="text-xl font-bold text-gray-900">Flujo de solicitudes</h2>
+            <p className="mt-1 text-sm text-gray-500">Permite ver volumen pendiente contra solicitudes ya cerradas.</p>
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <RechartsBarChart data={statsData.flujoSolicitudes} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
+                <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: '#f8fafc' }} />
+                <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={72}>
+                  {statsData.flujoSolicitudes.map((item) => (
+                    <Cell key={item.name} fill={item.color} />
+                  ))}
+                </Bar>
+              </RechartsBarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </section>
+
+      <section className="mb-8">
+        <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Gestion diaria</h2>
+            <p className="text-sm text-gray-500">Primero lo urgente, despues el acceso a cada modulo.</p>
+          </div>
+          <span className="text-sm font-medium text-gray-500">Prioridades y modulos</span>
+        </div>
+
+        <div className="mb-5 grid gap-3 lg:grid-cols-3">
+          {priorityItems.map((item) => {
+            const Icon = item.icon
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={`group flex min-h-[116px] items-start justify-between gap-4 rounded-lg border p-4 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md ${item.classes}`}
+              >
+                <span>
+                  <span className="block text-sm font-semibold uppercase opacity-80">Prioridad</span>
+                  <span className="mt-2 block text-lg font-bold text-gray-900">{item.title}</span>
+                  <span className="mt-1 block text-sm text-gray-700">{item.detail}</span>
+                </span>
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white/80">
+                  <Icon className="h-5 w-5" />
+                </span>
+              </Link>
+            )
+          })}
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {QUICK_MODULES.map((module) => {
+            const Icon = module.icon
+            return (
+              <Link
+                key={module.to}
+                to={module.to}
+                className="group flex min-h-[112px] flex-col justify-between rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
+              >
+                <span className="flex items-start justify-between gap-3">
+                  <span className={`flex h-11 w-11 items-center justify-center rounded-lg ${module.bg}`}>
+                    <Icon className={`h-5 w-5 ${module.color}`} />
+                  </span>
+                  <ChevronRight className="mt-1 h-4 w-4 text-gray-300 transition group-hover:text-blue-500" />
+                </span>
+                <span className="mt-4">
+                  <span className="block font-semibold text-gray-900">{module.title}</span>
+                  <span className="mt-1 block text-sm leading-snug text-gray-600">{module.description}</span>
+                </span>
+              </Link>
+            )
+          })}
+        </div>
+
+        <div className="mt-5 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h3 className="font-semibold text-gray-900">Configuracion y comunicacion</h3>
+            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {SECONDARY_MODULES.map((item) => {
+              const Icon = item.icon
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className="flex items-center gap-3 rounded-lg border border-gray-200 px-4 py-3 text-gray-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                >
+                  <Icon className="h-5 w-5 text-gray-500" />
+                  <span className="font-medium">{item.title}</span>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+    </div>
+  )
 }

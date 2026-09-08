@@ -4,21 +4,22 @@ export default function ModalEliminarSocio({ show, socio, onClose, onConfirm }) 
   if (!show || !socio) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-      <div className="bg-white p-6 rounded-lg w-full max-w-sm shadow-xl text-center">
-        <h2 className="text-lg font-bold mb-4">¿Eliminar socio?</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="w-full max-w-sm rounded-lg bg-white p-6 text-center shadow-xl">
+        <h2 className="mb-4 text-lg font-bold">Dar de baja socio</h2>
         <p className="mb-6 text-gray-700">
-          Estás a punto de eliminar a <strong>{socio.Persona?.Nombre} {socio.Persona?.Apellido}</strong>
+          Vas a marcar como inactivo a <strong>{socio.Persona?.Nombre} {socio.Persona?.Apellido}</strong>. No se eliminan sus registros historicos.
         </p>
         <div className="flex justify-center space-x-2">
-          <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">
+          <button type="button" onClick={onClose} className="rounded bg-gray-200 px-4 py-2 hover:bg-gray-300">
             Cancelar
           </button>
           <button
+            type="button"
             onClick={onConfirm}
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            className="rounded bg-red-600 px-4 py-2 text-white hover:bg-red-700"
           >
-            Eliminar
+            Dar de baja
           </button>
         </div>
       </div>

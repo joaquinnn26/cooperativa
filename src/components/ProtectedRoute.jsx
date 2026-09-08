@@ -1,19 +1,24 @@
 import React from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import useAuthStore from '@/store/authStore.js'
-import { getDefaultRouteByRole, isTokenExpired } from '@/utils/auth.js'
+import { hasActiveSession, rolesMatch } from '@/utils/auth.js'
 
 export default function ProtectedRoute({ role }) {
   const location = useLocation()
   const token = useAuthStore((state) => state.token)
   const rol = useAuthStore((state) => state.rol)
+  const sessionStatus = useAuthStore((state) => state.sessionStatus)
 
-  if (!token || isTokenExpired(token)) {
+  if (sessionStatus === 'checking') {
+    return <div className="mx-auto max-w-6xl px-4 py-10 text-gray-600">Validando sesion...</div>
+  }
+
+  if (sessionStatus !== 'authenticated' || !hasActiveSession({ token })) {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
 
-  if (role && rol !== role) {
-    return <Navigate to={getDefaultRouteByRole(rol)} replace />
+  if (role && !rolesMatch(rol, role)) {
+    return <Navigate to="/login" replace state={{ from: location }} />
   }
 
   return <Outlet />

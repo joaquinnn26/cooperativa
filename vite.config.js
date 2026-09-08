@@ -24,6 +24,18 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': path.resolve(__dirname, 'src')
       }
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            react: ['react', 'react-dom', 'react-router-dom'],
+            charts: ['recharts'],
+            table: ['@tanstack/react-table'],
+            ui: ['lucide-react', 'sweetalert2', 'zustand']
+          }
+        }
+      }
     }
   }
 })

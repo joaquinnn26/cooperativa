@@ -1,24 +1,78 @@
 import React from 'react'
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from '@/components/Layout.jsx'
 import Home from '@/features/home/Home.jsx'
 import Login from '@/features/auth/pages/Login.jsx'
+import RecoverPassword from '@/features/auth/pages/RecoverPassword.jsx'
 import Register from '@/features/auth/pages/Register.jsx'
 import SocioDashboard from '@/features/socio/pages/SocioDashboard.jsx'
 import ReclamosList from '@/features/socio/pages/ReclamosList.jsx'
 import ReclamoNuevo from '@/features/socio/pages/ReclamoNuevo.jsx'
+import SocioSolicitudesServicio from '@/features/socio/pages/SocioSolicitudesServicio.jsx'
+import SocioSolicitudServicioNueva from '@/features/socio/pages/SocioSolicitudServicioNueva.jsx'
+import SocioServicios from '@/features/socio/pages/SocioServicios.jsx'
+import SocioMediciones from '@/features/socio/pages/SocioMediciones.jsx'
+import SocioFacturas from '@/features/socio/pages/SocioFacturas.jsx'
+import SocioPerfil from '@/features/socio/pages/SocioPerfil.jsx'
+import MisTurnos from '@/features/socio/pages/MisTurnos.jsx'
 import AdminDashboard from '@/features/admin/pages/AdminDashboard.jsx'
 import AdminSocios from '@/features/admin/pages/AdminSocios.jsx'
+import AdminEmpleados from '@/features/admin/pages/AdminEmpleados.jsx'
 import AdminFacturas from '@/features/admin/pages/AdminFacturas.jsx'
 import AdminServicios from '@/features/admin/pages/AdminServicios.jsx'
 import AdminPagos from '@/features/admin/pages/AdminPagos.jsx'
 import AdminAnuncios from '@/features/admin/pages/AdminAnuncios.jsx'
+import AdminReclamos from '@/features/admin/pages/AdminReclamos.jsx'
 import AdminReportes from '@/features/admin/pages/AdminReportes.jsx'
 import AdminLecturas from '@/features/admin/pages/AdminLecturas.jsx'
+import AdminSolicitudesServicio from '@/features/admin/pages/AdminSolicitudesServicio.jsx'
+import AdminRequisitosServicio from '@/features/admin/pages/AdminRequisitosServicio.jsx'
+import AdminMedidores from '@/features/admin/pages/AdminMedidores.jsx'
+import AdminRutasMedicion from '@/features/admin/pages/AdminRutasMedicion.jsx'
+import AdminTurnos from '@/features/admin/pages/AdminTurnos.jsx'
+import EmpleadoDashboard from '@/features/empleado/pages/EmpleadoDashboard.jsx'
+import EmpleadoMediciones from '@/features/empleado/pages/EmpleadoMediciones.jsx'
+import EmpleadoHojaRuta from '@/features/empleado/pages/EmpleadoHojaRuta.jsx'
+import EmpleadoInstalaciones from '@/features/empleado/pages/EmpleadoInstalaciones.jsx'
+import EmpleadoSolicitudesTecnicas from '@/features/empleado/pages/EmpleadoSolicitudesTecnicas.jsx'
+import EmpleadoCargoVista from '@/features/empleado/pages/EmpleadoCargoVista.jsx'
 import HelpCenter from '@/features/help/pages/HelpCenter.jsx'
 import ProtectedRoute from '@/components/ProtectedRoute.jsx'
+import CargoProtectedRoute from '@/components/CargoProtectedRoute.jsx'
 import PublicOnlyRoute from '@/components/PublicOnlyRoute.jsx'
-import { Servicios, Facturas, Contacto, Terminos, Guia, FAQ, NotFound } from '@/features/static/pages/StaticPage.jsx'
+import useAuthStore from '@/store/authStore.js'
+import { normalizeRole } from '@/utils/auth.js'
+import { Servicios, Contacto, Terminos, Guia, FAQ, NotFound } from '@/features/static/pages/StaticPage.jsx'
+
+function ReclamosRedirect() {
+  const rol = useAuthStore((state) => state.rol)
+  const normalizedRole = normalizeRole(rol)
+
+  if (normalizedRole === 'Administrador') {
+    return <Navigate to="/admin/reclamos" replace />
+  }
+
+  if (normalizedRole === 'Socio') {
+    return <Navigate to="/socio/reclamos" replace />
+  }
+
+  return <Navigate to="/login" replace />
+}
+
+function NuevoReclamoRedirect() {
+  const rol = useAuthStore((state) => state.rol)
+  const normalizedRole = normalizeRole(rol)
+
+  if (normalizedRole === 'Socio') {
+    return <Navigate to="/socio/reclamos/nuevo" replace />
+  }
+
+  if (normalizedRole === 'Administrador') {
+    return <Navigate to="/admin/reclamos" replace />
+  }
+
+  return <Navigate to="/login" replace />
+}
 
 export default function App() {
   return (
@@ -29,7 +83,10 @@ export default function App() {
         <Route path="/ayuda/guia" element={<Guia />} />
         <Route path="/ayuda/faq" element={<FAQ />} />
         <Route path="/servicios" element={<Servicios />} />
-        <Route path="/facturas" element={<Facturas />} />
+        <Route path="/facturas" element={<SocioFacturas />} />
+        <Route path="/reclamos" element={<ReclamosRedirect />} />
+        <Route path="/reclamos/nuevo" element={<NuevoReclamoRedirect />} />
+        <Route path="/recuperar-contrasena" element={<RecoverPassword />} />
         <Route path="/contacto" element={<Contacto />} />
         <Route path="/terminos" element={<Terminos />} />
 
@@ -42,17 +99,59 @@ export default function App() {
           <Route path="/socio" element={<SocioDashboard />} />
           <Route path="/socio/reclamos" element={<ReclamosList />} />
           <Route path="/socio/reclamos/nuevo" element={<ReclamoNuevo />} />
+          <Route path="/socio/solicitudes-servicio" element={<SocioSolicitudesServicio />} />
+          <Route path="/socio/solicitudes-servicio/nueva" element={<SocioSolicitudServicioNueva />} />
+          <Route path="/socio/mis-servicios" element={<SocioServicios />} />
+          <Route path="/socio/mis-mediciones" element={<SocioMediciones />} />
+          <Route path="/socio/perfil" element={<SocioPerfil />} />
+          <Route path="/socio/turnos" element={<MisTurnos />} />
+          <Route path="/socio/turnos/nuevo" element={<Navigate to="/socio/turnos?nuevo=1" replace />} />
         </Route>
 
         <Route element={<ProtectedRoute role="Admin" />}>
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/socios" element={<AdminSocios />} />
+          <Route path="/admin/empleados" element={<AdminEmpleados />} />
           <Route path="/admin/facturas" element={<AdminFacturas />} />
           <Route path="/admin/servicios" element={<AdminServicios />} />
           <Route path="/admin/pagos" element={<AdminPagos />} />
           <Route path="/admin/anuncios" element={<AdminAnuncios />} />
+          <Route path="/admin/reclamos" element={<AdminReclamos />} />
           <Route path="/admin/reportes" element={<AdminReportes />} />
           <Route path="/admin/lecturas" element={<AdminLecturas />} />
+          <Route path="/admin/rutas-medicion" element={<AdminRutasMedicion />} />
+          <Route path="/admin/solicitudes-servicio" element={<AdminSolicitudesServicio />} />
+          <Route path="/admin/requisitos-servicio" element={<AdminRequisitosServicio />} />
+          <Route path="/admin/medidores" element={<AdminMedidores />} />
+          <Route path="/admin/turnos" element={<AdminTurnos />} />
+        </Route>
+
+        <Route element={<ProtectedRoute role="Empleado" />}>
+          <Route path="/empleado" element={<EmpleadoDashboard />} />
+          <Route element={<CargoProtectedRoute />}>
+            <Route path="/empleado/anuncios" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/cobranzas" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/documentacion" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/facturas" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/hoja-ruta" element={<EmpleadoHojaRuta />} />
+            <Route path="/empleado/incidencias" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/indicadores" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/instalaciones" element={<EmpleadoInstalaciones />} />
+            <Route path="/empleado/mediciones" element={<EmpleadoMediciones />} />
+            <Route path="/empleado/medidores" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/operaciones" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/pagos" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/reclamos" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/reportes" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/rutas-medicion" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/servicios" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/solicitudes-servicio" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/solicitudes-tecnicas" element={<EmpleadoSolicitudesTecnicas />} />
+            <Route path="/empleado/soporte" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/supervision" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/turnos" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/usuarios" element={<EmpleadoCargoVista />} />
+          </Route>
         </Route>
 
         <Route path="*" element={<NotFound />} />

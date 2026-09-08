@@ -14,14 +14,37 @@ function getAuthHeaders() {
 
 async function jsonFetch(url, options = {}) {
   const res = await fetch(url, {
-    headers: { ...getAuthHeaders(), ...(options.headers || {}) },
-    ...options
+    ...options,
+    headers: { ...getAuthHeaders(), ...(options.headers || {}) }
   })
   if (!res.ok) {
     const errorText = await res.text()
     throw new Error(errorText || `HTTP ${res.status}`)
   }
   return res.status === 204 ? null : res.json()
+}
+
+function pickFirst(...values) {
+  return values.find((value) => value !== undefined && value !== null)
+}
+
+function normalizeBoolean(value, fallback = true) {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value === 1
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (['true', '1', 'activo', 'activa', 'si', 'sí'].includes(normalized)) return true
+    if (['false', '0', 'inactivo', 'inactiva', 'no'].includes(normalized)) return false
+  }
+  return fallback
+}
+
+function normalizeSocio(socio) {
+  return {
+    ...socio,
+    idSocio: pickFirst(socio.idSocio, socio.IdSocio, socio.id),
+    Activo: normalizeBoolean(pickFirst(socio.Activo, socio.activo, socio.EstadoActivo), true)
+  }
 }
 
 export function useSocios(autoLoad = true) {
@@ -34,9 +57,12 @@ export function useSocios(autoLoad = true) {
     setLoading(true)
     try {
       const data = await jsonFetch(apiUrl('/socio'))
-      setSocios(data)
+      const normalized = Array.isArray(data) ? data.map(normalizeSocio) : []
+      setSocios(normalized)
+      return normalized
     } catch (error) {
       console.error('Error al obtener socios', error)
+      return []
     } finally {
       setLoading(false)
     }
@@ -47,8 +73,10 @@ export function useSocios(autoLoad = true) {
     try {
       const data = await jsonFetch(apiUrl('/servicio'))
       setServicios(data)
+      return Array.isArray(data) ? data : []
     } catch (error) {
       console.error('Error al obtener servicios', error)
+      return []
     } finally {
       setLoadingServicios(false)
     }
@@ -77,7 +105,7 @@ export function useSocios(autoLoad = true) {
   const eliminarSocio = useCallback(
     async (id) => {
       await jsonFetch(apiUrl(`/socio/${id}`), { method: 'DELETE' })
-      setSocios((prev) => prev.filter((s) => s.idSocio !== id))
+      setSocios((prev) => prev.map((s) => (s.idSocio === id ? { ...s, Activo: false } : s)))
     },
     []
   )
@@ -87,6 +115,10 @@ export function useSocios(autoLoad = true) {
       method: 'POST',
       body: JSON.stringify(serviciosIds)
     })
+  }, [])
+
+  const fetchServiciosSocio = useCallback(async (idSocio) => {
+    return jsonFetch(apiUrl(`/serviciosocio/${idSocio}`))
   }, [])
 
   const toggleEstadoSocio = useCallback(
@@ -117,6 +149,7 @@ export function useSocios(autoLoad = true) {
     editarSocio,
     eliminarSocio,
     asignarServicios,
+    fetchServiciosSocio,
     toggleEstadoSocio
   }
 }

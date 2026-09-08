@@ -1,53 +1,93 @@
-import React from 'react'
+import React, { useMemo } from 'react'
+import { Edit3, Mail, Phone, Trash2 } from 'lucide-react'
+import DataTable from '@/components/DataTable.jsx'
 
 export default function TablaSocios({ socios, onEditar, onEliminar, onToggleEstado }) {
-  return (
-    <table className="w-full border rounded">
-      <thead className="bg-gray-100">
-        <tr>
-          <th className="px-3 py-2">ID</th>
-          <th className="px-3 py-2">Nombre</th>
-          <th className="px-3 py-2">Documento</th>
-          <th className="px-3 py-2">Teléfono</th>
-          <th className="px-3 py-2">Email</th>
-          <th className="px-6 py-3 text-center">Estado</th>
-          <th className="px-3 py-2 text-center">Acciones</th>
-        </tr>
-      </thead>
-      <tbody>
-        {socios.map((socio) => (
-          <tr key={socio.idSocio} className="border-b hover:bg-gray-50">
-            <td className="px-3 py-2">{socio.idSocio}</td>
-            <td className="px-3 py-2">
-              {socio.Persona?.Nombre} {socio.Persona?.Apellido}
-            </td>
-            <td className="px-3 py-2">{socio.Persona?.Documento}</td>
-            <td className="px-3 py-2">{socio.Persona?.Telefono}</td>
-            <td className="px-3 py-2">{socio.Persona?.Email}</td>
-            <td className="px-6 py-3 text-center">
-              <label className="inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  checked={!!socio.Activo}
-                  onChange={() => onToggleEstado(socio)}
-                />
-                <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:bg-green-500 relative transition">
-                  <span className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transform peer-checked:translate-x-5 transition" />
-                </div>
-              </label>
-            </td>
-            <td className="px-3 py-2 text-center space-x-2">
-              <button onClick={() => onEditar(socio)} className="text-blue-600 hover:text-blue-800">
-                ✏️
+  const columns = useMemo(
+    () => [
+      {
+        accessorKey: 'idSocio',
+        header: 'ID',
+        cell: ({ getValue }) => <span className="text-xs font-semibold text-gray-500">#{getValue()}</span>
+      },
+      {
+        id: 'nombre',
+        header: 'Socio',
+        accessorFn: (socio) => `${socio.Persona?.Nombre || ''} ${socio.Persona?.Apellido || ''}`.trim(),
+        cell: ({ row, getValue }) => (
+          <div className="min-w-0">
+            <p className="truncate font-semibold text-gray-900">{getValue() || 'Sin nombre'}</p>
+            <p className="text-xs text-gray-500">Doc. {row.original.Persona?.Documento || 'No informado'}</p>
+          </div>
+        )
+      },
+      {
+        id: 'contacto',
+        header: 'Contacto',
+        accessorFn: (socio) => `${socio.Persona?.Telefono || ''} ${socio.Persona?.Email || ''}`.trim(),
+        cell: ({ row }) => (
+          <div className="space-y-1 text-xs text-gray-600">
+            <p className="flex items-center gap-1.5">
+              <Phone className="h-3.5 w-3.5 text-gray-400" />
+              {row.original.Persona?.Telefono || 'Sin telefono'}
+            </p>
+            <p className="flex items-center gap-1.5">
+              <Mail className="h-3.5 w-3.5 text-gray-400" />
+              <span className="max-w-[220px] truncate">{row.original.Persona?.Email || 'Sin email'}</span>
+            </p>
+          </div>
+        )
+      },
+      {
+        id: 'estado',
+        header: 'Estado',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const socio = row.original
+          return (
+            <button
+              type="button"
+              onClick={() => onToggleEstado(socio)}
+              className={`inline-flex min-w-[82px] justify-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                socio.Activo ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'
+              }`}
+            >
+              {socio.Activo ? 'Activo' : 'Inactivo'}
+            </button>
+          )
+        }
+      },
+      {
+        id: 'acciones',
+        header: 'Acciones',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const socio = row.original
+          return (
+            <div className="flex justify-end gap-1.5">
+              <button
+                type="button"
+                onClick={() => onEditar(socio)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-blue-600 hover:bg-blue-50"
+                aria-label="Editar socio"
+              >
+                <Edit3 className="h-4 w-4" />
               </button>
-              <button onClick={() => onEliminar(socio)} className="text-red-600 hover:text-red-800">
-                🗑️
+              <button
+                type="button"
+                onClick={() => onEliminar(socio)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-red-600 hover:bg-red-50"
+                aria-label="Eliminar socio"
+              >
+                <Trash2 className="h-4 w-4" />
               </button>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+            </div>
+          )
+        }
+      }
+    ],
+    [onEditar, onEliminar, onToggleEstado]
   )
+
+  return <DataTable columns={columns} data={socios} emptyMessage="No hay socios para mostrar." />
 }

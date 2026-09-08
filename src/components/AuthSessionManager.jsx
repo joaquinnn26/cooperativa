@@ -9,9 +9,14 @@ const EXPIRATION_MESSAGE = 'Tu sesión expiró y tenés que iniciar sesión nuev
 export default function AuthSessionManager() {
   const token = useAuthStore((state) => state.token)
   const logout = useAuthStore((state) => state.logout)
+  const verifySession = useAuthStore((state) => state.verifySession)
   const addNotification = useAppStore((state) => state.addNotification)
   const navigate = useNavigate()
   const location = useLocation()
+
+  useEffect(() => {
+    if (token) verifySession()
+  }, [token, verifySession])
 
   useEffect(() => {
     if (!token) return undefined
@@ -19,8 +24,6 @@ export default function AuthSessionManager() {
     const expiresAt = getTokenExpiration(token)
 
     if (!expiresAt) {
-      logout()
-      navigate('/login', { replace: true, state: { expired: true } })
       return undefined
     }
 

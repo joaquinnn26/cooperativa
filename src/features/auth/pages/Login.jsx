@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { LogIn } from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
 import useAppStore from '@/store/appStore.js'
+import { cleanText, FIELD_LIMITS, firstValidationError, validateEmail, validateRequired } from '@/utils/validation.js'
 
 export default function Login() {
   const login = useAuthStore((state) => state.login)
@@ -15,41 +16,50 @@ export default function Login() {
     password: '',
     remember: false
   })
-
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target
+  const handleChange = (event) => {
+    const { name, value, type, checked } = event.target
     setForm((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }))
   }
 
-  const handleLogin = async (e) => {
-    e.preventDefault()
+  const handleLogin = async (event) => {
+    event.preventDefault()
+
+    const validationError = firstValidationError([
+      validateEmail(form.email),
+      validateRequired(form.password, 'La contrasena')
+    ])
+
+    if (validationError) {
+      addNotification({ title: 'Datos invalidos', message: validationError, type: 'error' })
+      return
+    }
+
     setIsLoading(true)
 
     try {
-      const data = await login(form)
+      const data = await login({
+        ...form,
+        email: cleanText(form.email).toLowerCase()
+      })
 
       addNotification({
-        title: '¡Bienvenido!',
-        message: data.mensaje || 'Has iniciado sesión correctamente',
+        title: 'Bienvenido',
+        message: data.mensaje || 'Has iniciado sesion correctamente.',
         type: 'success'
       })
 
       const rol = data.rol
-
-      const redirect =
-        location.state?.from?.pathname ||
-        (rol === 'Admin' ? '/admin' : '/socio')
-
+      const redirect = rol === 'Administrador' ? '/admin' : rol === 'Empleado' ? '/empleado' : '/socio'
       navigate(redirect, { replace: true })
     } catch (error) {
       addNotification({
         title: 'Error',
-        message: 'Credenciales incorrectas',
+        message: error.message || 'Credenciales incorrectas.',
         type: 'error'
       })
     } finally {
@@ -58,84 +68,81 @@ export default function Login() {
   }
 
   return (
-    <div className="max-w-md mx-auto py-10 px-4">
+    <div className="mx-auto max-w-md px-4 py-10">
       <div className="card">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <LogIn className="w-8 h-8 text-white" />
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-600">
+            <LogIn className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Iniciar Sesión</h1>
+          <h1 className="mb-2 text-2xl font-bold text-gray-900">Iniciar sesion</h1>
           <p className="text-gray-600">Accede a tu cuenta</p>
         </div>
 
         {location.state?.expired ? (
           <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Tu sesión expiró. Tenés que iniciar sesión nuevamente para continuar.
+            Tu sesion expiro. Tienes que iniciar sesion nuevamente para continuar.
           </div>
         ) : null}
 
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Correo Electrónico
-            </label>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Correo electronico</label>
             <input
               name="email"
               value={form.email}
               onChange={handleChange}
               type="email"
               required
+              minLength={FIELD_LIMITS.email.min}
+              maxLength={FIELD_LIMITS.email.max}
               className="input-field"
               placeholder="tu@email.com"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Contraseña
-            </label>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Contrasena</label>
             <input
               name="password"
               value={form.password}
               onChange={handleChange}
               type="password"
               required
+              minLength={FIELD_LIMITS.password.min}
+              maxLength={FIELD_LIMITS.password.max}
               className="input-field"
-              placeholder="Tu contraseña"
+              placeholder="Tu contrasena"
             />
+            <div className="mt-2 text-right">
+              <Link to="/recuperar-contrasena" className="text-sm font-medium text-blue-600 hover:text-blue-500">
+                Olvide mi contrasena
+              </Link>
+            </div>
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-start">
             <label className="flex items-center text-sm text-gray-700">
               <input
                 name="remember"
                 checked={form.remember}
                 onChange={handleChange}
                 type="checkbox"
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                className="h-4 w-4 rounded border-gray-300 text-blue-600"
               />
               <span className="ml-2">Recordarme</span>
             </label>
-
-            <Link to="/forgot-password" className="text-sm text-blue-600">
-              ¿Olvidaste tu contraseña?
-            </Link>
           </div>
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full btn-primary disabled:opacity-50"
-          >
-            {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+          <button type="submit" disabled={isLoading} className="w-full btn-primary disabled:opacity-50">
+            {isLoading ? 'Iniciando sesion...' : 'Iniciar sesion'}
           </button>
         </form>
 
         <div className="mt-6 text-center">
           <p className="text-gray-600">
-            ¿No tienes cuenta?
-            <Link to="/register" className="text-blue-600 font-medium ml-1">
-              Regístrate
+            No tienes cuenta?
+            <Link to="/register" className="ml-1 font-medium text-blue-600">
+              Registrate
             </Link>
           </p>
         </div>

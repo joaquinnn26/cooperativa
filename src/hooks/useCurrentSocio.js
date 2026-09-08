@@ -33,9 +33,22 @@ function findSocioIdInClaims(token) {
 export function useCurrentSocio() {
   const token = useAuthStore((state) => state.token)
   const usuario = useAuthStore((state) => state.usuario)
+  const email = useAuthStore((state) => state.email)
   const rol = useAuthStore((state) => state.rol)
+  const storedSocioId = useAuthStore((state) => state.idSocio)
+  const setResolvedSocioId = useAuthStore((state) => state.setResolvedSocioId)
 
-  const [socioId, setSocioId] = useState(() => findSocioIdInClaims(token))
+  const [socioId, setSocioId] = useState(() => {
+    const tokenSocioId = findSocioIdInClaims(token)
+    if (tokenSocioId) return tokenSocioId
+
+    const numericStoredSocioId = Number(storedSocioId)
+    if (Number.isInteger(numericStoredSocioId) && numericStoredSocioId > 0) {
+      return numericStoredSocioId
+    }
+
+    return null
+  })
   const [loadingSocio, setLoadingSocio] = useState(false)
 
   const resolveSocioId = useCallback(async () => {
@@ -45,8 +58,15 @@ export function useCurrentSocio() {
       return tokenSocioId
     }
 
-    if (!token || !usuario || rol !== 'Socio') {
+    const numericStoredSocioId = Number(storedSocioId)
+    if (Number.isInteger(numericStoredSocioId) && numericStoredSocioId > 0) {
+      setSocioId(numericStoredSocioId)
+      return numericStoredSocioId
+    }
+
+    if ((!usuario && !email) || rol !== 'Socio') {
       setSocioId(null)
+      setResolvedSocioId(null)
       return null
     }
 
@@ -63,15 +83,22 @@ export function useCurrentSocio() {
       }
 
       const socios = await res.json()
-      const socioActual = socios.find((socio) => String(socio.Persona?.Documento) === String(usuario))
+      const socioActual = socios.find((socio) => {
+        if (email) {
+          return String(socio.Persona?.Email || '').toLowerCase() === String(email).toLowerCase()
+        }
+
+        return String(socio.Usuario || socio.UsuarioSistema || socio.Persona?.Documento) === String(usuario)
+      })
       const resolvedId = socioActual?.idSocio ?? null
 
       setSocioId(resolvedId)
+      setResolvedSocioId(resolvedId)
       return resolvedId
     } finally {
       setLoadingSocio(false)
     }
-  }, [rol, token, usuario])
+  }, [email, rol, setResolvedSocioId, storedSocioId, token, usuario])
 
   useEffect(() => {
     resolveSocioId().catch((error) => {

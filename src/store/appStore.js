@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { showToast } from '@/utils/alerts.js'
 
 const useAppStore = create((set, get) => ({
   isLoading: false,
@@ -9,6 +10,8 @@ const useAppStore = create((set, get) => ({
 
   addNotification: (notification) => {
     const id = notification.id ?? Date.now()
+    showToast(notification)
+
     set((state) => ({
       notifications: [...state.notifications, { id, ...notification }]
     }))
