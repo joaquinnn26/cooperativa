@@ -21,6 +21,7 @@ function normalizeLoginResponse(data) {
       data?.Nombre ??
       (data?.usuario != null ? String(data.usuario) : data?.Usuario != null ? String(data.Usuario) : ''),
     rol: normalizeRole(data?.rol ?? data?.Rol),
+    altaSocio: data?.altaSocio ?? null,
     cargo: data?.cargo ?? data?.Cargo ?? null,
     idSocio: data?.idSocio ?? data?.IdSocio ?? null,
     areas: Array.isArray(data?.areas) ? data.areas : [],
@@ -58,6 +59,7 @@ if (!initialToken) clearSessionStorage()
 const useAuthStore = create((set) => ({
   token: initialToken,
   rol: null,
+  altaSocio: null,
   cargo: null,
   usuario: null,
   email: null,
@@ -74,6 +76,7 @@ const useAuthStore = create((set) => ({
       set({
         token: null,
         rol: null,
+        altaSocio: null,
         cargo: null,
         usuario: null,
         email: null,
@@ -99,6 +102,7 @@ const useAuthStore = create((set) => ({
       set({
         token,
         rol: data.rol,
+        altaSocio: data.altaSocio,
         cargo: data.cargo != null ? String(data.cargo) : null,
         usuario: data.usuario,
         email: data.email || null,
@@ -114,6 +118,7 @@ const useAuthStore = create((set) => ({
       set({
         token: null,
         rol: null,
+        altaSocio: null,
         cargo: null,
         usuario: null,
         email: null,
@@ -153,6 +158,7 @@ const useAuthStore = create((set) => ({
     set({
       token: data.token,
       rol: data.rol,
+      altaSocio: data.altaSocio,
       cargo: data.cargo != null ? String(data.cargo) : null,
       usuario: String(data.usuario),
       email: form.email,
@@ -179,7 +185,8 @@ const useAuthStore = create((set) => ({
         Email: form.email,
         Telefono: form.telefono,
         Calle: form.calle,
-        Numero: form.numero
+        Numero: form.numero,
+        EsTitular: form.esTitular === true || form.esTitular === 'si'
       })
     })
 
@@ -196,6 +203,7 @@ const useAuthStore = create((set) => ({
     set({
       token: null,
       rol: null,
+      altaSocio: null,
       cargo: null,
       usuario: null,
       email: null,
@@ -206,6 +214,8 @@ const useAuthStore = create((set) => ({
       sessionStatus: 'anonymous'
     })
   },
+
+  updateAltaSocio: (altaSocio) => set({ altaSocio }),
 
   setResolvedEmpleadoId: (idEmpleado) => {
     if (idEmpleado != null) {

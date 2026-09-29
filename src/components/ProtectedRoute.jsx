@@ -2,11 +2,13 @@ import React from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import useAuthStore from '@/store/authStore.js'
 import { hasActiveSession, rolesMatch } from '@/utils/auth.js'
+import { tieneAltaPendiente } from '@/utils/altaSocio.js'
 
 export default function ProtectedRoute({ role, roles }) {
   const location = useLocation()
   const token = useAuthStore((state) => state.token)
   const rol = useAuthStore((state) => state.rol)
+  const altaSocio = useAuthStore((state) => state.altaSocio)
   const sessionStatus = useAuthStore((state) => state.sessionStatus)
 
   if (sessionStatus === 'checking') {
@@ -21,5 +23,8 @@ export default function ProtectedRoute({ role, roles }) {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
 
+  if (tieneAltaPendiente(rol, altaSocio) && location.pathname !== '/socio/alta') {
+    return <Navigate to="/socio/alta" replace />
+  }
   return <Outlet />
 }

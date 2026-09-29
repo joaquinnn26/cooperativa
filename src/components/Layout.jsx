@@ -30,6 +30,7 @@ import AuthSessionManager from './AuthSessionManager.jsx'
 import PublicAnnouncementsBanner from './PublicAnnouncementsBanner.jsx'
 import { getDefaultRouteByRole, normalizeCargo, normalizeRole } from '@/utils/auth.js'
 import { rutasLaborales } from '@/utils/laboralPermissions.js'
+import { tieneAltaPendiente } from '@/utils/altaSocio.js'
 
 const employeeIconByPath = {
   '/empleado/anuncios': Megaphone,
@@ -65,6 +66,7 @@ function buildPanelSections(role, areas) {
       { to: '/admin/organizacion', label: 'Áreas, funciones y encargados', icon: Users },
       { to: '/admin/empleados', label: 'Empleados y acceso laboral', icon: Users },
       { to: '/admin/socios', label: 'Socios', icon: Users },
+      { to: '/admin/altas-socio', label: 'Altas de socios', icon: FileText },
       { to: '/admin/servicios', label: 'Servicios', icon: Settings },
       { to: '/admin/medidores', label: 'Inventario de medidores', icon: Gauge },
       { to: '/admin/territorio', label: 'Conexiones y territorio', icon: MapPinned },
@@ -111,11 +113,13 @@ export default function Layout() {
   const areas = useAuthStore(state => state.areas)
   const logout = useAuthStore((state) => state.logout)
   const rol = useAuthStore((state) => state.rol)
+  const altaSocio = useAuthStore((state) => state.altaSocio)
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
 
   const normalizedRole = normalizeRole(rol)
-  const panelPath = getDefaultRouteByRole(normalizedRole)
+  const altaPendiente = tieneAltaPendiente(normalizedRole, altaSocio)
+  const panelPath = altaPendiente ? '/socio/alta' : getDefaultRouteByRole(normalizedRole)
   const isPanelRoute =
     /^\/(admin|socio|empleado)(\/|$)/.test(location.pathname) ||
     (normalizedRole === 'Socio' && location.pathname === '/facturas')
@@ -124,7 +128,9 @@ export default function Layout() {
     ['Administrador', 'Socio'].includes(normalizedRole) &&
     isPanelRoute &&
     location.pathname !== panelPath
-  const sections = useMemo(() => buildPanelSections(normalizedRole, areas), [normalizedRole, areas])
+  const sections = useMemo(() => altaPendiente
+    ? [{ title: 'Mi registro', items: [{ to: '/socio/alta', label: 'Mi alta y documentación', icon: FileText }] }]
+    : buildPanelSections(normalizedRole, areas), [normalizedRole, areas, altaPendiente])
   const currentLabel = useMemo(() => findCurrentLabel(sections, location.pathname), [sections, location.pathname])
 
   const displayRole =

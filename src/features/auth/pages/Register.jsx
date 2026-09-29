@@ -20,6 +20,7 @@ export default function Register() {
   const register = useAuthStore((state) => state.register)
   const addNotification = useAppStore((state) => state.addNotification)
   const navigate = useNavigate()
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [form, setForm] = useState({
     documento: '',
@@ -29,6 +30,7 @@ export default function Register() {
     telefono: '',
     calle: '',
     numero: '',
+    esTitular: '',
     accept: false
   })
 
@@ -39,6 +41,7 @@ export default function Register() {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+    if (isSubmitting) return
 
     const validationError = firstValidationError([
       validateDocument(form.documento),
@@ -48,6 +51,7 @@ export default function Register() {
       validateEmail(form.email),
       validateAddress(form.calle),
       validateHouseNumber(form.numero),
+      !['si', 'no'].includes(form.esTitular) ? 'Indicá si sos titular del domicilio.' : '',
       !form.accept ? 'Debes aceptar los terminos y condiciones.' : ''
     ])
 
@@ -56,6 +60,7 @@ export default function Register() {
       return
     }
 
+    setIsSubmitting(true)
     try {
       const data = await register({
         ...form,
@@ -72,7 +77,7 @@ export default function Register() {
         title: 'Cuenta creada',
         message: `Tus credenciales:\n\nUsuario: ${data.usuario}\nContrasena temporal: ${
           data.passwordTemporal || ''
-        }\n\nGuarda esta informacion en un lugar seguro.`,
+          }\n\nGuardá esta información. Iniciá sesión y presentá la constancia de domicilio y el DNI de frente y dorso. El panel completo se habilitará cuando Administración apruebe tu alta.`,
         type: 'success'
       })
 
@@ -83,6 +88,8 @@ export default function Register() {
         message: error.message || 'No se pudo completar el registro.',
         type: 'error'
       })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -94,7 +101,7 @@ export default function Register() {
             <UserPlus className="h-8 w-8 text-white" />
           </div>
           <h1 className="mb-2 text-2xl font-bold text-gray-900">Crear cuenta</h1>
-          <p className="text-gray-600">Registrate para gestionar tus servicios.</p>
+          <p className="text-gray-600">Creá tu cuenta para presentar la documentación y solicitar el alta de socio.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -207,6 +214,12 @@ export default function Register() {
             </div>
           </div>
 
+          <label className="block text-sm font-medium text-gray-700">¿Sos titular del domicilio?
+            <select name="esTitular" className="input-field mt-2" required value={form.esTitular} onChange={handleChange}>
+              <option value="">Seleccioná una opción</option><option value="si">Sí, soy titular</option><option value="no">No soy titular</option>
+            </select>
+          </label>
+
           <label className="flex items-start space-x-3 text-sm text-gray-700">
             <input
               type="checkbox"
@@ -224,8 +237,8 @@ export default function Register() {
             </span>
           </label>
 
-          <button type="submit" className="w-full btn-primary">
-            Crear cuenta
+          <button type="submit" disabled={isSubmitting} className="w-full btn-primary disabled:opacity-50">
+            {isSubmitting ? 'Creando cuenta…' : 'Crear cuenta'}
           </button>
         </form>
 
