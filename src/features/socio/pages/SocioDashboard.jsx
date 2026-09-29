@@ -180,7 +180,7 @@ export default function SocioDashboard() {
     usuario
   ])
 
-  const pendingBills = useMemo(() => bills.filter((bill) => bill.status !== 'paid'), [bills])
+  const pendingBills = useMemo(() => bills.filter((bill) => bill.status === 'pending'), [bills])
   const totalPendingAmount = useMemo(
     () => pendingBills.reduce((total, bill) => total + Number(bill.amount || 0), 0),
     [pendingBills]
@@ -290,7 +290,7 @@ export default function SocioDashboard() {
       {
         to: '/facturas',
         title: 'Facturas',
-        description: pendingBills.length ? `${pendingBills.length} pendiente${pendingBills.length === 1 ? '' : 's'}` : 'Sin pendientes',
+        description: pendingBills.length ? `${pendingBills.length} pendiente${pendingBills.length === 1 ? '' : 's'}` : 'Consultar estados confirmados',
         icon: Receipt,
         classes: 'border-amber-100 bg-amber-50 text-amber-700'
       },
@@ -346,8 +346,9 @@ export default function SocioDashboard() {
     window.open(bill.paymentLink, '_blank', 'noopener,noreferrer')
   }
 
-  const BillingStatusIcon = pendingBills.length ? AlertTriangle : CheckCircle2
-  const billingStatus = pendingBills.length
+  const unverifiedBills = bills.filter(b => b.status === 'unverified')
+  const BillingStatusIcon = pendingBills.length || unverifiedBills.length ? AlertTriangle : CheckCircle2
+  const billingStatus = unverifiedBills.length ? { label: 'Confirmación pendiente', title: 'Hay facturas sin estado confirmado', description: 'Consultá Mis facturas. La actualización de pagos depende de la integración con contabilidad.', amount: 'Sin confirmar', panel: 'border-amber-200 bg-amber-50', icon: 'bg-amber-100 text-amber-700' } : pendingBills.length
     ? {
         label: 'Requiere atencion',
         title: `${pendingBills.length} factura${pendingBills.length === 1 ? '' : 's'} pendiente${pendingBills.length === 1 ? '' : 's'}`,
@@ -362,8 +363,8 @@ export default function SocioDashboard() {
       }
     : {
         label: 'Sin deuda',
-        title: 'Cuenta al dia',
-        description: 'No hay facturas pendientes cargadas.',
+        title: 'Sin pendientes confirmados',
+        description: 'No hay facturas con estado pendiente confirmado en esta consulta.',
         amount: '$0',
         panel: 'border-emerald-200 bg-emerald-50',
         icon: 'bg-emerald-100 text-emerald-700',

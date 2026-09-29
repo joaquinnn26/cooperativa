@@ -41,6 +41,7 @@ export const EMPLOYEE_CARGO_PERMISSIONS = {
     label: 'Tecnico',
     summary: 'Atiende instalaciones, revisiones tecnicas y solicitudes aprobadas.',
     routes: [
+      { to: '/empleado/medidores', label: 'Medidores', description: 'Consulta fichas y registra movimientos de medidores.', status: 'active' },
       {
         to: '/empleado/solicitudes-tecnicas',
         label: 'Solicitudes tecnicas',

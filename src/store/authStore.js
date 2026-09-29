@@ -23,6 +23,7 @@ function normalizeLoginResponse(data) {
     rol: normalizeRole(data?.rol ?? data?.Rol),
     cargo: data?.cargo ?? data?.Cargo ?? null,
     idSocio: data?.idSocio ?? data?.IdSocio ?? null,
+    areas: Array.isArray(data?.areas) ? data.areas : [],
     idEmpleado: data?.idEmpleado ?? data?.IdEmpleado ?? null
   }
 }
@@ -63,6 +64,7 @@ const useAuthStore = create((set) => ({
   nombre: null,
   idSocio: null,
   idEmpleado: null,
+        areas: [],
   sessionStatus: initialToken ? 'checking' : 'anonymous',
 
   verifySession: async () => {
@@ -78,6 +80,7 @@ const useAuthStore = create((set) => ({
         nombre: null,
         idSocio: null,
         idEmpleado: null,
+        areas: [],
         sessionStatus: 'anonymous'
       })
       return false
@@ -102,6 +105,7 @@ const useAuthStore = create((set) => ({
         nombre: data.nombre,
         idSocio: data.idSocio != null ? String(data.idSocio) : null,
         idEmpleado: data.idEmpleado != null ? String(data.idEmpleado) : null,
+        areas: data.areas,
         sessionStatus: 'authenticated'
       })
       return true
@@ -116,6 +120,7 @@ const useAuthStore = create((set) => ({
         nombre: null,
         idSocio: null,
         idEmpleado: null,
+        areas: [],
         sessionStatus: 'anonymous'
       })
       return false
@@ -130,13 +135,14 @@ const useAuthStore = create((set) => ({
       },
       body: JSON.stringify({
         email: form.email,
-        password: form.password
+        password: form.password,
+        TipoAcceso: form.tipoAcceso
       })
     })
 
     if (!res.ok) {
-      const errorText = await res.text()
-      throw new Error(errorText || 'Login error')
+      const error = await res.json().catch(() => null)
+      throw new Error(error?.Message || error?.message || 'No se pudo iniciar sesión.')
     }
 
     const data = normalizeLoginResponse(await res.json())
@@ -153,7 +159,8 @@ const useAuthStore = create((set) => ({
       nombre: data.nombre,
       idSocio: data.idSocio != null ? String(data.idSocio) : null,
       idEmpleado: data.idEmpleado != null ? String(data.idEmpleado) : null,
-      sessionStatus: 'authenticated'
+      areas: data.areas,
+        sessionStatus: 'authenticated'
     })
 
     return data
@@ -195,6 +202,7 @@ const useAuthStore = create((set) => ({
       nombre: null,
       idSocio: null,
       idEmpleado: null,
+        areas: [],
       sessionStatus: 'anonymous'
     })
   },

@@ -93,9 +93,6 @@ export default function SocioSolicitudServicioNueva() {
         if (cancelled) return
 
         const blockedIds = new Set([
-          ...(currentServices || [])
-            .filter(isBlockingServiceAssignment)
-            .map((item) => String(item.idServicio)),
           ...(currentRequests || [])
             .filter(isBlockingServiceRequest)
             .map((item) => String(item.idServicio))
@@ -203,7 +200,7 @@ export default function SocioSolicitudServicioNueva() {
       !isPositiveNumber(form.idServicio) ? 'Selecciona un servicio valido.' : '',
       validateMeaningfulText(form.observaciones, 'Las observaciones', FIELD_LIMITS.longText),
       missingFiles.length ? 'Debes adjuntar un archivo por cada requisito.' : '',
-      selectedServiceBlocked ? 'Ya tenes ese servicio activo o una solicitud en curso.' : ''
+      selectedServiceBlocked ? 'Ya tenés una solicitud pendiente para este servicio.' : ''
     ])
 
     if (validationError || !resolvedSocioId) {
@@ -279,7 +276,7 @@ export default function SocioSolicitudServicioNueva() {
             </select>
             {!loadingServices && !services.length ? (
               <p className="mt-2 text-sm text-gray-500">
-                Ya tenes activos o en tramite todos los servicios disponibles.
+                Ya tenés solicitudes pendientes para los servicios disponibles.
               </p>
             ) : null}
           </div>

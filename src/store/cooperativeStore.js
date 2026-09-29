@@ -327,64 +327,22 @@ const useCooperativeStore = create(
         set((state) => ({ ...state, bills: normalized }))
         return normalized
       },
-      fetchBillsBySocio: async ({ idSocio = null, usuario = null } = {}) => {
-        if (idSocio != null) {
-          const data = await jsonFetch(apiUrl(`/factura/socio/${idSocio}`))
-          return ensureArray(data)
-            .map(normalizeBillFromApi)
-            .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
-        }
-
-        return (await get().fetchBills()).filter(
-          (bill) => usuario != null && String(bill.socioUsuario) === String(usuario)
-        )
-      },
-
-      createBill: async (payload) => {
-        const created = await jsonFetch(apiUrl('/factura'), {
-          method: 'POST',
-          body: JSON.stringify({
-            idSocio: Number(payload.idSocio),
-            idEmpleado: Number(payload.idEmpleado),
-            idServicio: Number(payload.idServicio),
-            MontoTotal: Number(payload.amount),
-            FechaCaducidad: payload.dueDate,
-            LinkPago: payload.paymentLink || '',
-            Observaciones: payload.observations || ''
-          })
-        })
-
-        await get().fetchBills()
-        return created
-      },
-
-      updateBill: async (payload) => {
-        const result = await jsonFetch(apiUrl(`/factura/${payload.id}`), {
-          method: 'PUT',
-          body: JSON.stringify({
-            idServicio: Number(payload.idServicio),
-            MontoTotal: Number(payload.amount),
-            FechaCaducidad: payload.dueDate,
-            LinkPago: payload.paymentLink || '',
-            Observaciones: payload.observations || ''
-          })
-        })
-
-        await get().fetchBills()
+      fetchBillsBySocio: async () => {
+        let result = [], page = 1, total = 0
+        do {
+          const data = await jsonFetch(apiUrl(`/laboral/facturas?pagina=${page}`))
+          total = data.total
+          result.push(...data.items.map(b => ({ id: b.idFactura, idSocio: b.idSocio, serviceName: b.Servicio, amount: b.MontoTotal, dueDate: b.FechaCaducidad, createdAt: b.FechaEmision, paymentLink: b.LinkPago, status: b.EstadoConfirmado === 'Pagada' ? 'paid' : b.EstadoConfirmado === 'Pendiente' ? 'pending' : b.EstadoConfirmado === 'Anulada' ? 'cancelled' : 'unverified', confirmedAt: b.FechaActualizacionUtc })))
+          page++
+          if (!data.items.length) break
+        } while (result.length < total)
         return result
       },
 
-      payBill: async (billId) => {
-        const result = await jsonFetch(apiUrl(`/factura/pagar/${billId}`), {
-          method: 'PUT',
-          body: JSON.stringify({
-            Pagada: true
-          })
-        })
+      createBill: async () => { throw new Error('La emisión de facturas corresponde al sistema externo.') },
+      updateBill: async () => { throw new Error('La actualización requiere la integración contable acordada.') },
+      payBill: async () => { throw new Error('El pago requiere confirmación verificable del sistema externo.') }
 
-        await get().fetchBills()
-        return result
-      }
     }),
     {
       name: 'cooperativa-billing'

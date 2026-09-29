@@ -1,3 +1,11 @@
+import LaboralPanel from '@/features/empleado/pages/LaboralPanel.jsx'
+import LaboralTarea from '@/features/empleado/pages/LaboralTarea.jsx'
+import LaboralFacturas from '@/features/empleado/pages/LaboralFacturas.jsx'
+import LaboralAtencion from '@/features/empleado/pages/LaboralAtencion.jsx'
+import LaboralLecturas from '@/features/empleado/pages/LaboralLecturas.jsx'
+import JefeRutas from '@/features/empleado/pages/JefeRutas.jsx'
+import AdminOrganizacionLaboral from '@/features/admin/pages/AdminOrganizacionLaboral.jsx'
+import SocioDocumentos from '@/features/socio/pages/SocioDocumentos.jsx'
 import React from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from '@/components/Layout.jsx'
@@ -18,24 +26,12 @@ import MisTurnos from '@/features/socio/pages/MisTurnos.jsx'
 import AdminDashboard from '@/features/admin/pages/AdminDashboard.jsx'
 import AdminSocios from '@/features/admin/pages/AdminSocios.jsx'
 import AdminEmpleados from '@/features/admin/pages/AdminEmpleados.jsx'
-import AdminFacturas from '@/features/admin/pages/AdminFacturas.jsx'
 import AdminServicios from '@/features/admin/pages/AdminServicios.jsx'
-import AdminPagos from '@/features/admin/pages/AdminPagos.jsx'
 import AdminAnuncios from '@/features/admin/pages/AdminAnuncios.jsx'
-import AdminReclamos from '@/features/admin/pages/AdminReclamos.jsx'
-import AdminReportes from '@/features/admin/pages/AdminReportes.jsx'
-import AdminLecturas from '@/features/admin/pages/AdminLecturas.jsx'
-import AdminSolicitudesServicio from '@/features/admin/pages/AdminSolicitudesServicio.jsx'
 import AdminRequisitosServicio from '@/features/admin/pages/AdminRequisitosServicio.jsx'
-import AdminMedidores from '@/features/admin/pages/AdminMedidores.jsx'
-import AdminRutasMedicion from '@/features/admin/pages/AdminRutasMedicion.jsx'
-import AdminTurnos from '@/features/admin/pages/AdminTurnos.jsx'
-import EmpleadoDashboard from '@/features/empleado/pages/EmpleadoDashboard.jsx'
-import EmpleadoMediciones from '@/features/empleado/pages/EmpleadoMediciones.jsx'
+import AdminMedidores from '@/features/admin/pages/AdminInventarioMedidores.jsx'
+import AdminTerritorio from '@/features/admin/pages/AdminTerritorio.jsx'
 import EmpleadoHojaRuta from '@/features/empleado/pages/EmpleadoHojaRuta.jsx'
-import EmpleadoInstalaciones from '@/features/empleado/pages/EmpleadoInstalaciones.jsx'
-import EmpleadoSolicitudesTecnicas from '@/features/empleado/pages/EmpleadoSolicitudesTecnicas.jsx'
-import EmpleadoCargoVista from '@/features/empleado/pages/EmpleadoCargoVista.jsx'
 import HelpCenter from '@/features/help/pages/HelpCenter.jsx'
 import ProtectedRoute from '@/components/ProtectedRoute.jsx'
 import CargoProtectedRoute from '@/components/CargoProtectedRoute.jsx'
@@ -96,6 +92,7 @@ export default function App() {
         </Route>
 
         <Route element={<ProtectedRoute role="Socio" />}>
+          <Route path="/socio/documentos" element={<SocioDocumentos />} />
           <Route path="/socio" element={<SocioDashboard />} />
           <Route path="/socio/reclamos" element={<ReclamosList />} />
           <Route path="/socio/reclamos/nuevo" element={<ReclamoNuevo />} />
@@ -109,48 +106,38 @@ export default function App() {
         </Route>
 
         <Route element={<ProtectedRoute role="Admin" />}>
+          <Route path="/admin/organizacion" element={<AdminOrganizacionLaboral />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/socios" element={<AdminSocios />} />
           <Route path="/admin/empleados" element={<AdminEmpleados />} />
-          <Route path="/admin/facturas" element={<AdminFacturas />} />
+          <Route path="/admin/facturas" element={<Navigate to="/empleado/facturas" replace />} />
           <Route path="/admin/servicios" element={<AdminServicios />} />
-          <Route path="/admin/pagos" element={<AdminPagos />} />
+          <Route path="/admin/pagos" element={<Navigate to="/empleado/facturas" replace />} />
           <Route path="/admin/anuncios" element={<AdminAnuncios />} />
-          <Route path="/admin/reclamos" element={<AdminReclamos />} />
-          <Route path="/admin/reportes" element={<AdminReportes />} />
-          <Route path="/admin/lecturas" element={<AdminLecturas />} />
-          <Route path="/admin/rutas-medicion" element={<AdminRutasMedicion />} />
-          <Route path="/admin/solicitudes-servicio" element={<AdminSolicitudesServicio />} />
+          <Route path="/admin/reclamos" element={<Navigate to="/empleado/areas/ADMINISTRACION" replace />} />
+          <Route path="/admin/reportes" element={<Navigate to="/empleado/reportes" replace />} />
+          <Route path="/admin/lecturas" element={<Navigate to="/empleado/mediciones" replace />} />
+          <Route path="/admin/rutas-medicion" element={<Navigate to="/empleado/rutas-medicion" replace />} />
+          <Route path="/admin/territorio" element={<AdminTerritorio />} />
+          <Route path="/admin/solicitudes-servicio" element={<Navigate to="/empleado/areas/ADMINISTRACION" replace />} />
           <Route path="/admin/requisitos-servicio" element={<AdminRequisitosServicio />} />
+          <Route path="/admin/instalaciones" element={<Navigate to="/empleado" replace />} />
           <Route path="/admin/medidores" element={<AdminMedidores />} />
-          <Route path="/admin/turnos" element={<AdminTurnos />} />
+          <Route path="/admin/turnos" element={<Navigate to="/empleado/atencion" replace />} />
         </Route>
 
-        <Route element={<ProtectedRoute role="Empleado" />}>
-          <Route path="/empleado" element={<EmpleadoDashboard />} />
+        <Route element={<ProtectedRoute roles={['Empleado', 'Administrador']} />}>
           <Route element={<CargoProtectedRoute />}>
-            <Route path="/empleado/anuncios" element={<EmpleadoCargoVista />} />
-            <Route path="/empleado/cobranzas" element={<EmpleadoCargoVista />} />
-            <Route path="/empleado/documentacion" element={<EmpleadoCargoVista />} />
-            <Route path="/empleado/facturas" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado" element={<LaboralPanel />} />
+            <Route path="/empleado/areas/:area" element={<LaboralPanel />} />
+            <Route path="/empleado/tareas/:id" element={<LaboralTarea />} />
+            <Route path="/empleado/atencion" element={<LaboralAtencion />} />
+            <Route path="/empleado/facturas" element={<LaboralFacturas />} />
             <Route path="/empleado/hoja-ruta" element={<EmpleadoHojaRuta />} />
-            <Route path="/empleado/incidencias" element={<EmpleadoCargoVista />} />
-            <Route path="/empleado/indicadores" element={<EmpleadoCargoVista />} />
-            <Route path="/empleado/instalaciones" element={<EmpleadoInstalaciones />} />
-            <Route path="/empleado/mediciones" element={<EmpleadoMediciones />} />
-            <Route path="/empleado/medidores" element={<EmpleadoCargoVista />} />
-            <Route path="/empleado/operaciones" element={<EmpleadoCargoVista />} />
-            <Route path="/empleado/pagos" element={<EmpleadoCargoVista />} />
-            <Route path="/empleado/reclamos" element={<EmpleadoCargoVista />} />
-            <Route path="/empleado/reportes" element={<EmpleadoCargoVista />} />
-            <Route path="/empleado/rutas-medicion" element={<EmpleadoCargoVista />} />
-            <Route path="/empleado/servicios" element={<EmpleadoCargoVista />} />
-            <Route path="/empleado/solicitudes-servicio" element={<EmpleadoCargoVista />} />
-            <Route path="/empleado/solicitudes-tecnicas" element={<EmpleadoSolicitudesTecnicas />} />
-            <Route path="/empleado/soporte" element={<EmpleadoCargoVista />} />
-            <Route path="/empleado/supervision" element={<EmpleadoCargoVista />} />
-            <Route path="/empleado/turnos" element={<EmpleadoCargoVista />} />
-            <Route path="/empleado/usuarios" element={<EmpleadoCargoVista />} />
+            <Route path="/empleado/medidores" element={<AdminMedidores />} />
+            <Route path="/empleado/mediciones" element={<LaboralLecturas />} />
+            <Route path="/empleado/rutas-medicion" element={<JefeRutas />} />
+            <Route path="/empleado/reportes" element={<LaboralPanel gerencia />} />
           </Route>
         </Route>
 

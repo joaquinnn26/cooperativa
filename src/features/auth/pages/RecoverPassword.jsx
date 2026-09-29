@@ -12,11 +12,11 @@ import {
   validateStrongPassword
 } from '@/utils/validation.js'
 
-async function tryRecoverPassword(email) {
+async function tryRecoverPassword(email, tipoAcceso) {
   const response = await fetch(apiUrl('/auth/recuperar-contrasena'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email })
+    body: JSON.stringify({ email, TipoAcceso: tipoAcceso })
   })
 
   const data = await response.json().catch(() => null)
@@ -45,6 +45,7 @@ async function resetPassword(payload) {
 export default function RecoverPassword() {
   const addNotification = useAppStore((state) => state.addNotification)
   const [email, setEmail] = useState(() => new URLSearchParams(window.location.search).get('email') || '')
+  const [tipoAcceso, setTipoAcceso] = useState('Socio')
   const [submitting, setSubmitting] = useState(false)
   const [resetForm, setResetForm] = useState(() => ({
     token: new URLSearchParams(window.location.search).get('token') || '',
@@ -64,7 +65,7 @@ export default function RecoverPassword() {
     setSubmitting(true)
 
     try {
-      const result = await tryRecoverPassword(cleanText(email).toLowerCase())
+      const result = await tryRecoverPassword(cleanText(email).toLowerCase(), tipoAcceso)
       if (result.resetToken) {
         setResetForm((current) => ({ ...current, token: result.resetToken }))
       }
@@ -144,6 +145,7 @@ export default function RecoverPassword() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
+            <label className="block mb-4">Cuenta a recuperar<select className="input-field" value={tipoAcceso} onChange={e => setTipoAcceso(e.target.value)}><option value="Socio">Personal de socio</option><option value="Empleado">Laboral</option><option value="Administrador">Administración del sistema</option></select></label>
             <label className="mb-2 block text-sm font-medium text-gray-700">Correo electronico</label>
             <input
               type="email"

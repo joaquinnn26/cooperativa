@@ -6,7 +6,7 @@ import { serviceRequiresInstallation } from '@/utils/serviceInstallation.js'
 const SERVICE_REQUEST_STATUSES = ['En revision', 'Pendiente instalacion', 'Aprobada', 'Cancelada', 'Rechazada']
 const CLOSED_SERVICE_REQUEST_STATUS_KEYS = new Set(['rechazada', 'rechazado', 'cancelada', 'cancelado'])
 const INACTIVE_SERVICE_ASSIGNMENT_STATUS_KEYS = new Set(['inactivo', 'inactiva', 'baja', 'cancelada', 'cancelado'])
-const DUPLICATE_SERVICE_REQUEST_MESSAGE = 'Ya tenes ese servicio activo o una solicitud en curso.'
+const DUPLICATE_SERVICE_REQUEST_MESSAGE = 'Ya tenés una solicitud pendiente para este servicio.'
 
 const mockServices = [
   {
@@ -230,15 +230,6 @@ function findBlockingServiceRequest(payload, state) {
   const socioRef = pickFirst(payload?.idSocio, null)
   const socioUsuario = payload?.socioUsuario || ''
   const serviceId = payload?.idServicio
-
-  const existingAssignment = state.serviceAssignments.find(
-    (item) =>
-      entityMatchesSocio(item, socioRef, socioUsuario) &&
-      entityMatchesService(item, serviceId) &&
-      isBlockingServiceAssignment(item)
-  )
-
-  if (existingAssignment) return existingAssignment
 
   return state.requests.find(
     (item) =>
@@ -714,6 +705,7 @@ function generateMeterNumber(meters) {
 
 function normalizeMeasurementRoute(route) {
   const items = ensureArray(route?.items || route?.medidores || route?.Meters).map((item, index) => ({
+    ...item,
     idMedidor: Number(pickFirst(item.idMedidor, item.IdMedidor, item.id, item.Medidor?.idMedidor, 0)),
     orden: Number(pickFirst(item.orden, item.Orden, index + 1)),
     estado: pickFirst(item.estado, item.Estado, 'Pendiente'),
@@ -898,40 +890,7 @@ const useServiceWorkflowStore = create(
           await get().fetchServiceRequests()
           return created
         } catch (error) {
-          if (findBlockingServiceRequest(payload, get())) {
-            throw new Error(DUPLICATE_SERVICE_REQUEST_MESSAGE)
-          }
-
-          const errorMessage = String(error?.message || '')
-          if (/duplic|exist|activo|aprob/i.test(errorMessage)) {
-            throw new Error(DUPLICATE_SERVICE_REQUEST_MESSAGE)
-          }
-
-          const service = get().servicesCatalog.find((item) => item.idServicio === Number(payload.idServicio))
-          const documents = Object.entries(payload.filesByRequirement || {}).map(([idRequisitoServicio, file], index) => ({
-            ...fileToMetadata(file, index),
-            idRequisitoServicio: Number(idRequisitoServicio)
-          }))
-          const request = {
-            idSolicitudServicio: nextId(get().requests, 'idSolicitudServicio'),
-            idSocio: Number(payload.idSocio),
-            socioUsuario: String(payload.socioUsuario || ''),
-            socioNombre: payload.socioNombre || payload.socioUsuario || 'Socio',
-            idServicio: Number(payload.idServicio),
-            servicioNombre: service?.Nombre || 'Servicio',
-            fechaSolicitud: new Date().toISOString(),
-            estado: 'En revision',
-            direccion: payload.direccion || payload.observaciones || 'Sin direccion informada',
-            observaciones: payload.observaciones,
-            motivoRechazo: '',
-            documentos: documents
-          }
-
-          set((state) => ({
-            requests: [request, ...state.requests]
-          }))
-
-          return request
+          throw new Error(error.message || 'No se pudo registrar la solicitud en la API. No se guardaron datos locales.')
         }
       },
 
@@ -1149,6 +1108,7 @@ const useServiceWorkflowStore = create(
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              ...payload,
               observaciones: payload.observaciones || ''
             })
           })
@@ -1369,9 +1329,7 @@ const useServiceWorkflowStore = create(
             .filter((item) => item.idTipoLectura > 0)
           set({ measurementTypes: normalized })
           return normalized
-        } catch {
-          return get().measurementTypes
-        }
+        } catch (error) { throw error }
       },
 
       fetchMeasurementsByMeter: async (meterId) => {
@@ -1477,12 +1435,7 @@ const useServiceWorkflowStore = create(
             ]
           }))
           return normalized
-        } catch {
-          return get()
-            .measurementRoutes
-            .map(normalizeMeasurementRoute)
-            .filter((route) => String(route.idEmpleado) === String(employeeId))
-        }
+        } catch (error) { throw error }
       },
 
       createMeasurementRoute: async (payload) => {
@@ -1533,22 +1486,6 @@ const useServiceWorkflowStore = create(
           throw new Error('La API no esta disponible. La hoja de ruta no fue creada.')
         }
 
-        const route = normalizeMeasurementRoute({
-          idRutaMedicion: nextId(get().measurementRoutes, 'idRutaMedicion'),
-          nombre: payload.nombre || `Ruta de mediciones ${new Date().toLocaleDateString('es-AR')}`,
-          fecha: payload.fecha || new Date().toISOString().slice(0, 10),
-          idEmpleado: Number(payload.idEmpleado),
-          empleadoNombre: payload.empleadoNombre || '',
-          estado: 'Pendiente',
-          creadaEn: new Date().toISOString(),
-          items: selectedMeters
-        })
-
-        set((state) => ({
-          measurementRoutes: [route, ...state.measurementRoutes]
-        }))
-
-        return route
       },
 
       startMeasurementRoute: async (routeId) => {
@@ -1571,21 +1508,6 @@ const useServiceWorkflowStore = create(
           throw new Error('La API no esta disponible. La hoja de ruta no fue iniciada.')
         }
 
-        let updatedRoute = null
-
-        set((state) => ({
-          measurementRoutes: state.measurementRoutes.map((route) => {
-            if (String(route.idRutaMedicion) !== String(routeId)) return route
-            updatedRoute = normalizeMeasurementRoute({
-              ...route,
-              estado: 'En curso',
-              iniciadaEn: route.iniciadaEn || new Date().toISOString()
-            })
-            return updatedRoute
-          })
-        }))
-
-        return updatedRoute
       },
 
       saveMeasurementRouteReading: async (routeId, meterId, payload) => {
@@ -1618,24 +1540,6 @@ const useServiceWorkflowStore = create(
           throw new Error('La API no esta disponible. La lectura no fue registrada.')
         }
 
-        const measurement = await get().createMeasurement({
-          idMedidor: Number(meterId),
-          idEmpleado: Number(payload.idEmpleado),
-          idTipoLectura: Number(payload.idTipoLectura),
-          FechaLectura: payload.fechaLectura || new Date().toISOString().slice(0, 10),
-          LecturaActual: Number(payload.lecturaActual),
-          tipoLecturaNombre: payload.tipoLecturaNombre,
-          empleadoUsuario: payload.empleadoUsuario,
-          empleadoNombre: payload.empleadoNombre
-        })
-
-        return get().updateMeasurementRouteItem(routeId, meterId, {
-          estado: 'Medido',
-          lecturaActual: Number(payload.lecturaActual),
-          idMedicion: measurement?.idMedicion || measurement?.IdMedicion || null,
-          fechaMedicion: new Date().toISOString(),
-          observacion: payload.observacion || ''
-        })
       },
 
       updateMeasurementRouteItem: async (routeId, meterId, payload) => {
@@ -1664,35 +1568,7 @@ const useServiceWorkflowStore = create(
           throw new Error('La API no esta disponible. El estado no fue actualizado.')
         }
 
-        let updatedRoute = null
-
-        set((state) => ({
-          measurementRoutes: state.measurementRoutes.map((route) => {
-            if (String(route.idRutaMedicion) !== String(routeId)) return route
-
-            updatedRoute = normalizeMeasurementRoute({
-              ...route,
-              estado: route.estado === 'Pendiente' ? 'En curso' : route.estado,
-              iniciadaEn: route.iniciadaEn || new Date().toISOString(),
-              items: route.items.map((item) =>
-                String(item.idMedidor) === String(meterId)
-                  ? {
-                      ...item,
-                      estado: payload.estado || 'Medido',
-                      lecturaActual: payload.lecturaActual ?? item.lecturaActual,
-                      idMedicion: payload.idMedicion ?? item.idMedicion,
-                      fechaMedicion: payload.fechaMedicion || new Date().toISOString(),
-                      observacion: payload.observacion ?? item.observacion
-                    }
-                  : item
-              )
-            })
-
-            return updatedRoute
-          })
-        }))
-
-        return updatedRoute
+        throw new Error("Seleccioná un estado de incidencia válido.")
       },
 
       completeMeasurementRoute: async (routeId, payload = {}) => {
@@ -1719,36 +1595,6 @@ const useServiceWorkflowStore = create(
           throw new Error('La API no esta disponible. La hoja de ruta no fue finalizada.')
         }
 
-        const currentRoute = get().measurementRoutes.find((route) => String(route.idRutaMedicion) === String(routeId))
-        if (!currentRoute) {
-          throw new Error('Hoja de ruta no encontrada.')
-        }
-
-        const normalizedRoute = normalizeMeasurementRoute(currentRoute)
-        const pendingItems = normalizedRoute.items.filter((item) => item.estado !== 'Medido')
-
-        if (pendingItems.length) {
-          throw new Error('Todavia quedan medidores sin cargar.')
-        }
-
-        if (!payload.firmaDigital) {
-          throw new Error('Agrega la firma digital antes de cerrar la hoja de ruta.')
-        }
-
-        const updatedRoute = normalizeMeasurementRoute({
-          ...normalizedRoute,
-          estado: 'Finalizada',
-          finalizadaEn: new Date().toISOString(),
-          firmaDigital: payload.firmaDigital
-        })
-
-        set((state) => ({
-          measurementRoutes: state.measurementRoutes.map((route) =>
-            String(route.idRutaMedicion) === String(routeId) ? updatedRoute : route
-          )
-        }))
-
-        return updatedRoute
       }
     }),
     {

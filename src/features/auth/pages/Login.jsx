@@ -12,6 +12,7 @@ export default function Login() {
   const location = useLocation()
 
   const [form, setForm] = useState({
+    tipoAcceso: 'Socio',
     email: '',
     password: '',
     remember: false
@@ -85,6 +86,11 @@ export default function Login() {
         ) : null}
 
         <form onSubmit={handleLogin} className="space-y-6">
+          <label className="block">Ingresar a
+            <select name="tipoAcceso" value={form.tipoAcceso} onChange={handleChange} className="input-field mt-2">
+              <option value="Socio">Mi cuenta personal de socio</option><option value="Empleado">Mi cuenta laboral</option><option value="Administrador">Administración del sistema</option>
+            </select>
+          </label>
           <div>
             <label className="mb-2 block text-sm font-medium text-gray-700">Correo electronico</label>
             <input

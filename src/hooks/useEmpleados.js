@@ -190,9 +190,9 @@ export function useEmpleados(autoLoad = true) {
 
     try {
       const [cargosData, personasData, sociosData] = await Promise.all([
-        jsonFetchFirst(['/cargo', '/cargos', '/empleado/cargo', '/empleado/cargos']).catch(() => []),
-        jsonFetchFirst(['/persona', '/persona/listado']).catch(() => []),
-        jsonFetchFirst(['/socio', '/socios']).catch(() => [])
+        jsonFetchFirst(['/cargo', '/cargos', '/empleado/cargo', '/empleado/cargos']),
+        jsonFetchFirst(['/persona', '/persona/listado']),
+        jsonFetchFirst(['/socio', '/socios'])
       ])
 
       const normalizedCargos = ensureArray(cargosData).map(normalizeCargo).filter((cargo) => cargo.idCargo != null)

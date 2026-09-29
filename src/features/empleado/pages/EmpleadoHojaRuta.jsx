@@ -171,7 +171,8 @@ export default function EmpleadoHojaRuta() {
   const [savingMeterId, setSavingMeterId] = useState(null)
   const [closing, setClosing] = useState(false)
 
-  const canAccess = cargoMatches(cargo, 'Lecturista')
+  const areas = useAuthStore(s => s.areas)
+  const canAccess = areas.some(a => a.Funciones?.includes('LECTURISTA'))
 
   const loadData = async () => {
     setLoading(true)
@@ -179,13 +180,11 @@ export default function EmpleadoHojaRuta() {
     try {
       const resolvedEmpleadoId = empleadoId ?? idEmpleado ?? (await resolveEmpleadoId())
 
-      const [metersData, typesData, routesData] = await Promise.all([
-        fetchMeters(),
+      const [typesData, routesData] = await Promise.all([
         fetchMeasurementTypes(),
         resolvedEmpleadoId ? fetchMeasurementRoutesByEmployee(resolvedEmpleadoId) : []
       ])
 
-      setMeters(metersData || [])
       setMeasurementTypes(typesData || [])
       setRoutes(routesData || [])
 
@@ -220,7 +219,7 @@ export default function EmpleadoHojaRuta() {
     return selectedRoute.items
       .map((item) => ({
         ...item,
-        meter: meters.find((meter) => String(meter.idMedidor) === String(item.idMedidor)) || null
+        meter: { ...item, NumeroMedidor: item.numeroMedidor, socioNombre: item.socioNombre, servicioNombre: item.servicioNombre }
       }))
       .filter((item) => {
         if (!query) return true
@@ -237,7 +236,7 @@ export default function EmpleadoHojaRuta() {
   }, [meters, search, selectedRoute])
 
   const progress = routeProgress(selectedRoute)
-  const defaultMeasurementTypeId = measurementTypes[0]?.idTipoLectura || 1
+  const defaultMeasurementTypeId = measurementTypes[0]?.idTipoLectura
 
   const refreshRoutes = async () => {
     const resolvedEmpleadoId = empleadoId ?? idEmpleado ?? (await resolveEmpleadoId())

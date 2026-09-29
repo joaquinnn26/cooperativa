@@ -3,7 +3,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import useAuthStore from '@/store/authStore.js'
 import { hasActiveSession, rolesMatch } from '@/utils/auth.js'
 
-export default function ProtectedRoute({ role }) {
+export default function ProtectedRoute({ role, roles }) {
   const location = useLocation()
   const token = useAuthStore((state) => state.token)
   const rol = useAuthStore((state) => state.rol)
@@ -17,7 +17,7 @@ export default function ProtectedRoute({ role }) {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
 
-  if (role && !rolesMatch(rol, role)) {
+  if ((role && !rolesMatch(rol, role)) || (roles && !roles.some(r => rolesMatch(rol, r)))) {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
 

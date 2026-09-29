@@ -2,9 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ClipboardList, Loader2, MapPinned, Search, XCircle } from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
-import { normalizeCargo } from '@/utils/auth.js'
+import { normalizeCargo, normalizeRole } from '@/utils/auth.js'
 import { formatDate } from '@/utils/formatDate.js'
-import { serviceRequiresInstallation } from '@/utils/serviceInstallation.js'
+import { serviceRequiresInstallation, serviceRequiresMeter } from '@/utils/serviceInstallation.js'
+import InstalarMedidorDialog from './TrabajoMedidorDialog.jsx'
+import TrabajosMedidores from './TrabajosMedidores.jsx'
 import { cleanText, FIELD_LIMITS, validateMeaningfulText } from '@/utils/validation.js'
 
 const STATUS_FILTERS = [
@@ -50,6 +52,8 @@ export default function EmpleadoInstalaciones() {
   const markServiceRequestInstalled = useServiceWorkflowStore((state) => state.markServiceRequestInstalled)
   const rejectServiceInstallation = useServiceWorkflowStore((state) => state.rejectServiceInstallation)
   const cargo = useAuthStore((state) => state.cargo)
+  const admin = normalizeRole(useAuthStore(state => state.rol)) === 'Administrador'
+  const [tab, setTab] = useState('solicitudes')
 
   const [requests, setRequests] = useState([])
   const [search, setSearch] = useState('')
@@ -59,6 +63,7 @@ export default function EmpleadoInstalaciones() {
   const [statusFilter, setStatusFilter] = useState('Pendiente instalacion')
   const [rejectingRequest, setRejectingRequest] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
+  const [installingRequest, setInstallingRequest] = useState(null)
 
   const loadRequests = async () => {
     setLoading(true)
@@ -105,12 +110,17 @@ export default function EmpleadoInstalaciones() {
     [requests]
   )
 
-  const handleMarkInstalled = async (request) => {
+  const handleMarkInstalled = async (request, meterPayload = null) => {
+    if (serviceRequiresMeter(request.servicioNombre) && !meterPayload) {
+      setInstallingRequest(request)
+      return
+    }
     setSavingId(request.idSolicitudServicio)
     setFeedback(null)
 
     try {
       await markServiceRequestInstalled(request.idSolicitudServicio, {
+        ...meterPayload,
         observaciones: `Instalacion confirmada por tecnico el ${new Date().toLocaleDateString('es-AR')}.`
       })
       await loadRequests()
@@ -118,6 +128,7 @@ export default function EmpleadoInstalaciones() {
       setFeedback({ type: 'success', message: `La solicitud de ${request.socioNombre} quedo aprobada e instalada.` })
     } catch (error) {
       setFeedback({ type: 'error', message: error.message || 'No se pudo actualizar la instalacion.' })
+      if (meterPayload) throw error
     } finally {
       setSavingId(null)
     }
@@ -149,7 +160,7 @@ export default function EmpleadoInstalaciones() {
     }
   }
 
-  if (!isTecnico) {
+  if (!isTecnico && !admin) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-8">
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-800">
@@ -164,13 +175,18 @@ export default function EmpleadoInstalaciones() {
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Instalaciones</h1>
-          <p className="mt-2 text-gray-600">Consulta instalaciones pendientes, aprobadas y rechazadas por el tecnico.</p>
+          <p className="mt-2 text-gray-600">Completá las instalaciones solicitadas o registrá trabajos sobre medidores instalados.</p>
         </div>
         <div className="rounded-full bg-cyan-100 p-3 text-cyan-700">
           <ClipboardList className="h-6 w-6" />
         </div>
       </div>
 
+      <div className="flex flex-wrap gap-3 mb-6" aria-label="Tipo de trabajo">
+        <button className={tab === 'solicitudes' ? 'btn-primary' : 'btn-secondary'} aria-pressed={tab === 'solicitudes'} onClick={() => setTab('solicitudes')}>Nuevas instalaciones</button>
+        <button className={tab === 'medidores' ? 'btn-primary' : 'btn-secondary'} aria-pressed={tab === 'medidores'} onClick={() => setTab('medidores')}>Reemplazos y retiros</button>
+      </div>
+      {tab === 'medidores' ? <TrabajosMedidores admin={admin} /> : <>
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {STATUS_FILTERS.map((filter) => (
           <button
@@ -301,6 +317,8 @@ export default function EmpleadoInstalaciones() {
         ) : null}
       </div>
 
+      </>}
+      {installingRequest && <InstalarMedidorDialog request={installingRequest} onClose={() => setInstallingRequest(null)} onConfirm={payload => handleMarkInstalled(installingRequest, payload)} />}
       {rejectingRequest ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
           <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">

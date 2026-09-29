@@ -29,7 +29,7 @@ import useAuthStore from '../store/authStore.js'
 import AuthSessionManager from './AuthSessionManager.jsx'
 import PublicAnnouncementsBanner from './PublicAnnouncementsBanner.jsx'
 import { getDefaultRouteByRole, normalizeCargo, normalizeRole } from '@/utils/auth.js'
-import { getEmployeeRoutesByCargo } from '@/utils/employeePermissions.js'
+import { rutasLaborales } from '@/utils/laboralPermissions.js'
 
 const employeeIconByPath = {
   '/empleado/anuncios': Megaphone,
@@ -56,83 +56,36 @@ const employeeIconByPath = {
   '/empleado/usuarios': Users
 }
 
-function buildPanelSections(role, cargo) {
+function buildPanelSections(role, areas) {
   const normalizedRole = normalizeRole(role)
-  const normalizedCargo = normalizeCargo(cargo)
-
-  if (normalizedRole === 'Administrador') {
-    return [
-      {
-        title: 'General',
-        items: [
-          { to: '/admin', label: 'Panel principal', icon: Bell },
-          { to: '/admin/socios', label: 'Socios', icon: Users },
-          { to: '/admin/empleados', label: 'Empleados', icon: Users }
-        ]
-      },
-      {
-        title: 'Servicios',
-        items: [
-          { to: '/admin/servicios', label: 'Servicios', icon: Settings },
-          { to: '/admin/medidores', label: 'Instalacion', icon: Zap },
-          { to: '/admin/lecturas', label: 'Lecturas', icon: Gauge },
-          { to: '/admin/rutas-medicion', label: 'Rutas', icon: MapPinned },
-          { to: '/admin/solicitudes-servicio', label: 'Solicitudes', icon: ClipboardList },
-          { to: '/admin/requisitos-servicio', label: 'Requisitos', icon: FilePlus2 }
-        ]
-      },
-      {
-        title: 'Gestion',
-        items: [
-          { to: '/admin/facturas', label: 'Facturas', icon: Receipt },
-          { to: '/admin/anuncios', label: 'Anuncios', icon: Megaphone },
-          { to: '/admin/reclamos', label: 'Reclamos', icon: AlertTriangle },
-          { to: '/admin/turnos', label: 'Turnos', icon: CalendarClock }
-        ]
-      }
-    ]
-  }
-
-  if (normalizedRole === 'Empleado') {
-    const employeeRoutes = getEmployeeRoutesByCargo(normalizedCargo).map((route) => ({
-      to: route.to,
-      label: route.label,
-      icon: employeeIconByPath[route.to] || ClipboardList
-    }))
-
-    return [
-      {
-        title: 'Trabajo',
-        items: [
-          { to: '/empleado', label: 'Panel principal', icon: Bell },
-          ...employeeRoutes
-        ]
-      }
-    ]
-  }
-
-  return [
-    {
-      title: 'Mi cuenta',
-      items: [
-        { to: '/socio', label: 'Panel principal', icon: Bell },
-        { to: '/facturas', label: 'Mis facturas', icon: Receipt },
-        { to: '/socio/perfil', label: 'Mi perfil', icon: UserCircle2 },
-        { to: '/socio/mis-servicios', label: 'Mis servicios', icon: Settings },
-        { to: '/socio/mis-mediciones', label: 'Mis mediciones', icon: Gauge }
-      ]
-    },
-    {
-      title: 'Tramites',
-      items: [
-        { to: '/socio/solicitudes-servicio', label: 'Solicitudes', icon: ClipboardList },
-        { to: '/socio/solicitudes-servicio/nueva', label: 'Nuevo servicio', icon: FilePlus2 },
-        { to: '/socio/reclamos', label: 'Mis reclamos', icon: AlertTriangle },
-        { to: '/socio/reclamos/nuevo', label: 'Nuevo reclamo', icon: AlertTriangle },
-        { to: '/socio/turnos', label: 'Mis turnos', icon: CalendarClock }
-      ]
-    }
-  ]
+  const trabajo = { title: 'Mi trabajo', items: [{ to: '/empleado', label: 'Panel laboral', icon: Bell }, ...rutasLaborales(areas).map(r => ({ ...r, icon: employeeIconByPath[r.to] || ClipboardList }))] }
+  if (normalizedRole === 'Administrador') return [
+    { title: 'Administración del sistema', items: [
+      { to: '/admin', label: 'Panel principal', icon: Bell },
+      { to: '/admin/organizacion', label: 'Áreas, funciones y encargados', icon: Users },
+      { to: '/admin/empleados', label: 'Empleados y acceso laboral', icon: Users },
+      { to: '/admin/socios', label: 'Socios', icon: Users },
+      { to: '/admin/servicios', label: 'Servicios', icon: Settings },
+      { to: '/admin/medidores', label: 'Inventario de medidores', icon: Gauge },
+      { to: '/admin/territorio', label: 'Conexiones y territorio', icon: MapPinned },
+      { to: '/admin/requisitos-servicio', label: 'Requisitos de servicios', icon: FilePlus2 },
+      { to: '/admin/anuncios', label: 'Anuncios', icon: Megaphone }
+    ] }, ...(areas.length ? [trabajo] : [])]
+  if (normalizedRole === 'Empleado') return [trabajo]
+  return [{ title: 'Mi cuenta', items: [
+    { to: '/socio', label: 'Panel principal', icon: Bell },
+    { to: '/facturas', label: 'Mis facturas', icon: Receipt },
+    { to: '/socio/perfil', label: 'Mi perfil', icon: UserCircle2 },
+    { to: '/socio/documentos', label: 'Mi documentación', icon: FileText },
+    { to: '/socio/mis-servicios', label: 'Mis servicios', icon: Settings },
+    { to: '/socio/mis-mediciones', label: 'Mis mediciones', icon: Gauge }
+  ] }, { title: 'Trámites', items: [
+    { to: '/socio/solicitudes-servicio', label: 'Solicitudes de servicio', icon: ClipboardList },
+    { to: '/socio/solicitudes-servicio/nueva', label: 'Nuevo servicio', icon: FilePlus2 },
+    { to: '/socio/reclamos', label: 'Mis reclamos', icon: AlertTriangle },
+    { to: '/socio/reclamos/nuevo', label: 'Nuevo reclamo', icon: AlertTriangle },
+    { to: '/socio/turnos', label: 'Mis turnos', icon: CalendarClock }
+  ] }]
 }
 
 function findCurrentLabel(sections, pathname) {
@@ -155,6 +108,7 @@ export default function Layout() {
   const usuario = useAuthStore((state) => state.usuario)
   const nombre = useAuthStore((state) => state.nombre)
   const cargo = useAuthStore((state) => state.cargo)
+  const areas = useAuthStore(state => state.areas)
   const logout = useAuthStore((state) => state.logout)
   const rol = useAuthStore((state) => state.rol)
   const location = useLocation()
@@ -170,7 +124,7 @@ export default function Layout() {
     ['Administrador', 'Socio'].includes(normalizedRole) &&
     isPanelRoute &&
     location.pathname !== panelPath
-  const sections = useMemo(() => buildPanelSections(normalizedRole, cargo), [normalizedRole, cargo])
+  const sections = useMemo(() => buildPanelSections(normalizedRole, areas), [normalizedRole, areas])
   const currentLabel = useMemo(() => findCurrentLabel(sections, location.pathname), [sections, location.pathname])
 
   const displayRole =

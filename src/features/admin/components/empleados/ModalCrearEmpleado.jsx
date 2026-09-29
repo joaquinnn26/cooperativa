@@ -1,16 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useEmpleados } from '@/hooks/useEmpleados.js'
-import { firstValidationError, isPositiveNumber } from '@/utils/validation.js'
+import { firstValidationError, isPositiveNumber, validateStrongPassword } from '@/utils/validation.js'
 
 const initialForm = {
-  idSocio: '',
-  idCargo: ''
+  idPersona: '',
+  idCargo: '',
+  PasswordLaboral: ''
 }
 
 export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosExistentes = [] }) {
   const {
     cargos,
-    sociosDisponibles,
+    personasRegistradas,
     loadingCatalogos,
     catalogosError,
     fetchCatalogos,
@@ -26,7 +27,7 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
     fetchCatalogos()
   }, [show, fetchCatalogos])
 
-  const sociosElegibles = useMemo(() => {
+  const personasElegibles = useMemo(() => {
     const usedKeys = new Set(
       empleadosExistentes
         .flatMap((empleado) => [
@@ -36,12 +37,12 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
         .filter(Boolean)
     )
 
-    return sociosDisponibles.filter((socio) => {
+    return personasRegistradas.filter((socio) => {
       const idKey = socio.idPersona != null ? String(socio.idPersona) : null
-      const docKey = socio.Persona?.Documento != null ? String(socio.Persona.Documento) : null
+      const docKey = socio.Documento != null ? String(socio.Persona.Documento) : null
       return !(idKey && usedKeys.has(idKey)) && !(docKey && usedKeys.has(docKey))
     })
-  }, [empleadosExistentes, sociosDisponibles])
+  }, [empleadosExistentes, personasRegistradas])
 
   const handleClose = () => {
     if (saving) return
@@ -51,12 +52,13 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
   }
 
   const handleSubmit = async () => {
-    const idSocio = Number(form.idSocio)
+    const idPersona = Number(form.idPersona)
     const idCargo = Number(form.idCargo)
     const validationError = firstValidationError([
-      !isPositiveNumber(idSocio) ? 'Selecciona un socio valido.' : '',
+      validateStrongPassword(form.PasswordLaboral, "La contraseña laboral"),
+      !isPositiveNumber(idPersona) ? 'Seleccioná una persona válida.' : '',
       !isPositiveNumber(idCargo) ? 'Selecciona un cargo valido.' : '',
-      sociosElegibles.some((socio) => String(socio.idSocio) === String(form.idSocio)) ? '' : 'El socio seleccionado ya no esta disponible.',
+      personasElegibles.some((socio) => String(socio.idPersona) === String(form.idPersona)) ? '' : 'La persona seleccionada ya no está disponible.',
       cargos.some((cargo) => String(cargo.idCargo) === String(form.idCargo)) ? '' : 'El cargo seleccionado ya no esta disponible.'
     ])
 
@@ -72,13 +74,15 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
       const today = new Date().toISOString().slice(0, 10)
 
       await crearEmpleado({
-        idSocio,
+        idPersona,
         idCargo,
-        FechaDeInicio: today
+        FechaDeInicio: today,
+        PasswordLaboral: form.PasswordLaboral
       })
 
       await onSaved?.()
-      handleClose()
+      setForm(initialForm)
+      onClose()
     } catch (saveError) {
       console.error('Error al crear empleado', saveError)
       setError(saveError.message || 'No se pudo crear el empleado.')
@@ -92,27 +96,27 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div className="w-full max-w-xl rounded-lg bg-white p-6 shadow-xl">
-        <h2 className="mb-4 text-xl font-bold">Convertir persona en empleado</h2>
+        <h2 className="mb-4 text-xl font-bold">Dar de alta un empleado</h2>
 
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Socio registrado</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Persona registrada</label>
             <select
-              value={form.idSocio}
-              onChange={(e) => setForm((prev) => ({ ...prev, idSocio: e.target.value }))}
+              value={form.idPersona}
+              onChange={(e) => setForm((prev) => ({ ...prev, idPersona: e.target.value }))}
               className="input-field"
               disabled={saving || loadingCatalogos}
             >
-              <option value="">Seleccionar socio...</option>
-              {sociosElegibles.map((socio) => (
-                <option key={socio.idSocio} value={socio.idSocio}>
-                  {socio.Persona?.Apellido}, {socio.Persona?.Nombre} - Doc. {socio.Persona?.Documento}
+              <option value="">Seleccionar persona...</option>
+              {personasElegibles.map((socio) => (
+                <option key={socio.idPersona} value={socio.idPersona}>
+                  {socio.Apellido}, {socio.Nombre} - Doc. {socio.Documento}
                 </option>
               ))}
             </select>
-            {!loadingCatalogos && !sociosElegibles.length ? (
+            {!loadingCatalogos && !personasElegibles.length ? (
               <p className="mt-1 text-sm text-gray-500">
-                No hay socios disponibles para promover a empleado.
+                No hay personas disponibles. Registrá sus datos personales antes del alta laboral.
               </p>
             ) : null}
           </div>
@@ -138,6 +142,8 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
               </p>
             ) : null}
           </div>
+          <label className="block">Contraseña inicial laboral<input type="password" autoComplete="new-password" required minLength={8} maxLength={100} className="input-field" value={form.PasswordLaboral} onChange={e => setForm(f => ({ ...f, PasswordLaboral: e.target.value }))} /></label>
+          <p className="text-sm text-gray-600">Incluí mayúscula, minúscula, número y símbolo. Se crea una cuenta laboral independiente; la cuenta de socio se conserva. Después asigná sus áreas y funciones.</p>
           <p className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700">
             La fecha de inicio se asignara automaticamente con la fecha actual.
           </p>
@@ -160,7 +166,7 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
           <button
             onClick={handleSubmit}
             className="rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-60"
-            disabled={saving || loadingCatalogos || !sociosElegibles.length}
+            disabled={saving || loadingCatalogos || !personasElegibles.length}
           >
             {saving ? 'Guardando...' : 'Crear empleado'}
           </button>
