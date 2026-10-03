@@ -24,7 +24,8 @@ function normalizeLoginResponse(data) {
     cargo: data?.cargo ?? data?.Cargo ?? null,
     idSocio: data?.idSocio ?? data?.IdSocio ?? null,
     areas: Array.isArray(data?.areas) ? data.areas : [],
-    idEmpleado: data?.idEmpleado ?? data?.IdEmpleado ?? null
+    idEmpleado: data?.idEmpleado ?? data?.IdEmpleado ?? null,
+    altaSocio: data?.altaSocio ?? data?.AltaSocio ?? null
   }
 }
 
@@ -64,6 +65,7 @@ const useAuthStore = create((set) => ({
   nombre: null,
   idSocio: null,
   idEmpleado: null,
+  altaSocio: null,
         areas: [],
   sessionStatus: initialToken ? 'checking' : 'anonymous',
 
@@ -80,6 +82,7 @@ const useAuthStore = create((set) => ({
         nombre: null,
         idSocio: null,
         idEmpleado: null,
+        altaSocio: null,
         areas: [],
         sessionStatus: 'anonymous'
       })
@@ -105,6 +108,7 @@ const useAuthStore = create((set) => ({
         nombre: data.nombre,
         idSocio: data.idSocio != null ? String(data.idSocio) : null,
         idEmpleado: data.idEmpleado != null ? String(data.idEmpleado) : null,
+        altaSocio: data.altaSocio,
         areas: data.areas,
         sessionStatus: 'authenticated'
       })
@@ -120,6 +124,7 @@ const useAuthStore = create((set) => ({
         nombre: null,
         idSocio: null,
         idEmpleado: null,
+        altaSocio: null,
         areas: [],
         sessionStatus: 'anonymous'
       })
@@ -159,6 +164,7 @@ const useAuthStore = create((set) => ({
       nombre: data.nombre,
       idSocio: data.idSocio != null ? String(data.idSocio) : null,
       idEmpleado: data.idEmpleado != null ? String(data.idEmpleado) : null,
+      altaSocio: data.altaSocio,
       areas: data.areas,
         sessionStatus: 'authenticated'
     })
@@ -179,7 +185,8 @@ const useAuthStore = create((set) => ({
         Email: form.email,
         Telefono: form.telefono,
         Calle: form.calle,
-        Numero: form.numero
+        Numero: form.numero,
+        EsTitular: form.esTitular === 'true'
       })
     })
 
@@ -202,6 +209,7 @@ const useAuthStore = create((set) => ({
       nombre: null,
       idSocio: null,
       idEmpleado: null,
+      altaSocio: null,
         areas: [],
       sessionStatus: 'anonymous'
     })
@@ -216,6 +224,8 @@ const useAuthStore = create((set) => ({
 
     set({ idEmpleado: idEmpleado != null ? String(idEmpleado) : null })
   },
+
+  updateAltaSocio: (altaSocio) => set({ altaSocio }),
 
   setResolvedSocioId: (idSocio) => {
     if (idSocio != null) {

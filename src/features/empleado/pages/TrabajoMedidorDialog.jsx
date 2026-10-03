@@ -7,13 +7,12 @@ export default function TrabajoMedidorDialog({ request, anterior = null, retirar
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const [data, setData] = useState({ items: [], total: 0 })
-  const [catalog, setCatalog] = useState({ tipos: [], motivos: [] })
+  const [catalog, setCatalog] = useState({ tipos: [] })
   const [catalogLoaded, setCatalogLoaded] = useState(false)
   const [meter, setMeter] = useState(null)
   const [nuevo, setNuevo] = useState({ Numero: '', Marca: '', Modelo: '' })
   const [duplicate, setDuplicate] = useState(null)
   const [checking, setChecking] = useState(false)
-  const [motivo, setMotivo] = useState('')
   const [lectura, setLectura] = useState('')
   const [final, setFinal] = useState('')
   const [condition, setCondition] = useState('')
@@ -21,10 +20,8 @@ export default function TrabajoMedidorDialog({ request, anterior = null, retirar
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
-  const action = retirar ? 'Retirar' : anterior ? 'Reemplazar' : 'Instalar'
   const service = anterior?.Servicio || request?.servicioNombre
   const type = catalog.tipos.find(t => compatibleMeterType(service, t.Nombre))
-  const motivos = catalog.motivos.filter(m => m.Activo && m.Accion === action)
   const title = soloResultado ? 'Registrar resultado del trabajo' : retirar ? 'Retirar medidor' : anterior ? 'Reemplazar medidor' : 'Confirmar instalación'
   useEffect(() => { dialog.current?.showModal() }, [])
   useEffect(() => {
@@ -64,8 +61,8 @@ export default function TrabajoMedidorDialog({ request, anterior = null, retirar
     try {
       const selected = mode === 'nuevo' ? { NuevoMedidor: { ...nuevo, idTipoMedidor: type?.idTipoMedidor } } : { idMedidor: meter?.idMedidor, Version: meter?.Version }
       await onConfirm(retirar
-        ? { Accion: 'Retirar', Version: anterior.Version, idMotivo: Number(motivo), Lectura: Number(final), EstadoFisico: condition, Detalle: detalle }
-        : { ...selected, idMotivo: Number(motivo), Lectura: Number(lectura), Detalle: detalle,
+        ? { Accion: 'Retirar', Version: anterior.Version, Lectura: Number(final), EstadoFisico: condition, Detalle: detalle }
+        : { ...selected, Lectura: Number(lectura), Detalle: detalle,
           ...(anterior ? { VersionAnterior: anterior.Version, LecturaFinal: Number(final), EstadoRetirado: condition } : {}) })
       onClose()
     } catch (err) { setError(err.message) } finally { setBusy(false) }
@@ -97,13 +94,11 @@ export default function TrabajoMedidorDialog({ request, anterior = null, retirar
           </>}
           <label className="block">Lectura inicial del equipo instalado<input required type="number" min="0" step="0.01" className="input-field" value={lectura} onChange={e => setLectura(e.target.value)} /></label>
         </section>}
-        <label className="block">Motivo de la operación<select required className="input-field" value={motivo} onChange={e => setMotivo(e.target.value)}><option value="">Seleccionar</option>{motivos.map(m => <option key={m.idMotivo} value={m.idMotivo}>{m.Nombre}</option>)}</select></label>
-        {catalogLoaded && !motivos.length && <p className="text-amber-800">Administración debe configurar los motivos de esta operación.</p>}
         <label className="block">Observaciones del trabajo (opcional)<textarea maxLength={1000} className="input-field" value={detalle} onChange={e => setDetalle(e.target.value)} /></label>
         <p className="p-3 rounded-lg bg-blue-50 text-sm">{soloResultado ? 'Estos datos se adjuntarán al resultado de la tarea. El encargado los revisará y confirmará la operación al cerrar el trabajo.' : retirar ? 'Se registrará el retiro y se conservará el historial. Esta acción no da de baja el servicio del socio.' : anterior ? 'Al confirmar, el medidor anterior se retirará y el elegido quedará instalado en la misma conexión. Ambos conservarán su historial.' : 'Al confirmar, se completará la instalación de esta solicitud y el medidor quedará asignado a su conexión.'}</p>
       </fieldset>
       {error && <p role="alert" className="text-red-700">{error}</p>}
-      <div className="flex justify-end gap-3"><button type="button" disabled={busy} className="btn-secondary" onClick={onClose}>Cancelar</button><button className="btn-primary" disabled={busy || !motivos.length || (!retirar && (!type || (mode === 'nuevo' && (checking || !!duplicate))))}>{busy ? 'Guardando…' : soloResultado ? 'Adjuntar resultado' : retirar ? 'Confirmar retiro' : anterior ? 'Confirmar reemplazo' : 'Confirmar instalación'}</button></div>
+      <div className="flex justify-end gap-3"><button type="button" disabled={busy} className="btn-secondary" onClick={onClose}>Cancelar</button><button className="btn-primary" disabled={busy || (!retirar && (!type || (mode === 'nuevo' && (checking || !!duplicate))))}>{busy ? 'Guardando…' : soloResultado ? 'Adjuntar resultado' : retirar ? 'Confirmar retiro' : anterior ? 'Confirmar reemplazo' : 'Confirmar instalación'}</button></div>
     </form>
   </dialog>
 }

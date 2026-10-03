@@ -33,7 +33,8 @@ export default function ModalCrearSocio({ show, onClose, onSaved }) {
     Telefono: '',
     Email: '',
     Calle: '',
-    Numero: ''
+    Numero: '',
+    EsTitular: ''
   })
 
   const handleChange = (e) => {
@@ -51,7 +52,8 @@ export default function ModalCrearSocio({ show, onClose, onSaved }) {
       validatePhone(sanitized.Telefono),
       validateEmail(sanitized.Email),
       !isBlank(sanitized.Calle) && validateAddress(sanitized.Calle),
-      !isBlank(sanitized.Numero) && validateHouseNumber(sanitized.Numero)
+      !isBlank(sanitized.Numero) && validateHouseNumber(sanitized.Numero),
+      !form.EsTitular ? 'Indica si el solicitante es titular del domicilio.' : ''
     ])
 
     if (validationError) {
@@ -60,11 +62,11 @@ export default function ModalCrearSocio({ show, onClose, onSaved }) {
     }
 
     try {
-      const socio = await crearSocio(sanitized)
+      const socio = await crearSocio({ ...sanitized, EsTitular: form.EsTitular === 'true' })
 
       await showInfo({
-        title: 'Socio creado',
-        message: `Usuario: ${socio?.usuario ?? form.Documento}\nContrasena temporal: ${socio?.passwordTemporal ?? ''}`,
+        title: 'Cuenta creada pendiente de documentación',
+        message: `Usuario: ${socio?.usuario ?? form.Documento}\nContrasena temporal: ${socio?.passwordTemporal ?? ''}\n\nEl socio debe ingresar y completar su documentación para que Administración apruebe el alta.`,
         type: 'success'
       })
 
@@ -75,7 +77,8 @@ export default function ModalCrearSocio({ show, onClose, onSaved }) {
         Telefono: '',
         Email: '',
         Calle: '',
-        Numero: ''
+        Numero: '',
+        EsTitular: ''
       })
       onSaved?.()
       onClose()
@@ -122,6 +125,8 @@ export default function ModalCrearSocio({ show, onClose, onSaved }) {
               />
             ))}
           </div>
+
+          <label className="mt-4 block text-sm font-medium text-gray-700">¿El solicitante es titular del domicilio?<select name="EsTitular" value={form.EsTitular} onChange={handleChange} required className="input-field mt-2"><option value="">Seleccionar</option><option value="true">Sí</option><option value="false">No</option></select></label>
 
           <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             Los servicios se pediran desde la cuenta del socio y se aprobaran luego desde solicitudes.

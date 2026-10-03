@@ -29,6 +29,7 @@ export default function Register() {
     telefono: '',
     calle: '',
     numero: '',
+    esTitular: '',
     accept: false
   })
 
@@ -48,6 +49,7 @@ export default function Register() {
       validateEmail(form.email),
       validateAddress(form.calle),
       validateHouseNumber(form.numero),
+      !form.esTitular ? 'Indica si eres titular del domicilio.' : '',
       !form.accept ? 'Debes aceptar los terminos y condiciones.' : ''
     ])
 
@@ -172,6 +174,8 @@ export default function Register() {
               placeholder="tu@email.com"
             />
           </div>
+
+          <label className="block text-sm font-medium text-gray-700">¿Eres titular del domicilio?<select name="esTitular" value={form.esTitular} onChange={handleChange} required className="input-field mt-2"><option value="">Seleccionar</option><option value="true">Sí</option><option value="false">No</option></select></label>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_140px]">
             <div>

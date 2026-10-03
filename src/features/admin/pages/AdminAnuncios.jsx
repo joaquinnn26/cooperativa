@@ -168,6 +168,7 @@ export default function AdminAnuncios() {
           <h1 className="text-3xl font-bold text-gray-900">Anuncios</h1>
           <p className="mt-2 text-gray-600">Publica comunicados visibles para socios y visitantes del portal.</p>
         </div>
+        <button type="button" onClick={() => { resetForm(); setShowForm(true) }} className="btn-primary"><PlusCircle className="mr-2 h-4 w-4" />Nuevo anuncio</button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -185,11 +186,11 @@ export default function AdminAnuncios() {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
-        <form onSubmit={submitAnnouncement} className="card space-y-4">
+      <div className="space-y-6">
+        {showForm && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={event => { if (event.target === event.currentTarget) resetForm() }}><form role="dialog" aria-modal="true" aria-labelledby="announcement-modal-title" onSubmit={submitAnnouncement} className="max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">{editingId ? 'Editar anuncio' : 'Nuevo anuncio'}</h2>
+              <h2 id="announcement-modal-title" className="text-xl font-bold text-gray-900">{editingId ? 'Editar anuncio' : 'Nuevo anuncio'}</h2>
               <p className="mt-1 text-sm text-gray-500">Usa fechas solo si el aviso debe aparecer en una ventana puntual.</p>
             </div>
             {editingId ? (
@@ -285,7 +286,7 @@ export default function AdminAnuncios() {
             <PlusCircle className="mr-2 h-4 w-4" />
             {editingId ? 'Guardar cambios' : 'Publicar anuncio'}
           </button>
-        </form>
+        </form></div>}
 
         <section className="card">
           <div className="mb-5 flex items-center justify-between gap-3">

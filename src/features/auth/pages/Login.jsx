@@ -55,7 +55,7 @@ export default function Login() {
       })
 
       const rol = data.rol
-      const redirect = rol === 'Administrador' ? '/admin' : rol === 'Empleado' ? '/empleado' : '/socio'
+      const redirect = rol === 'Administrador' ? '/admin' : rol === 'Empleado' ? '/empleado' : data.altaSocio?.Estado && data.altaSocio.Estado !== 'Aprobada' ? '/socio/alta' : '/socio'
       navigate(redirect, { replace: true })
     } catch (error) {
       addNotification({

@@ -39,7 +39,7 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
 
     return personasRegistradas.filter((socio) => {
       const idKey = socio.idPersona != null ? String(socio.idPersona) : null
-      const docKey = socio.Documento != null ? String(socio.Persona.Documento) : null
+      const docKey = socio.Documento != null ? String(socio.Documento) : null
       return !(idKey && usedKeys.has(idKey)) && !(docKey && usedKeys.has(docKey))
     })
   }, [empleadosExistentes, personasRegistradas])

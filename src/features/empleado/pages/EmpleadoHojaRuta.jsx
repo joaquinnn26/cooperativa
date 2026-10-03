@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CheckCircle2,
   ClipboardCheck,
@@ -16,11 +16,13 @@ import useAppStore from '@/store/appStore.js'
 import useAuthStore from '@/store/authStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
 import { useCurrentEmpleado } from '@/hooks/useCurrentEmpleado.js'
-import { cargoMatches } from '@/utils/auth.js'
 import { formatDate } from '@/utils/formatDate.js'
 import { isNonNegativeNumber, isPositiveNumber } from '@/utils/validation.js'
+import { descargarApi } from '@/utils/laboral.js'
+import { eventosOperativosApi } from '@/utils/eventosOperativosApi.js'
 
 function statusStyles(status) {
+  if (status === 'TiempoCaducado') return 'bg-red-100 text-red-700'
   if (status === 'Finalizada' || status === 'Medido') return 'bg-emerald-100 text-emerald-700'
   if (status === 'En curso') return 'bg-blue-100 text-blue-700'
   return 'bg-amber-100 text-amber-700'
@@ -163,8 +165,12 @@ export default function EmpleadoHojaRuta() {
   const [routes, setRoutes] = useState([])
   const [meters, setMeters] = useState([])
   const [measurementTypes, setMeasurementTypes] = useState([])
+  const [nonReadingReasons, setNonReadingReasons] = useState([])
+  const [selectedReasons, setSelectedReasons] = useState({})
+  const retryKeys = useRef({})
   const [selectedRouteId, setSelectedRouteId] = useState('')
   const [readings, setReadings] = useState({})
+  const [photos, setPhotos] = useState({})
   const [search, setSearch] = useState('')
   const [signatureDataUrl, setSignatureDataUrl] = useState('')
   const [loading, setLoading] = useState(true)
@@ -180,12 +186,14 @@ export default function EmpleadoHojaRuta() {
     try {
       const resolvedEmpleadoId = empleadoId ?? idEmpleado ?? (await resolveEmpleadoId())
 
-      const [typesData, routesData] = await Promise.all([
+      const [typesData, routesData, reasons] = await Promise.all([
         fetchMeasurementTypes(),
-        resolvedEmpleadoId ? fetchMeasurementRoutesByEmployee(resolvedEmpleadoId) : []
+        resolvedEmpleadoId ? fetchMeasurementRoutesByEmployee(resolvedEmpleadoId) : [],
+        eventosOperativosApi('/motivos?contexto=LECTURA_NO_REALIZADA')
       ])
 
       setMeasurementTypes(typesData || [])
+      setNonReadingReasons(reasons || [])
       setRoutes(routesData || [])
 
       if (!selectedRouteId && routesData?.[0]?.idRutaMedicion != null) {
@@ -293,10 +301,12 @@ export default function EmpleadoHojaRuta() {
         lecturaActual: numericReading,
         tipoLecturaNombre: measurementTypes[0]?.Nombre || measurementTypes[0]?.label || 'Lectura normal',
         empleadoUsuario: usuario,
-        empleadoNombre: nombre || usuario
+        empleadoNombre: nombre || usuario,
+        photo: photos[item.idMedidor] || null
       })
 
       setReadings((current) => ({ ...current, [item.idMedidor]: '' }))
+      setPhotos(current => ({ ...current, [item.idMedidor]: null }))
       await refreshRoutes()
 
       addNotification({
@@ -315,8 +325,13 @@ export default function EmpleadoHojaRuta() {
     }
   }
 
-  const handleMarkIssue = async (item, estado, observacion) => {
+  const handleMarkIssue = async (item) => {
     if (!selectedRoute || !item.meter) return
+    const idMotivoEvento = Number(selectedReasons[item.idMedidor])
+    if (!Number.isInteger(idMotivoEvento) || idMotivoEvento <= 0) {
+      addNotification({ title: 'Motivo requerido', message: 'Seleccioná por qué no se pudo realizar la lectura.', type: 'error' })
+      return
+    }
 
     if (selectedRoute.estado === 'Pendiente') {
       addNotification({
@@ -330,15 +345,18 @@ export default function EmpleadoHojaRuta() {
     setSavingMeterId(item.idMedidor)
 
     try {
+      const key = `${selectedRoute.idRutaMedicion}:${item.idMedidor}:${idMotivoEvento}`
+      retryKeys.current[key] ||= globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`
       await updateMeasurementRouteItem(selectedRoute.idRutaMedicion, item.idMedidor, {
-        estado,
-        observacion
+        idMotivoEvento,
+        operacionId: retryKeys.current[key]
       })
 
       await refreshRoutes()
+      delete retryKeys.current[key]
       addNotification({
-        title: 'Incidencia registrada',
-        message: `El medidor ${item.meter.NumeroMedidor} quedo marcado como ${observacion}.`,
+        title: 'Lectura no realizada registrada',
+        message: `Se registró el motivo para el medidor ${item.meter.NumeroMedidor}.`,
         type: 'success'
       })
     } catch (error) {
@@ -382,7 +400,7 @@ export default function EmpleadoHojaRuta() {
     return (
       <div className="mx-auto max-w-4xl px-4 py-8">
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-800">
-          Esta vista solo esta disponible para empleados con cargo Lecturista. Tu cargo actual es: {cargo || 'No informado'}.
+          Esta vista requiere que AdministraciÃ³n te asigne la funciÃ³n de lecturista en Agua o EnergÃ­a.
         </div>
       </div>
     )
@@ -406,9 +424,13 @@ export default function EmpleadoHojaRuta() {
           <p className="mt-2 text-gray-600">Inicia el recorrido, carga cada medicion y firma al finalizar.</p>
         </div>
         {selectedRoute ? (
-          <span className={`w-fit rounded-full px-3 py-1 text-sm font-semibold ${statusStyles(selectedRoute.estado)}`}>
-            {selectedRoute.estado}
-          </span>
+          <div className="flex flex-col items-start gap-2">
+            <span className={`w-fit rounded-full px-3 py-1 text-sm font-semibold ${statusStyles(selectedRoute.estado)}`}>
+              {selectedRoute.estado}
+            </span>
+            {selectedRoute.fechaCaducidadUtc && <p className="text-sm text-gray-600">Vencimiento: {new Date(selectedRoute.fechaCaducidadUtc).toLocaleString('es-AR')}</p>}
+            {selectedRoute.estado === 'TiempoCaducado' && <p role="status" className="rounded-lg bg-red-50 p-3 text-red-800">La hoja superó las 24 horas. Revisá los medidores pendientes y solicitá una nueva hoja de ruta.</p>}
+          </div>
         ) : null}
       </header>
 
@@ -503,7 +525,7 @@ export default function EmpleadoHojaRuta() {
               <section className="space-y-3">
                 {routeMeters.map((item) => {
                   const measured = item.estado === 'Medido'
-                  const disabled = selectedRoute.estado === 'Pendiente' || selectedRoute.estado === 'Finalizada'
+                  const disabled = ['Pendiente', 'Finalizada', 'Cancelada', 'TiempoCaducado'].includes(selectedRoute.estado)
 
                   return (
                     <article key={`${selectedRoute.idRutaMedicion}-${item.idMedidor}`} className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
@@ -566,6 +588,7 @@ export default function EmpleadoHojaRuta() {
                                 className="input-field"
                                 placeholder="Valor"
                               />
+                              <label className="block text-sm">Foto del medidor (JPEG o PNG, hasta 2 MB)<input className="input-field" type="file" accept="image/jpeg,image/png" onChange={e => { const file=e.target.files?.[0]; if(!file)return; if(!['image/jpeg','image/png'].includes(file.type) || file.size>2*1024*1024){addNotification({title:'Foto invÃ¡lida',message:'ElegÃ­ una foto JPEG o PNG de hasta 2 MB.',type:'error'});return;} const reader=new FileReader(); reader.onload=()=>setPhotos(p=>({...p,[item.idMedidor]:{Base64:String(reader.result).split(',')[1],Nombre:file.name,Tipo:file.type}})); reader.readAsDataURL(file) }} />{photos[item.idMedidor] && <span>{photos[item.idMedidor].Nombre} lista para guardar junto con la lectura.</span>}</label>
                               <button
                                 type="button"
                                 onClick={() => handleSaveReading(item)}
@@ -575,31 +598,16 @@ export default function EmpleadoHojaRuta() {
                                 <Save className="mr-2 h-4 w-4" />
                                 {savingMeterId === item.idMedidor ? 'Guardando...' : 'Guardar medicion'}
                               </button>
-                              <div className="grid gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleMarkIssue(item, 'NoAcceso', 'No acceso')}
-                                  disabled={disabled || savingMeterId === item.idMedidor}
-                                  className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  No acceso
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleMarkIssue(item, 'MedidorDanado', 'Medidor danado')}
-                                  disabled={disabled || savingMeterId === item.idMedidor}
-                                  className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  Medidor dañado
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleMarkIssue(item, 'Observado', 'Observado')}
-                                  disabled={disabled || savingMeterId === item.idMedidor}
-                                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  Observado
-                                </button>
+                              {item.fotoMedidorUrl && <button type="button" className="text-sm text-blue-700 underline" onClick={() => descargarApi(`/rutas-medicion/${item.fotoMedidorUrl}`, `medidor-${item.numeroMedidor}.jpg`).catch(error => addNotification({title:'No se pudo abrir la foto',message:error.message,type:'error'}))}>Descargar foto registrada</button>}
+                              <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                <label className="block text-sm font-medium text-gray-800">Si no se pudo leer, seleccion? el motivo
+                                  <select className="input-field mt-1" value={selectedReasons[item.idMedidor] || ''} onChange={e => setSelectedReasons(current => ({ ...current, [item.idMedidor]: e.target.value }))} disabled={disabled || savingMeterId === item.idMedidor}>
+                                    <option value="">Seleccionar motivo</option>
+                                    {nonReadingReasons.map(reason => <option key={reason.idMotivoEvento} value={reason.idMotivoEvento}>{reason.Nombre}</option>)}
+                                  </select>
+                                </label>
+                                {!nonReadingReasons.length && <p className="text-xs text-amber-900">Los motivos confirmados se habilitar?n al instalar la migraci?n de eventos y estad?sticas.</p>}
+                                <button type="button" onClick={() => handleMarkIssue(item)} disabled={disabled || savingMeterId === item.idMedidor || !nonReadingReasons.length} className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60">Registrar lectura no realizada</button>
                               </div>
                               {selectedRoute.estado === 'Pendiente' ? (
                                 <p className="text-xs text-amber-700">Primero inicia la hoja de ruta.</p>
@@ -640,7 +648,7 @@ export default function EmpleadoHojaRuta() {
                     <SignaturePad
                       value={signatureDataUrl}
                       onChange={setSignatureDataUrl}
-                      disabled={!progress.readyToClose || selectedRoute.estado === 'Finalizada'}
+                      disabled={!progress.readyToClose || ['Finalizada', 'Cancelada', 'TiempoCaducado'].includes(selectedRoute.estado)}
                     />
 
                     <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

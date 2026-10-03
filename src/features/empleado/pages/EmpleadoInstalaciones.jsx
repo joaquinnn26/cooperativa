@@ -7,7 +7,7 @@ import { formatDate } from '@/utils/formatDate.js'
 import { serviceRequiresInstallation, serviceRequiresMeter } from '@/utils/serviceInstallation.js'
 import InstalarMedidorDialog from './TrabajoMedidorDialog.jsx'
 import TrabajosMedidores from './TrabajosMedidores.jsx'
-import { cleanText, FIELD_LIMITS, validateMeaningfulText } from '@/utils/validation.js'
+import { eventosOperativosApi } from '@/utils/eventosOperativosApi.js'
 
 const STATUS_FILTERS = [
   { value: 'Pendiente instalacion', label: 'Pendientes' },
@@ -63,6 +63,7 @@ export default function EmpleadoInstalaciones() {
   const [statusFilter, setStatusFilter] = useState('Pendiente instalacion')
   const [rejectingRequest, setRejectingRequest] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
+  const [installationMotives, setInstallationMotives] = useState([])
   const [installingRequest, setInstallingRequest] = useState(null)
 
   const loadRequests = async () => {
@@ -78,6 +79,14 @@ export default function EmpleadoInstalaciones() {
   useEffect(() => {
     loadRequests()
   }, [fetchServiceRequests])
+
+  useEffect(() => {
+    const abort = new AbortController()
+    eventosOperativosApi('/motivos?contexto=INSTALACION_NO_REALIZADA', { signal: abort.signal })
+      .then(setInstallationMotives)
+      .catch(() => { if (!abort.signal.aborted) setInstallationMotives([]) })
+    return () => abort.abort()
+  }, [])
 
   const isTecnico = normalizeCargo(cargo) === 'tecnico'
 
@@ -137,17 +146,11 @@ export default function EmpleadoInstalaciones() {
   const handleRejectInstallation = async () => {
     if (!rejectingRequest || !rejectReason.trim()) return
 
-    const validationError = validateMeaningfulText(rejectReason, 'El motivo', FIELD_LIMITS.rejectionReason)
-    if (validationError) {
-      setFeedback({ type: 'error', message: validationError })
-      return
-    }
-
     setSavingId(rejectingRequest.idSolicitudServicio)
     setFeedback(null)
 
     try {
-      await rejectServiceInstallation(rejectingRequest.idSolicitudServicio, cleanText(rejectReason))
+      await rejectServiceInstallation(rejectingRequest.idSolicitudServicio, Number(rejectReason))
       await loadRequests()
       setRejectingRequest(null)
       setRejectReason('')
@@ -327,17 +330,13 @@ export default function EmpleadoInstalaciones() {
               Indica el motivo para {rejectingRequest.socioNombre}.
             </p>
 
-            <textarea
-              value={rejectReason}
-              onChange={(event) => setRejectReason(event.target.value)}
-              minLength={FIELD_LIMITS.rejectionReason.min}
-              maxLength={FIELD_LIMITS.rejectionReason.max}
-              className="input-field mt-5 min-h-32"
-              placeholder="Motivo de rechazo de instalacion"
-            />
-            <p className="mt-2 text-xs text-gray-500">
-              {cleanText(rejectReason).length}/{FIELD_LIMITS.rejectionReason.max} caracteres. Minimo {FIELD_LIMITS.rejectionReason.min}.
-            </p>
+            <label className="mt-5 block text-sm font-medium text-gray-700">Motivo
+              <select className="input-field mt-1" value={rejectReason} onChange={event => setRejectReason(event.target.value)}>
+                <option value="">Seleccioná un motivo</option>
+                {installationMotives.map(m => <option key={m.idMotivoEvento} value={m.idMotivoEvento}>{m.Nombre}</option>)}
+              </select>
+            </label>
+            {!installationMotives.length && <p role="status" className="mt-2 text-sm text-amber-800">No hay motivos confirmados disponibles. Revisá la migración y el catálogo antes de cerrar este intento.</p>}
 
             <div className="mt-5 flex justify-end gap-2">
               <button
@@ -354,7 +353,7 @@ export default function EmpleadoInstalaciones() {
               <button
                 type="button"
                 onClick={handleRejectInstallation}
-                disabled={Boolean(savingId) || !rejectReason.trim()}
+                disabled={Boolean(savingId) || !rejectReason.trim() || !installationMotives.length}
                 className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {savingId ? 'Rechazando...' : 'Confirmar rechazo'}

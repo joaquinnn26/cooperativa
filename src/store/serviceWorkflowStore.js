@@ -723,6 +723,7 @@ function normalizeMeasurementRoute(route) {
     empleadoNombre: pickFirst(route?.empleadoNombre, route?.EmpleadoNombre, ''),
     estado: pickFirst(route?.estado, route?.Estado, 'Pendiente'),
     creadaEn: pickFirst(route?.creadaEn, route?.CreadaEn, new Date().toISOString()),
+    fechaCaducidadUtc: pickFirst(route?.fechaCaducidadUtc, route?.FechaCaducidadUtc, null),
     iniciadaEn: pickFirst(route?.iniciadaEn, route?.IniciadaEn, null),
     finalizadaEn: pickFirst(route?.finalizadaEn, route?.FinalizadaEn, null),
     firmaDigital: pickFirst(route?.firmaDigital, route?.FirmaDigital, ''),
@@ -1026,25 +1027,14 @@ const useServiceWorkflowStore = create(
         }
       },
 
-      rejectServiceRequest: async (requestId, motivoRechazo) => {
-        try {
-          const result = await jsonFetch(apiUrl(`/solicitudservicio/rechazar/${requestId}`), {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ motivo: motivoRechazo })
-          })
-          await get().fetchServiceRequests()
-          return result
-        } catch {
-          set((state) => ({
-            requests: state.requests.map((item) =>
-              item.idSolicitudServicio === requestId
-                ? { ...item, estado: 'Rechazada', motivoRechazo }
-                : item
-            )
-          }))
-          return true
-        }
+      rejectServiceRequest: async (requestId, idMotivoEvento) => {
+        const result = await jsonFetch(apiUrl(`/solicitudservicio/rechazar/${requestId}`), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idMotivoEvento: Number(idMotivoEvento) })
+        })
+        await get().fetchServiceRequests()
+        return result
       },
 
       updateServiceRequestStatus: async (requestId, payload) => {
@@ -1059,7 +1049,7 @@ const useServiceWorkflowStore = create(
         }
 
         if (nextStatus === 'Rechazada') {
-          return get().rejectServiceRequest(requestId, payload?.motivoRechazo || payload?.motivo || '')
+          return get().rejectServiceRequest(requestId, payload?.idMotivoEvento)
         }
 
         const body = {
@@ -1119,12 +1109,12 @@ const useServiceWorkflowStore = create(
         }
       },
 
-      rejectServiceInstallation: async (requestId, motivoRechazo) => {
+      rejectServiceInstallation: async (requestId, idMotivoEvento) => {
         try {
           const result = await jsonFetch(apiUrl(`/solicitudservicio/rechazar-instalacion/${requestId}`), {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ motivo: motivoRechazo })
+            body: JSON.stringify({ idMotivoEvento: Number(idMotivoEvento) })
           })
           await get().fetchServiceRequests()
           return result
@@ -1523,7 +1513,10 @@ const useServiceWorkflowStore = create(
               Observacion: payload.observacion || '',
               Latitud: payload.latitud ?? null,
               Longitud: payload.longitud ?? null,
-              FotoMedidorUrl: payload.fotoMedidorUrl || ''
+              FotoMedidorUrl: payload.fotoMedidorUrl || '',
+              FotoBase64: payload.photo?.Base64 || '',
+              NombreFoto: payload.photo?.Nombre || '',
+              TipoFoto: payload.photo?.Tipo || ''
             })
           })
           const normalized = normalizeMeasurementRoute(updated)
@@ -1549,7 +1542,9 @@ const useServiceWorkflowStore = create(
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                Estado: payload.estado,
+                Estado: payload.estado || null,
+                idMotivoEvento: payload.idMotivoEvento || null,
+                OperacionId: payload.operacionId || null,
                 Observacion: payload.observacion || ''
               })
             })

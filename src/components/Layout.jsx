@@ -58,20 +58,26 @@ const employeeIconByPath = {
 
 function buildPanelSections(role, areas) {
   const normalizedRole = normalizeRole(role)
-  const trabajo = { title: 'Mi trabajo', items: [{ to: '/empleado', label: 'Panel laboral', icon: Bell }, ...rutasLaborales(areas).map(r => ({ ...r, icon: employeeIconByPath[r.to] || ClipboardList }))] }
+  const trabajo = { title: 'Mi trabajo', items: [{ to: '/empleado', label: 'Panel laboral', icon: Bell }, ...rutasLaborales(areas).map(r => ({ ...r, icon: employeeIconByPath[r.to] || ClipboardList })), { to: '/empleado/estadisticas-eventos', label: 'Estadísticas e historial', icon: BarChart3 }] }
   if (normalizedRole === 'Administrador') return [
     { title: 'Administración del sistema', items: [
       { to: '/admin', label: 'Panel principal', icon: Bell },
       { to: '/admin/organizacion', label: 'Áreas, funciones y encargados', icon: Users },
       { to: '/admin/empleados', label: 'Empleados y acceso laboral', icon: Users },
+      { to: '/admin/legajos', label: 'Legajos de personas', icon: FileText },
+      { to: '/admin/altas-socio', label: 'Altas de socios', icon: ShieldCheck },
       { to: '/admin/socios', label: 'Socios', icon: Users },
       { to: '/admin/servicios', label: 'Servicios', icon: Settings },
       { to: '/admin/medidores', label: 'Inventario de medidores', icon: Gauge },
       { to: '/admin/territorio', label: 'Conexiones y territorio', icon: MapPinned },
       { to: '/admin/requisitos-servicio', label: 'Requisitos de servicios', icon: FilePlus2 },
-      { to: '/admin/anuncios', label: 'Anuncios', icon: Megaphone }
+      { to: '/admin/anuncios', label: 'Anuncios', icon: Megaphone },
+      { to: '/admin/estadisticas-eventos', label: 'Estadísticas e historial', icon: BarChart3 }
     ] }, ...(areas.length ? [trabajo] : [])]
-  if (normalizedRole === 'Empleado') return [trabajo]
+  if (normalizedRole === 'Empleado') return [
+    { title: 'Mi cuenta', items: [{ to: '/empleado/legajo', label: 'Mi legajo', icon: FileText }] },
+    trabajo
+  ]
   return [{ title: 'Mi cuenta', items: [
     { to: '/socio', label: 'Panel principal', icon: Bell },
     { to: '/facturas', label: 'Mis facturas', icon: Receipt },
