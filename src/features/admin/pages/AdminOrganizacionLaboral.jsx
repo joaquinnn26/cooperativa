@@ -22,6 +22,8 @@ function Modal({ title, close, children, busy }) {
   </div>
 }
 
+const personaVacia = () => ({ modo: 'nueva', idPersona: '', Nombre: '', Apellido: '', Documento: '', Email: '', Telefono: '', Calle: '', Numero: '' })
+
 export default function AdminOrganizacionLaboral() {
   const [data, setData] = useState(null)
   const [area, setArea] = useState('ADMINISTRACION')
@@ -29,14 +31,19 @@ export default function AdminOrganizacionLaboral() {
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState({ idEmpleado: '', Funcion: '', Motivo: '', Nombre: '', Decision: 'Rechazar', Password: '' })
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [revision, setRevision] = useState(0)
+  const [accessForm, setAccessForm] = useState({ gerente: personaVacia(), administrador: personaVacia() })
+  const [createdCredentials, setCreatedCredentials] = useState(null)
+  const [personasDisponibles, setPersonasDisponibles] = useState([])
 
   useEffect(() => {
     const abort = new AbortController()
-    laboralApi('/configuracion', { signal: abort.signal }).then(d => { if (!abort.signal.aborted) setData(d) }).catch(e => { if (!abort.signal.aborted) setError(e.message) })
+    Promise.all([laboralApi('/configuracion', { signal: abort.signal }), laboralApi('/accesos/personas-disponibles', { signal: abort.signal })]).then(([d,people]) => { if (!abort.signal.aborted) { setData(d); setPersonasDisponibles(people) } }).catch(e => { if (!abort.signal.aborted) setError(e.message) })
     return () => abort.abort()
   }, [revision])
 
   const field = (key, value) => setForm(f => ({ ...f, [key]: value }))
+  const accessField = (who, key, value) => setAccessForm(current => ({ ...current, [who]: { ...current[who], [key]: value } }))
+  const closeModal = () => { if (modal?.type === 'accesos') setAccessForm({ gerente: personaVacia(), administrador: personaVacia() }); setModal(null) }
   const open = (type, extra = {}) => { setError(''); setForm({ idEmpleado: '', Funcion: '', Motivo: '', Nombre: '', Decision: 'Rechazar', Password: '', ...extra }); setModal({ type, ...extra }) }
   async function save(payload, closeModal = false) {
     if (!form.Motivo.trim()) { setError('Indicá el motivo del cambio para conservar el historial.'); return false }
@@ -59,6 +66,15 @@ export default function AdminOrganizacionLaboral() {
 
   async function submitModal(e) {
     e.preventDefault()
+    if (modal.type === 'accesos') {
+      setBusy(true); setError(''); setNotice('')
+      try {
+        const mapPerson = person => person.modo === 'existente' ? { idPersona: Number(person.idPersona) } : person
+        const result = await laboralApi('/accesos/gerencia-administracion', { method: 'POST', body: JSON.stringify({ Gerente: mapPerson(accessForm.gerente), Administrador: mapPerson(accessForm.administrador) }) })
+        setCreatedCredentials(result); setAccessForm({ gerente: personaVacia(), administrador: personaVacia() }); setRevision(r => r + 1); setModal(null)
+      } catch (e) { setError(e.message) } finally { setBusy(false) }
+      return
+    }
     if (modal.type === 'miembro') await save({ Accion: 'Miembro', idEmpleado: Number(form.idEmpleado), Activo: true }, true)
     if (modal.type === 'funcion') await save({ Accion: 'Funcion', idEmpleado: modal.employeeId, Funcion: form.Funcion, Activo: true }, true)
     if (modal.type === 'encargado') await save({ Accion: 'Encargado', idEmpleado: form.idEmpleado ? Number(form.idEmpleado) : null, Version: areaRow.Version }, true)
@@ -89,14 +105,16 @@ export default function AdminOrganizacionLaboral() {
 
     {tab === 'cuentas' && <section className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-semibold">Accesos de trabajo</h2><p className="text-sm text-gray-600">Cada empleado usa credenciales laborales separadas de su cuenta personal de socio.</p></div><button className="btn-primary" disabled={!data.empleados.some(e => e.Activo && !data.cuentas.some(c => c.idEmpleado === e.idEmpleado))} onClick={() => open('cuenta')}>+ Crear acceso</button></div><div className="divide-y rounded-xl border bg-white">{data.cuentas.map(c => <div className="flex flex-wrap justify-between gap-2 p-4" key={c.idUsuarioSistema}><span className="font-medium">{employeeName(c.idEmpleado)}</span><span className="text-sm text-gray-600">{c.Usuario}</span></div>)}{!data.cuentas.length && <p className="p-4 text-gray-600">Todavía no hay accesos laborales creados.</p>}</div></section>}
 
-    {modal && <Modal title={modalTitle} close={() => setModal(null)} busy={busy}><form className="space-y-4" onSubmit={submitModal}>
+    {tab === 'cuentas' && <section className="card space-y-3"><h2 className="font-semibold">Alta de Gerencia y Administración</h2><p className="text-sm text-gray-600">Crea dos personas y cuentas distintas en una sola operación. Gerencia tendrá acceso laboral limitado; Administración tendrá permisos globales.</p><button className="btn-primary" onClick={() => open('accesos', { label: 'Crear accesos de Gerencia y Administración' })}>Crear ambos accesos</button>{createdCredentials && <div className="space-y-3 rounded-lg border border-emerald-300 bg-emerald-50 p-4" aria-live="polite"><div className="flex justify-between gap-3"><div><h3 className="font-semibold">Copiá ahora las contraseñas iniciales</h3><p className="text-sm">Se guardan protegidas y no volverán a mostrarse.</p></div><button className="text-sm underline" onClick={() => setCreatedCredentials(null)}>Ocultar</button></div><div className="grid gap-3 md:grid-cols-2">{[['Gerente',createdCredentials.gerente],['Administrador',createdCredentials.administrador]].map(([label,item]) => <div key={label} className="rounded border bg-white p-3"><strong>{label}</strong><p className="mt-2 text-sm">Usuario: <code>{item.usuario}</code></p><p className="mt-1 break-all text-sm">Contraseña: <code>{item.contrasenaInicial}</code></p><p className="text-xs">{item.rol}</p></div>)}</div></div>}</section>}
+    {modal && <Modal title={modalTitle || modal.label || 'Crear accesos'} close={closeModal} busy={busy}><form className="space-y-4" onSubmit={submitModal}>
+      {modal.type === 'accesos' && <><p className="text-sm text-gray-600">Se crearán dos empleados y dos cuentas para personas distintas. Podés reutilizar una persona registrada como socio o cargar una persona nueva. Las contraseñas se generarán al guardar.</p>{[['gerente','Persona gerente'],['administrador','Persona administradora']].map(([who,label]) => { const other=who==='gerente'?'administrador':'gerente'; const options=personasDisponibles.filter(p=>String(p.idPersona)!==String(accessForm[other].idPersona)); return <fieldset key={who} className="space-y-3 rounded-lg border p-3"><legend className="px-1 font-semibold">{label}</legend><label className="block text-sm">Persona<select className="input-field mt-1" value={accessForm[who].modo} onChange={e => setAccessForm(current => ({ ...current, [who]: { ...personaVacia(), modo: e.target.value } }))}><option value="nueva">Cargar persona nueva</option><option value="existente" disabled={!options.length}>Usar persona registrada con correo</option></select></label>{accessForm[who].modo==='existente' ? <label className="block text-sm">Persona registrada<select required className="input-field mt-1" value={accessForm[who].idPersona} onChange={e => accessField(who,'idPersona',e.target.value)}><option value="">Seleccionar persona</option>{options.map(p => <option key={p.idPersona} value={p.idPersona}>{p.Apellido}, {p.Nombre} · Doc. {p.Documento}</option>)}</select></label> : <div className="grid gap-3 sm:grid-cols-2">{[['Nombre','Nombre'],['Apellido','Apellido'],['Documento','Documento'],['Email','Correo electrónico'],['Telefono','Teléfono'],['Calle','Calle'],['Numero','Número']].map(([key,title]) => <label className="block text-sm" key={key}>{title}<input required={['Nombre','Apellido','Documento','Email'].includes(key)} type={key === 'Email' ? 'email' : 'text'} maxLength={key === 'Email' ? 150 : key === 'Documento' ? 30 : 120} autoComplete={key === 'Email' ? 'email' : 'off'} className="input-field mt-1" value={accessForm[who][key]} onChange={e => accessField(who,key,e.target.value)} /></label>)}</div>}</fieldset>})}</>}
       {modal.type === 'miembro' && <label className="block">Empleado activo<select required className="input-field mt-1" value={form.idEmpleado} onChange={e => field('idEmpleado', e.target.value)}><option value="">Seleccionar empleado</option>{availableEmployees.map(e => <option key={e.idEmpleado} value={e.idEmpleado}>{e.Nombre} · {e.Cargo}</option>)}</select></label>}
       {modal.type === 'funcion' && <label className="block">Función<select required className="input-field mt-1" value={form.Funcion} onChange={e => field('Funcion', e.target.value)}><option value="">Seleccionar función</option>{data.funciones.filter(f => f.Area === area && !data.permisos.some(p => p.idEmpleadoArea === modal.memberId && p.Funcion === f.Codigo && !p.HastaUtc)).map(f => <option key={f.Codigo} value={f.Codigo}>{f.Nombre}</option>)}</select></label>}
       {modal.type === 'encargado' && <><label className="block">Empleado encargado<select className="input-field mt-1" value={form.idEmpleado} onChange={e => field('idEmpleado', e.target.value)}><option value="">Dejar área sin encargado</option>{members.map(m => <option key={m.idEmpleadoArea} value={m.idEmpleado}>{employeeName(m.idEmpleado)}</option>)}</select></label><p className="text-sm text-gray-600">La designación anterior finalizará y seguirá visible en el historial.</p></>}
       {modal.type === 'cuenta' && <><label className="block">Empleado<select required className="input-field mt-1" value={form.idEmpleado} onChange={e => field('idEmpleado', e.target.value)}><option value="">Seleccionar empleado</option>{data.empleados.filter(e => e.Activo && !data.cuentas.some(c => c.idEmpleado === e.idEmpleado)).map(e => <option key={e.idEmpleado} value={e.idEmpleado}>{e.Nombre}</option>)}</select></label><label className="block">Contraseña inicial laboral<input required type="password" autoComplete="new-password" minLength={8} maxLength={100} className="input-field mt-1" value={form.Password} onChange={e => field('Password', e.target.value)} /></label><p className="text-xs text-gray-600">Debe incluir mayúscula, minúscula, número y símbolo.</p></>}
       {modal.type === 'confirmar' && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-950">Este cambio se registrará en el historial. Seleccioná el motivo para continuar.</p>}
       <label className="block">Motivo del cambio<select required className="input-field mt-1" value={form.Motivo} onChange={e => field('Motivo', e.target.value)}><option value="">Seleccionar motivo</option>{motivosCambio.map(value => <option key={value}>{value}</option>)}</select></label>
-      <div className="flex justify-end gap-2"><button type="button" className="btn-secondary" onClick={() => setModal(null)} disabled={busy}>Cancelar</button><button className="btn-primary" disabled={busy}>{busy ? 'Guardando…' : 'Guardar'}</button></div>
+      <div className="flex justify-end gap-2"><button type="button" className="btn-secondary" onClick={closeModal} disabled={busy}>Cancelar</button><button className="btn-primary" disabled={busy}>{busy ? 'Guardando…' : 'Guardar'}</button></div>
     </form></Modal>}
   </div>
 }
