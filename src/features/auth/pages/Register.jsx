@@ -51,7 +51,7 @@ export default function Register() {
       validateEmail(form.email),
       validateAddress(form.calle),
       validateHouseNumber(form.numero),
-      !['si', 'no'].includes(form.esTitular) ? 'Indicá si sos titular del domicilio.' : '',
+      !['true', 'false'].includes(form.esTitular) ? 'Indicá si sos titular del domicilio.' : '',
       !form.accept ? 'Debes aceptar los terminos y condiciones.' : ''
     ])
 
@@ -216,7 +216,7 @@ export default function Register() {
 
           <label className="block text-sm font-medium text-gray-700">¿Sos titular del domicilio?
             <select name="esTitular" className="input-field mt-2" required value={form.esTitular} onChange={handleChange}>
-              <option value="">Seleccioná una opción</option><option value="si">Sí, soy titular</option><option value="no">No soy titular</option>
+              <option value="">Seleccioná una opción</option><option value="true">Sí, soy titular</option><option value="false">No soy titular</option>
             </select>
           </label>
 

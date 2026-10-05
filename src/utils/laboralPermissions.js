@@ -7,7 +7,7 @@ export function rutasLaborales(areas = []) {
   if (areas.some(a => ['AGUA', 'ENERGIA'].includes(a.Area) && a.Encargado)) routes.push({ to: '/empleado/rutas-medicion', label: 'Organizar recorridos' }, { to: '/empleado/mediciones', label: 'Revisión de lecturas' })
   if (tieneFuncion(areas, 'ADMINISTRACION', 'ATENCION') || esEncargado(areas, 'ADMINISTRACION')) routes.push({ to: '/empleado/atencion', label: 'Atención y trámites' })
   if (areas.some(a => a.Funciones?.includes('FACTURACION')) || esEncargado(areas, 'ADMINISTRACION')) routes.push({ to: '/empleado/facturas', label: 'Facturación externa' })
-  if (tieneFuncion(areas, 'GERENCIA', 'CONSULTA_GENERAL')) routes.push({ to: '/empleado/reportes', label: 'Actividad de las áreas' })
+  if (tieneFuncion(areas, 'GERENCIA', 'CONSULTA_GENERAL')) routes.push({ to: '/empleado/reportes', label: 'Actividad de las áreas' }, { to: '/empleado/estadisticas-eventos', label: 'Estadísticas e historial' })
   return routes
 }
 export function permiteRutaLaboral(areas, pathname) {

@@ -16,4 +16,9 @@ export async function descargarLaboral(path, nombre) {
   if (!response.ok) throw new Error('No se pudo descargar el archivo o no tenés permiso para verlo.')
   const url = URL.createObjectURL(await response.blob()); const a = document.createElement('a'); a.href = url; a.download = nombre; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
+export async function descargarApi(path, nombre) {
+  const response = await fetch(apiUrl(path), { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+  if (!response.ok) throw new Error('No se pudo descargar la evidencia o no tenés permiso para verla.')
+  const url = URL.createObjectURL(await response.blob()); const a = document.createElement('a'); a.href = url; a.download = nombre; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
 export const tareaEstados = { PendienteAsignacion: 'Por asignar', Asignada: 'Asignada', EnCurso: 'En curso', EnRevision: 'Para revisar', Observada: 'Para corregir', Aprobada: 'Aprobada, pendiente de cierre', Rechazada: 'Rechazada', Cerrada: 'Cerrada' }

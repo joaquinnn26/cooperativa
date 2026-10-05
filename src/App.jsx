@@ -7,7 +7,10 @@ import JefeRutas from '@/features/empleado/pages/JefeRutas.jsx'
 import AdminOrganizacionLaboral from '@/features/admin/pages/AdminOrganizacionLaboral.jsx'
 import SocioDocumentos from '@/features/socio/pages/SocioDocumentos.jsx'
 import SocioAlta from '@/features/socio/pages/SocioAlta.jsx'
+import LegajoPersona from '@/features/socio/pages/LegajoPersona.jsx'
 import AdminAltasSocio from '@/features/admin/pages/AdminAltasSocio.jsx'
+import AdminLegajos from '@/features/admin/pages/AdminLegajos.jsx'
+import EventosEstadisticas from '@/features/admin/pages/EventosEstadisticas.jsx'
 import React from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from '@/components/Layout.jsx'
@@ -81,9 +84,7 @@ export default function App() {
         <Route path="/ayuda/guia" element={<Guia />} />
         <Route path="/ayuda/faq" element={<FAQ />} />
         <Route path="/servicios" element={<Servicios />} />
-        <Route element={<ProtectedRoute role="Socio" />}>
-          <Route path="/facturas" element={<SocioFacturas />} />
-        </Route>
+        <Route element={<ProtectedRoute role="Socio" />}><Route path="/facturas" element={<SocioFacturas />} /></Route>
         <Route path="/reclamos" element={<ReclamosRedirect />} />
         <Route path="/reclamos/nuevo" element={<NuevoReclamoRedirect />} />
         <Route path="/recuperar-contrasena" element={<RecoverPassword />} />
@@ -112,7 +113,9 @@ export default function App() {
 
         <Route element={<ProtectedRoute role="Admin" />}>
           <Route path="/admin/altas-socio" element={<AdminAltasSocio />} />
+          <Route path="/admin/legajos" element={<AdminLegajos />} />
           <Route path="/admin/organizacion" element={<AdminOrganizacionLaboral />} />
+          <Route path="/admin/estadisticas-eventos" element={<EventosEstadisticas />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/socios" element={<AdminSocios />} />
           <Route path="/admin/empleados" element={<AdminEmpleados />} />
@@ -133,6 +136,7 @@ export default function App() {
         </Route>
 
         <Route element={<ProtectedRoute roles={['Empleado', 'Administrador']} />}>
+          <Route path="/empleado/legajo" element={<LegajoPersona />} />
           <Route element={<CargoProtectedRoute />}>
             <Route path="/empleado" element={<LaboralPanel />} />
             <Route path="/empleado/areas/:area" element={<LaboralPanel />} />
@@ -144,6 +148,7 @@ export default function App() {
             <Route path="/empleado/mediciones" element={<LaboralLecturas />} />
             <Route path="/empleado/rutas-medicion" element={<JefeRutas />} />
             <Route path="/empleado/reportes" element={<LaboralPanel gerencia />} />
+            <Route path="/empleado/estadisticas-eventos" element={<EventosEstadisticas />} />
           </Route>
         </Route>
 

@@ -1,9 +1,9 @@
+import { tieneAltaPendiente } from '@/utils/altaSocio.js'
 import React, { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { LogIn } from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
 import useAppStore from '@/store/appStore.js'
-import { tieneAltaPendiente } from '@/utils/altaSocio.js'
 import { cleanText, FIELD_LIMITS, firstValidationError, validateEmail, validateRequired } from '@/utils/validation.js'
 
 export default function Login() {
@@ -56,7 +56,7 @@ export default function Login() {
       })
 
       const rol = data.rol
-      const redirect = tieneAltaPendiente(rol, data.altaSocio) ? '/socio/alta' : rol === 'Administrador' ? '/admin' : rol === 'Empleado' ? '/empleado' : '/socio'
+      const redirect = rol === 'Administrador' ? '/admin' : rol === 'Empleado' ? '/empleado' : tieneAltaPendiente(rol, data.altaSocio) ? '/socio/alta' : '/socio'
       navigate(redirect, { replace: true })
     } catch (error) {
       addNotification({

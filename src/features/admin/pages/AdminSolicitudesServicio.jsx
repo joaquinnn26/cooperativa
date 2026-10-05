@@ -13,7 +13,7 @@ import { API_SERVER_URL } from '@/config/api.js'
 import useAppStore from '@/store/appStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
 import { formatDate } from '@/utils/formatDate.js'
-import { cleanText, FIELD_LIMITS, validateMeaningfulText } from '@/utils/validation.js'
+import { eventosOperativosApi } from '@/utils/eventosOperativosApi.js'
 
 const STATUS_FILTERS = ['Todas', 'Pendiente', 'En revision', 'Pendiente instalacion', 'Aprobada', 'Rechazada', 'Cancelada']
 
@@ -87,6 +87,7 @@ export default function AdminSolicitudesServicio() {
   const [selectedRequestId, setSelectedRequestId] = useState(null)
   const [rejectingRequest, setRejectingRequest] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
+  const [rejectionMotives, setRejectionMotives] = useState([])
   const [saving, setSaving] = useState(false)
 
   const loadRequests = async () => {
@@ -110,6 +111,14 @@ export default function AdminSolicitudesServicio() {
   useEffect(() => {
     loadRequests()
   }, [fetchServiceRequests])
+
+  useEffect(() => {
+    const abort = new AbortController()
+    eventosOperativosApi('/motivos?contexto=SOLICITUD_SERVICIO_RECHAZO', { signal: abort.signal })
+      .then(setRejectionMotives)
+      .catch(() => { if (!abort.signal.aborted) setRejectionMotives([]) })
+    return () => abort.abort()
+  }, [])
 
   const summary = useMemo(
     () =>
@@ -174,15 +183,10 @@ export default function AdminSolicitudesServicio() {
 
   const handleReject = async () => {
     if (!rejectingRequest || !rejectReason.trim()) return
-    const validationError = validateMeaningfulText(rejectReason, 'El motivo de rechazo', FIELD_LIMITS.rejectionReason)
-    if (validationError) {
-      addNotification({ title: 'Datos invalidos', message: validationError, type: 'error' })
-      return
-    }
 
     setSaving(true)
     try {
-      await rejectServiceRequest(rejectingRequest.idSolicitudServicio, cleanText(rejectReason))
+      await rejectServiceRequest(rejectingRequest.idSolicitudServicio, Number(rejectReason))
       addNotification({
         title: 'Solicitud rechazada',
         message: `Se rechazo ${rejectingRequest.servicioNombre}.`,
@@ -436,17 +440,13 @@ export default function AdminSolicitudesServicio() {
               Indica el motivo de rechazo para {rejectingRequest.socioNombre}.
             </p>
 
-            <textarea
-              value={rejectReason}
-              onChange={(event) => setRejectReason(event.target.value)}
-              minLength={FIELD_LIMITS.rejectionReason.min}
-              maxLength={FIELD_LIMITS.rejectionReason.max}
-              className="input-field mt-5 min-h-32"
-              placeholder="Motivo del rechazo"
-            />
-            <p className="mt-2 text-xs text-gray-500">
-              {cleanText(rejectReason).length}/{FIELD_LIMITS.rejectionReason.max} caracteres. Minimo {FIELD_LIMITS.rejectionReason.min}.
-            </p>
+            <label className="mt-5 block text-sm font-medium text-gray-700">Motivo
+              <select className="input-field mt-1" value={rejectReason} onChange={event => setRejectReason(event.target.value)}>
+                <option value="">Seleccioná un motivo</option>
+                {rejectionMotives.filter(m => m.Codigo !== 'ENERGIA_REQUISITO_PILAR' || /luz|energ|electr/i.test(rejectingRequest.servicioNombre || '')).map(m => <option key={m.idMotivoEvento} value={m.idMotivoEvento}>{m.Nombre}</option>)}
+              </select>
+            </label>
+            {!rejectionMotives.length && <p role="status" className="mt-2 text-sm text-amber-800">No hay motivos confirmados disponibles. Revisá la migración y el catálogo de motivos antes de rechazar.</p>}
 
             <div className="mt-5 flex justify-end gap-2">
               <button
@@ -463,7 +463,7 @@ export default function AdminSolicitudesServicio() {
               <button
                 type="button"
                 onClick={handleReject}
-                disabled={saving || !rejectReason.trim()}
+                disabled={saving || !rejectReason.trim() || !rejectionMotives.length}
                 className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving ? 'Rechazando...' : 'Confirmar rechazo'}

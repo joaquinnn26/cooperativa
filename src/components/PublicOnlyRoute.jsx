@@ -1,3 +1,4 @@
+import { tieneAltaPendiente } from '@/utils/altaSocio.js'
 import React from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import useAuthStore from '@/store/authStore.js'
@@ -5,6 +6,7 @@ import { getDefaultRouteByRole, hasActiveSession } from '@/utils/auth.js'
 
 export default function PublicOnlyRoute() {
   const token = useAuthStore((state) => state.token)
+  const altaSocio = useAuthStore((state) => state.altaSocio)
   const rol = useAuthStore((state) => state.rol)
   const sessionStatus = useAuthStore((state) => state.sessionStatus)
 
@@ -13,7 +15,7 @@ export default function PublicOnlyRoute() {
   }
 
   if (sessionStatus === 'authenticated' && hasActiveSession({ token })) {
-    return <Navigate to={getDefaultRouteByRole(rol)} replace />
+    return <Navigate to={tieneAltaPendiente(rol, altaSocio) ? '/socio/alta' : getDefaultRouteByRole(rol)} replace />
   }
 
   return <Outlet />

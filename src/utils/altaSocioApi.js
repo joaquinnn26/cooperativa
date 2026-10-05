@@ -5,6 +5,12 @@ export function altaSocioApi(path = '', options = {}) {
   return territoryRequest(apiUrl(`/alta-socio${path}`), { token: localStorage.getItem('token'), ...options })
 }
 
+export async function descargarDocumentoAlta(documento) {
+  const response = await fetch(apiUrl(`/alta-socio/documentos/${documento.idDocumento}`), { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }, cache: 'no-store' })
+  if (!response.ok) throw new Error('No se pudo abrir el documento o no tenés permiso para verlo.')
+  const url = URL.createObjectURL(await response.blob()); const link = document.createElement('a'); link.href = url; link.download = documento.Nombre || 'documento'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
 export async function obtenerVistaDocumentoAlta(documento, signal) {
   const response = await fetch(apiUrl(`/alta-socio/documentos/${documento.idDocumento}`), {
     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -23,17 +29,4 @@ export async function obtenerVistaDocumentoAlta(documento, signal) {
     throw new Error('Este formato no admite vista previa. Usá la opción Descargar.')
   }
   return { archivo, tipo }
-}
-
-export async function descargarDocumentoAlta(documento) {
-  const response = await fetch(apiUrl(`/alta-socio/documentos/${documento.idDocumento}`), {
-    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-  })
-  if (!response.ok) throw new Error('No se pudo descargar el documento.')
-  const url = URL.createObjectURL(await response.blob())
-  const enlace = document.createElement('a')
-  enlace.href = url
-  enlace.download = documento.Nombre
-  enlace.click()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
