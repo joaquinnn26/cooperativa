@@ -41,7 +41,7 @@ export async function territoryRequest(url, { token, ...options } = {}) {
   if (!response.ok) {
     const message = typeof data === 'string' ? data : data?.Message
     throw new Error(response.status >= 500
-      ? 'No se pudo consultar o guardar la información. Reintentá; si continúa, contactá al administrador.'
+      ? message || 'No se pudo consultar o guardar la información. Reintentá; si continúa, contactá al administrador.'
       : message || (response.status === 404 ? 'La gestión territorial todavía no está disponible en la API.' : 'No se pudo completar la operación. Verificá tu sesión y reintentá.'))
   }
   if (data == null && response.status !== 204) throw new Error('La API devolvió una respuesta inesperada.')
