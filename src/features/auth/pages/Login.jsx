@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LogIn } from 'lucide-react'
+import { BriefcaseBusiness, UserRound } from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
 import useAppStore from '@/store/appStore.js'
-import { cleanText, FIELD_LIMITS, firstValidationError, validateEmail, validateRequired } from '@/utils/validation.js'
+import cospralLogo from '@/assets/cospral-wordmark.png'
+import { cleanText, FIELD_LIMITS, firstValidationError, validateRequired } from '@/utils/validation.js'
 
 export default function Login() {
   const login = useAuthStore((state) => state.login)
@@ -18,6 +19,10 @@ export default function Login() {
     remember: false
   })
   const [isLoading, setIsLoading] = useState(false)
+  const theme = {
+    Socio: { tint: 'bg-blue-50/70', border: 'border-blue-200', button: 'bg-blue-700 hover:bg-blue-800 focus-visible:ring-blue-300' },
+    Empleado: { tint: 'bg-emerald-50/70', border: 'border-emerald-200', button: 'bg-emerald-700 hover:bg-emerald-800 focus-visible:ring-emerald-300' }
+  }[form.tipoAcceso]
 
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target
@@ -31,7 +36,7 @@ export default function Login() {
     event.preventDefault()
 
     const validationError = firstValidationError([
-      validateEmail(form.email),
+      validateRequired(form.email, 'El email o DNI'),
       validateRequired(form.password, 'La contrasena')
     ])
 
@@ -45,7 +50,7 @@ export default function Login() {
     try {
       const data = await login({
         ...form,
-        email: cleanText(form.email).toLowerCase()
+        email: cleanText(form.email).includes('@') ? cleanText(form.email).toLowerCase() : cleanText(form.email)
       })
 
       addNotification({
@@ -70,11 +75,9 @@ export default function Login() {
 
   return (
     <div className="mx-auto max-w-md px-4 py-10">
-      <div className="card">
+      <div className={`card overflow-hidden border transition-all duration-300 ${theme.border}`}>
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-600">
-            <LogIn className="h-8 w-8 text-white" />
-          </div>
+          <img src={cospralLogo} alt="COSPRAL · Cooperativa de Agua y Luz" className="mx-auto mb-5 h-auto w-56 max-w-full object-contain" />
           <h1 className="mb-2 text-2xl font-bold text-gray-900">Iniciar sesion</h1>
           <p className="text-gray-600">Accede a tu cuenta</p>
         </div>
@@ -85,24 +88,40 @@ export default function Login() {
           </div>
         ) : null}
 
-        <form onSubmit={handleLogin} className="space-y-6">
-          <label className="block">Ingresar a
-            <select name="tipoAcceso" value={form.tipoAcceso} onChange={handleChange} className="input-field mt-2">
-              <option value="Socio">Mi cuenta personal de socio</option><option value="Empleado">Mi cuenta laboral</option><option value="Administrador">Administración del sistema</option>
-            </select>
-          </label>
+        <form onSubmit={handleLogin} className={`space-y-5 rounded-2xl p-4 transition-colors duration-300 ${theme.tint}`}>
+          <fieldset>
+            <legend className="mb-2 text-sm font-semibold text-gray-700">Selecciona el tipo de cuenta</legend>
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Tipo de acceso">
+              {[
+                { tipo: 'Socio', Icon: UserRound, descripcion: 'Personal' },
+                { tipo: 'Empleado', Icon: BriefcaseBusiness, descripcion: 'Laboral' }
+              ].map(({ tipo, Icon, descripcion }) => {
+                const selected = form.tipoAcceso === tipo
+                const colors = {
+                  Socio: selected ? 'border-blue-600 bg-blue-50 text-blue-800 shadow-md shadow-blue-900/10' : 'hover:border-blue-300',
+                  Empleado: selected ? 'border-emerald-600 bg-emerald-50 text-emerald-800 shadow-md shadow-emerald-900/10' : 'hover:border-emerald-300'
+                }[tipo]
+                const iconColors = {
+                  Socio: selected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-700',
+                  Empleado: selected ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-emerald-100 group-hover:text-emerald-700'
+                }[tipo]
+                return <button key={tipo} type="button" aria-pressed={selected} onClick={() => setForm(prev => ({ ...prev, tipoAcceso: tipo }))} className={`group flex min-h-[68px] min-w-0 flex-col items-center justify-center gap-1 rounded-xl border p-2 text-center transition-all duration-200 focus:outline-none focus-visible:ring-4 ${selected ? colors : `border-slate-200 bg-white text-slate-600 ${colors}`} hover:-translate-y-0.5 hover:shadow-sm`}><span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-colors ${iconColors}`}><Icon size={15}/></span><span className="min-w-0"><strong className="block text-[11px] leading-tight sm:text-xs">{tipo}</strong><small className="mt-0.5 block text-[10px] opacity-75">{descripcion}</small></span></button>
+              })}
+            </div>
+          </fieldset>
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">Correo electronico</label>
+            <label htmlFor="login-identifier" className="mb-2 block text-sm font-medium text-gray-700">Email o DNI</label>
             <input
+              id="login-identifier"
               name="email"
               value={form.email}
               onChange={handleChange}
-              type="email"
+              type="text"
               required
-              minLength={FIELD_LIMITS.email.min}
               maxLength={FIELD_LIMITS.email.max}
               className="input-field"
-              placeholder="tu@email.com"
+              autoComplete="username"
+              placeholder="Correo electronico o numero de DNI"
             />
           </div>
 
@@ -139,7 +158,7 @@ export default function Login() {
             </label>
           </div>
 
-          <button type="submit" disabled={isLoading} className="w-full btn-primary disabled:opacity-50">
+          <button type="submit" disabled={isLoading} className={`w-full rounded-xl px-4 py-3 font-semibold text-white shadow-sm transition-all duration-200 focus:outline-none focus-visible:ring-4 disabled:cursor-wait disabled:opacity-50 ${theme.button}`}>
             {isLoading ? 'Iniciando sesion...' : 'Iniciar sesion'}
           </button>
         </form>

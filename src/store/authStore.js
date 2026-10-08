@@ -160,7 +160,7 @@ const useAuthStore = create((set) => ({
       rol: data.rol,
       cargo: data.cargo != null ? String(data.cargo) : null,
       usuario: String(data.usuario),
-      email: form.email,
+      email: data.email || form.email,
       nombre: data.nombre,
       idSocio: data.idSocio != null ? String(data.idSocio) : null,
       idEmpleado: data.idEmpleado != null ? String(data.idEmpleado) : null,

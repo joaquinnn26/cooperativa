@@ -12,6 +12,9 @@ export function rutasLaborales(areas = []) {
 }
 export function permiteRutaLaboral(areas, pathname) {
   if (pathname === '/empleado') return true
+  // El menú expone este historial a cuentas laborales; la API limita los datos
+  // a las áreas asignadas y habilita la consulta global para Gerencia.
+  if (pathname === '/empleado/estadisticas-eventos') return true
   if (/^\/empleado\/tareas\/\d+$/.test(pathname)) return Boolean(areas?.length)
   return rutasLaborales(areas).some(r => pathname === r.to || pathname.startsWith(`${r.to}/`))
 }
