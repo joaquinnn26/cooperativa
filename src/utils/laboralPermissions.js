@@ -1,5 +1,6 @@
 export const tieneFuncion = (areas, area, funcion) => (areas || []).some(a => a.Area === area && a.Funciones?.includes(funcion))
 export const esEncargado = (areas, area) => (areas || []).some(a => a.Area === area && a.Encargado)
+export const puedeVerEstadisticasLaborales = (areas = []) => areas.some(a => a.Encargado) || tieneFuncion(areas, 'GERENCIA', 'CONSULTA_GENERAL')
 export function rutasLaborales(areas = []) {
   const routes = areas.map(a => ({ to: `/empleado/areas/${a.Area}`, label: a.Nombre, description: a.Encargado ? 'Equipo, asignaciones y revisión de resultados' : a.Area === 'GAS' ? 'Asignación del área; operaciones por convenio pendientes de definición' : 'Tareas asignadas, resultados e historial', status: 'active' }))
   if (areas.some(a => a.Funciones?.includes('LECTURISTA'))) routes.push({ to: '/empleado/hoja-ruta', label: 'Mis hojas de ruta' })
@@ -19,7 +20,7 @@ export function permiteRutaLaboral(areas = [], pathname) {
   if (!areas?.length) return false
   // El menú expone este historial a cuentas laborales; la API limita los datos
   // a las áreas asignadas y habilita la consulta global para Gerencia.
-  if (pathname === '/empleado/estadisticas-eventos') return true
+  if (pathname === '/empleado/estadisticas-eventos') return puedeVerEstadisticasLaborales(areas)
   if (/^\/empleado\/tareas\/\d+$/.test(pathname)) return Boolean(areas?.length)
   return rutasLaborales(areas).some(r => pathname === r.to || pathname.startsWith(`${r.to}/`))
 }

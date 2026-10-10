@@ -2,6 +2,8 @@
 import {
   CheckCircle2,
   ClipboardCheck,
+  Zap,
+  Gauge,
   Eraser,
   FileSignature,
   Loader2,
@@ -416,30 +418,31 @@ export default function EmpleadoHojaRuta() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 px-4 py-8">
-      <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase text-blue-600">Trabajo en campo</p>
-          <h1 className="text-3xl font-bold text-gray-900">Mi hoja de ruta</h1>
-          <p className="mt-2 text-gray-600">Inicia el recorrido, carga cada medicion y firma al finalizar.</p>
+    <div className="field-route mx-auto max-w-7xl space-y-6 px-4 py-7 sm:px-6">
+      <header className="field-route-hero">
+        <div className="field-route-hero-copy">
+          <p className="field-route-eyebrow"><Zap className="h-4 w-4" /> Redes de energía · Trabajo en campo</p>
+          <h1>Mi hoja de ruta</h1>
+          <p>Un recorrido claro, medidor por medidor. Registrá la lectura y cerrá la hoja al terminar.</p>
         </div>
+        <div className="field-route-hero-mark" aria-hidden="true"><Zap className="h-10 w-10" /></div>
         {selectedRoute ? (
-          <div className="flex flex-col items-start gap-2">
+          <div className="field-route-hero-status">
             <span className={`w-fit rounded-full px-3 py-1 text-sm font-semibold ${statusStyles(selectedRoute.estado)}`}>
               {selectedRoute.estado}
             </span>
-            {selectedRoute.fechaCaducidadUtc && <p className="text-sm text-gray-600">Vencimiento: {new Date(selectedRoute.fechaCaducidadUtc).toLocaleString('es-AR')}</p>}
-            {selectedRoute.estado === 'TiempoCaducado' && <p role="status" className="rounded-lg bg-red-50 p-3 text-red-800">La hoja superó las 24 horas. Revisá los medidores pendientes y solicitá una nueva hoja de ruta.</p>}
+            {selectedRoute.fechaCaducidadUtc && <p>Vence {new Date(selectedRoute.fechaCaducidadUtc).toLocaleString('es-AR')}</p>}
+            {selectedRoute.estado === 'TiempoCaducado' && <p role="status" className="field-route-expired">La hoja superó las 24 horas. Revisá los puntos pendientes y solicitá una nueva hoja.</p>}
           </div>
         ) : null}
       </header>
 
       <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
         <aside className="space-y-4">
-          <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center gap-3">
-              <MapPinned className="h-5 w-5 text-blue-600" />
-              <h2 className="text-xl font-bold text-gray-900">Hojas asignadas</h2>
+          <section className="field-route-panel p-5">
+            <div className="field-route-section-title mb-4">
+              <span className="field-route-section-icon"><MapPinned className="h-5 w-5" /></span>
+              <div><h2>Hojas asignadas</h2><p>Elegí el recorrido que vas a realizar</p></div>
             </div>
 
             <div className="space-y-3">
@@ -455,9 +458,7 @@ export default function EmpleadoHojaRuta() {
                       setSelectedRouteId(String(route.idRutaMedicion))
                       setSignatureDataUrl(route.firmaDigital || '')
                     }}
-                    className={`w-full rounded-lg border p-4 text-left transition ${
-                      active ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white hover:bg-gray-50'
-                    }`}
+                    className={`field-route-choice w-full text-left ${active ? 'is-active' : ''}`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -468,9 +469,7 @@ export default function EmpleadoHojaRuta() {
                         {route.estado}
                       </span>
                     </div>
-                    <p className="mt-3 text-sm text-gray-600">
-                      {itemProgress.done}/{itemProgress.total} medidores
-                    </p>
+                    <div className="field-route-choice-progress"><div><span>{itemProgress.done}/{itemProgress.total} lecturas</span><span>{itemProgress.total ? Math.round((itemProgress.resolved / itemProgress.total) * 100) : 0}%</span></div><span className="field-route-progress-track"><i style={{ width: `${itemProgress.total ? (itemProgress.resolved / itemProgress.total) * 100 : 0}%` }} /></span></div>
                   </button>
                 )
               })}
@@ -487,14 +486,12 @@ export default function EmpleadoHojaRuta() {
         <main className="space-y-6">
           {selectedRoute ? (
             <>
-              <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+              <section className="field-route-panel field-route-overview p-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <h2 className="text-2xl font-bold text-gray-900">{selectedRoute.nombre}</h2>
                     <p className="mt-1 text-sm text-gray-500">{formatDate(selectedRoute.fecha, 'es-AR')}</p>
-                    <p className="mt-3 text-gray-600">
-                      Progreso: {progress.resolved} de {progress.total} puntos resueltos. Mediciones cargadas: {progress.done}.
-                    </p>
+                    <p className="mt-2 text-gray-600">{progress.pending ? `${progress.pending} puntos para resolver` : 'Recorrido completo'}</p>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
@@ -502,7 +499,7 @@ export default function EmpleadoHojaRuta() {
                       <button
                         type="button"
                         onClick={handleStartRoute}
-                        className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                        className="field-route-primary inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold text-white"
                       >
                         <Play className="mr-2 h-4 w-4" />
                         Iniciar hoja de ruta
@@ -511,7 +508,8 @@ export default function EmpleadoHojaRuta() {
                   </div>
                 </div>
 
-                <div className="mt-5 flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2">
+                {selectedRoute.estado !== 'Pendiente' && <div className="field-route-stats"><div className="field-route-stat"><span><ClipboardCheck className="h-4 w-4" /> Puntos resueltos</span><strong>{progress.resolved}<small> / {progress.total}</small></strong></div><div className="field-route-stat"><span><CheckCircle2 className="h-4 w-4" /> Lecturas cargadas</span><strong>{progress.done}</strong></div><div className="field-route-stat"><span><Gauge className="h-4 w-4" /> Pendientes</span><strong>{progress.pending}</strong></div></div>}
+                <div className="field-route-search mt-5 flex items-center gap-2 px-3 py-2">
                   <Search className="h-4 w-4 text-gray-400" />
                   <input
                     value={search}
@@ -528,11 +526,11 @@ export default function EmpleadoHojaRuta() {
                   const disabled = ['Pendiente', 'Finalizada', 'Cancelada', 'TiempoCaducado'].includes(selectedRoute.estado)
 
                   return (
-                    <article key={`${selectedRoute.idRutaMedicion}-${item.idMedidor}`} className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+                    <article key={`${selectedRoute.idRutaMedicion}-${item.idMedidor}`} className={`field-route-meter ${measured ? 'is-done' : ''}`}>
                       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
                         <div>
                           <div className="flex items-start gap-3">
-                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-sm font-bold text-gray-700">
+                            <span className="field-route-order flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold">
                               {item.orden}
                             </span>
                             <div>
@@ -544,15 +542,15 @@ export default function EmpleadoHojaRuta() {
                           </div>
 
                           <div className="mt-4 grid gap-3 md:grid-cols-3">
-                            <div className="rounded-lg bg-gray-50 p-3">
+                            <div className="field-route-detail rounded-lg p-3">
                               <p className="text-xs font-semibold uppercase text-gray-500">Medidor</p>
                               <p className="mt-1 font-semibold text-gray-900">{item.meter?.NumeroMedidor || item.idMedidor}</p>
                             </div>
-                            <div className="rounded-lg bg-gray-50 p-3">
+                            <div className="field-route-detail rounded-lg p-3">
                               <p className="text-xs font-semibold uppercase text-gray-500">Servicio</p>
                               <p className="mt-1 font-semibold text-gray-900">{item.meter?.servicioNombre || 'Servicio'}</p>
                             </div>
-                            <div className="rounded-lg bg-gray-50 p-3">
+                            <div className="field-route-detail rounded-lg p-3">
                               <p className="text-xs font-semibold uppercase text-gray-500">Estado</p>
                               <span className={`mt-1 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusStyles(item.estado)}`}>
                                 {item.estado}
@@ -561,7 +559,7 @@ export default function EmpleadoHojaRuta() {
                           </div>
                         </div>
 
-                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                        <div className="field-route-reading rounded-lg p-4">
                           {measured ? (
                             <div>
                               <div className="mb-3 flex items-center gap-2 text-emerald-700">
@@ -585,7 +583,7 @@ export default function EmpleadoHojaRuta() {
                                   }))
                                 }
                                 disabled={disabled || savingMeterId === item.idMedidor}
-                                className="input-field"
+                                className="input-field field-route-reading-input"
                                 placeholder="Valor"
                               />
                               <label className="block text-sm">Foto del medidor (JPEG o PNG, hasta 2 MB)<input className="input-field" type="file" accept="image/jpeg,image/png" onChange={e => { const file=e.target.files?.[0]; if(!file)return; if(!['image/jpeg','image/png'].includes(file.type) || file.size>2*1024*1024){addNotification({title:'Foto invÃ¡lida',message:'ElegÃ­ una foto JPEG o PNG de hasta 2 MB.',type:'error'});return;} const reader=new FileReader(); reader.onload=()=>setPhotos(p=>({...p,[item.idMedidor]:{Base64:String(reader.result).split(',')[1],Nombre:file.name,Tipo:file.type}})); reader.readAsDataURL(file) }} />{photos[item.idMedidor] && <span>{photos[item.idMedidor].Nombre} lista para guardar junto con la lectura.</span>}</label>
@@ -593,7 +591,7 @@ export default function EmpleadoHojaRuta() {
                                 type="button"
                                 onClick={() => handleSaveReading(item)}
                                 disabled={disabled || savingMeterId === item.idMedidor || !readings[item.idMedidor]}
-                                className="inline-flex w-full items-center justify-center rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="field-route-primary inline-flex w-full items-center justify-center rounded-lg px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 <Save className="mr-2 h-4 w-4" />
                                 {savingMeterId === item.idMedidor ? 'Guardando...' : 'Guardar medicion'}
@@ -627,7 +625,7 @@ export default function EmpleadoHojaRuta() {
                 ) : null}
               </section>
 
-              <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+              <section className="field-route-panel p-5">
                 <div className="mb-5 flex items-start gap-3">
                   <span className="rounded-lg bg-emerald-100 p-2 text-emerald-700">
                     <Signature className="h-5 w-5" />
@@ -661,7 +659,7 @@ export default function EmpleadoHojaRuta() {
                         type="button"
                         onClick={handleCloseRoute}
                         disabled={!progress.readyToClose || !signatureDataUrl || closing}
-                        className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="field-route-finish inline-flex items-center justify-center rounded-lg px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <FileSignature className="mr-2 h-5 w-5" />
                         {closing ? 'Finalizando...' : 'Finalizar hoja de ruta'}

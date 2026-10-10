@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { ArrowLeft, ClipboardList, Zap, UserRound, Activity } from 'lucide-react'
 import { archivoPayload, descargarLaboral, laboralApi, apiLaboralExistente, tareaEstados } from '@/utils/laboral.js'
 import TrabajoMedidorDialog from './TrabajoMedidorDialog.jsx'
 
@@ -51,15 +52,14 @@ export default function LaboralTarea() {
     try { await laboralApi(`/tareas/${id}/evidencias`, { method: 'POST', body: JSON.stringify({ ...await archivoPayload(file), Version: data.tarea.Version }) }); preserveDraft.current = true; setNotice('Evidencia guardada. El resultado escrito se conserva; guardá el avance para registrarlo.'); setRefresh(r => r + 1) } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
   async function download(path, name) { try { await descargarLaboral(path, name) } catch (e) { setError(e.message) } }
-  if (loading) return <p role="status">Cargando trabajo…</p>
+  if (loading) return <div className="field-task-loading" role="status"><span className="field-task-loader" />Cargando tarea...</div>
   if (!data) return <p role="alert" className="card text-red-800">{error || 'No se pudo cargar el trabajo.'}</p>
   const t = data.tarea, editable = data.acciones.includes('Avance'), needsReason = ['Rechazar', 'Devolver'].includes(action)
   const requiredFunction = t.Categoria === 'Ruta' ? 'LECTURISTA' : t.Area === 'ADMINISTRACION' ? 'ATENCION' : 'OPERARIO'
   const origin = data.origen?.[0]
-  return <div className="space-y-5">
-    <Link className="text-blue-700 underline" to={`/empleado/areas/${t.Area}`}>Volver al área</Link>
-    <header><h1 className="text-2xl font-bold">{t.Titulo}</h1><p>{t.AreaNombre} · {tareaEstados[t.Estado]}</p><p className="text-sm text-gray-600">{t.Socio || 'Trabajo interno'} · {origin?.Servicio || t.Servicio || ''} · {t.Direccion || ''}</p><p className="text-sm">Responsable del trabajo: {t.Asignado?.trim() || 'Sin asignar'}</p></header>
-    {error && <p role="alert" className="p-3 bg-red-50 text-red-800">{error}</p>}{notice && <p role="status" className="p-3 bg-green-50 text-green-800">{notice}</p>}
+  return <div className="field-task mx-auto max-w-6xl space-y-5 px-4 py-7 sm:px-6">
+    <header className="field-task-hero"><Link className="field-task-back" to={`/empleado/areas/${t.Area}`}><ArrowLeft size={16} /> Volver al área</Link><div className="field-task-hero-main"><div className="field-task-hero-copy"><span className="field-task-eyebrow"><ClipboardList size={15} /> {t.AreaNombre} · {tareaEstados[t.Estado]}</span><h1>{t.Titulo}</h1><p>{t.Socio || 'Trabajo interno'}{(origin?.Servicio || t.Servicio) && ` · ${origin?.Servicio || t.Servicio}`}{t.Direccion && ` · ${t.Direccion}`}</p></div><span className="field-task-hero-icon"><Zap size={34} /></span></div><div className="field-task-meta"><span><UserRound size={15} /> Responsable: {t.Asignado?.trim() || 'Sin asignar'}</span><span><Activity size={15} /> {t.Categoria || 'Tarea'}</span></div></header>
+    {error && <p role="alert" className="field-task-alert field-task-alert-error">{error}</p>}{notice && <p role="status" className="field-task-alert field-task-alert-success">{notice}</p>}
     {origin?.Observaciones && <div className="card"><h2 className="font-semibold">Datos de la solicitud</h2><p className="whitespace-pre-wrap">{origin.Observaciones}</p></div>}
     {route && <section className="card space-y-3"><h2 className="font-semibold">Resultado del recorrido: {route.nombre}</h2><p>{route.fecha} · {route.empleadoNombre} · {route.estado}</p>{route.items.map(i => <div key={i.idMedidor} className="border-t py-2"><p>{i.socioNombre} · {i.servicioNombre} · Medidor {i.numeroMedidor}</p><p>{i.estado} · Lectura {i.lecturaActual ?? 'sin registrar'} · {i.observacion}</p></div>)}{route.firmaDigital && <img alt="Firma de cierre del lecturista" src={route.firmaDigital} className="max-h-40" />}</section>}
     {(data.documentosSolicitud?.length > 0 || t.Categoria === 'Documentacion') && <section className="card space-y-2"><h2 className="font-semibold">Documentación para revisar</h2>{data.documentosSolicitud?.map(d => <button className="block text-blue-700 underline" key={d.idDocumentoSolicitud} onClick={() => download(`/documentos-solicitud/${d.idDocumentoSolicitud}`, d.NombreArchivo)}>{d.NombreArchivo}</button>)}{t.Categoria === 'Documentacion' && <button className="text-blue-700 underline" onClick={() => download(`/documentos/${t.OrigenId}`, 'documento-socio')}>Descargar documento del socio</button>}</section>}
