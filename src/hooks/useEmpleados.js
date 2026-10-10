@@ -123,14 +123,14 @@ function normalizeCargo(cargo) {
       cargo?.Denominacion,
       cargo?.denominacion,
       extractDisplayName(cargo, ['idCargo', 'IdCargo', 'id', 'IDCargo', 'codigo']),
-      'Sin cargo'
+      'Pendiente de asignación'
     )
   }
 }
 
 function normalizeEmpleado(empleado) {
   const persona = normalizePersona(empleado.Persona || empleado.persona || empleado)
-  const cargo = normalizeCargo(empleado.Cargo || empleado.cargo || empleado)
+  const cargo = normalizeCargo(empleado.Cargo || empleado.cargo || {})
 
   return {
     ...empleado,
@@ -189,13 +189,12 @@ export function useEmpleados(autoLoad = true) {
     setCatalogosError('')
 
     try {
-      const [cargosData, personasData, sociosData] = await Promise.all([
-        jsonFetchFirst(['/cargo', '/cargos', '/empleado/cargo', '/empleado/cargos']),
+      const [personasData, sociosData] = await Promise.all([
         jsonFetchFirst(['/persona', '/persona/listado']),
         jsonFetchFirst(['/socio', '/socios'])
       ])
 
-      const normalizedCargos = ensureArray(cargosData).map(normalizeCargo).filter((cargo) => cargo.idCargo != null)
+      const normalizedCargos = []
       const normalizedPersonas = ensureArray(personasData).map(normalizePersona).filter(Boolean)
       const normalizedSocios = ensureArray(sociosData)
 
@@ -203,9 +202,7 @@ export function useEmpleados(autoLoad = true) {
       setPersonas(normalizedPersonas)
       setSocios(normalizedSocios)
 
-      if (!normalizedCargos.length) {
-        setCatalogosError('No se pudieron cargar los cargos disponibles.')
-      }
+
     } catch (error) {
       console.error('Error al obtener catalogos de empleados', error)
       setCargos([])

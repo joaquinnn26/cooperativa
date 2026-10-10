@@ -25,7 +25,7 @@ export default function TablaEmpleados({ empleados, onEditar, onEliminar, onTogg
       {
         id: 'cargo',
         header: 'Cargo',
-        accessorFn: (empleado) => empleado.Cargo?.Nombre || 'Sin cargo',
+        accessorFn: (empleado) => empleado.Cargo?.Nombre || 'Pendiente de asignación',
         cell: ({ getValue }) => (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
             <Briefcase className="h-3.5 w-3.5" />
@@ -81,7 +81,7 @@ export default function TablaEmpleados({ empleados, onEditar, onEliminar, onTogg
                 type="button"
                 onClick={() => onEditar(empleado)}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-blue-600 hover:bg-blue-50"
-                aria-label="Editar empleado"
+                aria-label="Asignar o cambiar área y puesto" title="Asignar o cambiar área y puesto"
               >
                 <Edit3 className="h-4 w-4" />
               </button>

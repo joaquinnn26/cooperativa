@@ -1,0 +1,71 @@
+import React, { useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { ArrowLeft, ArrowRight, ArrowUpRight, Building2, Check, CheckCircle2, ChevronDown, Clock3, Droplets, Flame, History, Plus, RefreshCw, Search, ShieldCheck, SlidersHorizontal, UserPlus, Users, Wifi, X, Zap } from 'lucide-react'
+
+const areaIcons = { AGUA: Droplets, ENERGIA: Zap, INTERNET: Wifi, GAS: Flame, ADMINISTRACION: Building2, GERENCIA: ShieldCheck }
+const initials = name => String(name || '').trim().split(/\s+/).slice(0, 2).map(word => word[0]).join('').toUpperCase()
+const normalize = text => String(text).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+const date = value => value ? new Date(value).toLocaleDateString('es-AR') : '—'
+
+export default function OrganizacionWorkspace({ data, area, chooseArea, open, disabled, loading, refresh, suggested, error, notice }) {
+  const [search, setSearch] = useState('')
+  const [onlyPending, setOnlyPending] = useState(false)
+  const teamRef = useRef(null)
+  const getName = id => data.empleados.find(e => e.idEmpleado === id)?.Nombre || `Empleado ${id}`
+  const getFunctions = member => data.permisos.filter(f => f.idEmpleadoArea === member.idEmpleadoArea && !f.HastaUtc)
+  const members = data.miembros.filter(m => m.Area === area && !m.HastaUtc)
+  const leader = data.encargados.find(e => e.Area === area && !e.HastaUtc)
+  const areaRow = data.areas.find(a => a.Codigo === area)
+  const AreaIcon = areaIcons[area] || Building2
+  const available = data.empleados.filter(e => e.Activo && !members.some(m => m.idEmpleado === e.idEmpleado))
+  const candidates = members.filter(m => m.idEmpleado !== leader?.idEmpleado && data.empleados.some(e => e.idEmpleado === m.idEmpleado && e.Activo))
+  const unassigned = data.empleados.filter(e => e.Activo && !data.miembros.some(m => m.idEmpleado === e.idEmpleado && !m.HastaUtc))
+  const needsFunctions = members.filter(m => m.idEmpleado !== leader?.idEmpleado && !getFunctions(m).length)
+  const filtered = members.filter(m => (!onlyPending || needsFunctions.includes(m)) && normalize(getName(m.idEmpleado)).includes(normalize(search)))
+  const history = data.encargados.filter(e => e.Area === area)
+  const completed = Number(members.length > 0) + Number(members.length > 0 && !needsFunctions.length) + Number(Boolean(leader))
+  const jumpToFunctions = () => {
+    setSearch(''); setOnlyPending(true)
+    teamRef.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' })
+    teamRef.current?.focus({ preventScroll: true })
+  }
+
+  return <>
+    <header className="org-hero"><div><Link to="/admin" className="org-back"><ArrowLeft size={14} /> Administración</Link><span className="org-eyebrow">PERSONAS Y EQUIPOS</span><h1>Organización laboral</h1><p>Cada persona, en su lugar.<br />Configurá tu equipo paso a paso.</p></div><div className="org-hero-side"><div className="org-hero-symbol" aria-hidden="true"><Users size={45} strokeWidth={1.3} /></div><Link to="/admin/empleados">Gestionar empleados <ArrowUpRight size={16} /></Link></div></header>
+    {error && <div role="alert" className="org-notice org-error"><span>{error}</span><button className="org-button" disabled={disabled} onClick={refresh}>Reintentar</button></div>}
+    {notice && <div role="status" className="org-notice org-success"><CheckCircle2 size={18} /><span>{notice}</span></div>}
+    <section aria-labelledby="org-areas-title"><div className="org-section-heading"><div><span className="org-eyebrow">01 · ELEGÍ DÓNDE TRABAJAR</span><h2 id="org-areas-title">Áreas de la cooperativa</h2></div><button className="org-button org-refresh" disabled={disabled} onClick={refresh}><RefreshCw size={15} className={loading ? 'org-spinning' : ''} /><span>{loading ? 'Actualizando…' : 'Actualizar'}</span></button></div>
+      <div className="org-area-grid">{data.areas.map(row => {
+        const Icon = areaIcons[row.Codigo] || Building2
+        const count = data.miembros.filter(m => m.Area === row.Codigo && !m.HastaUtc).length
+        const hasLeader = data.encargados.some(m => m.Area === row.Codigo && !m.HastaUtc)
+        return <button type="button" key={row.Codigo} disabled={disabled} aria-pressed={area === row.Codigo} className={`org-area-choice ${area === row.Codigo ? 'is-selected' : ''}`} onClick={() => { chooseArea(row.Codigo); setSearch(''); setOnlyPending(false) }}><div><span className={`org-area-icon org-tone-${row.Codigo.toLowerCase()}`}><Icon size={21} /></span>{area === row.Codigo && <CheckCircle2 size={16} className="org-selected-check" />}</div><strong>{row.Nombre}</strong><small>{count} integrante{count !== 1 ? 's' : ''}</small><span className={`org-area-state ${hasLeader ? 'is-ready' : ''}`}><i />{hasLeader ? 'Con encargado' : 'Sin encargado'}</span></button>
+      })}</div>
+      {!data.areas.length && <div className="org-empty"><Building2 size={28} /><h3>No hay áreas disponibles</h3><p>Actualizá la vista para consultar la configuración.</p></div>}
+    </section>
+    {areaRow && <div key={area} className="org-workspace">
+      <section className="org-setup"><div className="org-section-heading"><div className="org-selected-title"><span className={`org-area-icon org-tone-${area.toLowerCase()}`}><AreaIcon size={24} /></span><div><span className="org-eyebrow">ESTÁS CONFIGURANDO</span><h2>{areaRow.Nombre}</h2></div></div><span className={`org-status ${completed === 3 ? 'is-complete' : ''}`}>{completed === 3 ? <CheckCircle2 size={14} /> : <SlidersHorizontal size={14} />}{completed === 3 ? 'Configuración completa' : `${completed} de 3 pasos completos`}</span></div>
+        <div className="org-steps">{[
+          { title: 'Sumá integrantes', description: members.length ? `${members.length} personas en el equipo` : 'Elegí empleados ya registrados', done: members.length > 0, action: () => open('miembro'), unavailable: !available.length },
+          { title: 'Definí sus funciones', description: needsFunctions.length ? `${needsFunctions.length} sin función asignada` : members.length ? 'Equipo con funciones o encargado' : 'Indicá qué hará cada persona', done: members.length > 0 && !needsFunctions.length, action: jumpToFunctions, unavailable: !members.length },
+          { title: leader ? 'Encargado definido' : 'Asigná un encargado', description: leader ? getName(leader.idEmpleado) : 'Elegí quién coordina el área', done: Boolean(leader), action: () => open('encargado'), unavailable: !candidates.length }
+        ].map((step, index) => <button key={step.title} type="button" className={`org-step ${step.done ? 'is-done' : ''}`} disabled={disabled || step.unavailable} onClick={step.action}><span className="org-step-number">{step.done ? <Check size={16} /> : index + 1}</span><span><strong>{step.title}</strong><small>{step.description}</small></span></button>)}</div>
+      </section>
+      {suggested && <div className="org-notice org-success"><UserPlus size={20} /><span><strong>{suggested.Nombre}</strong> está listo para incorporarse a {areaRow.Nombre}.</span><button className="org-button org-primary" disabled={disabled} onClick={() => open('miembro', { idEmpleado: String(suggested.idEmpleado), Motivo: 'Asignación inicial' })}>Asignar a esta área <ArrowRight size={15} /></button></div>}
+      <section className={`org-leader ${leader ? '' : 'is-pending'}`}><div className="org-leader-info"><span className="org-leader-avatar">{leader ? initials(getName(leader.idEmpleado)) : <ShieldCheck size={25} />}</span><div><span className="org-eyebrow">RESPONSABLE DEL ÁREA</span><h3>{leader ? getName(leader.idEmpleado) : 'Falta asignar un encargado'}</h3><p>{leader ? 'Coordina el equipo y revisa sus trabajos.' : members.length ? 'Elegí a una persona del equipo para coordinar el trabajo.' : 'Agregá primero un integrante para poder designarlo.'}</p></div></div><div className="org-leader-action"><button className={`org-button ${leader ? '' : 'org-primary'}`} disabled={disabled || !candidates.length} onClick={() => open('encargado')}><ShieldCheck size={16} />{leader ? 'Cambiar encargado' : 'Asignar encargado'}</button>{leader && !candidates.length && <small>Agregá otro integrante para reemplazarlo.</small>}</div></section>
+      {area === 'GAS' && <p className="org-notice org-warning">Podés configurar el equipo y su encargado. Las operaciones del convenio todavía están pendientes de definición.</p>}
+      <section ref={teamRef} tabIndex={-1} className="org-team" aria-labelledby="org-team-title"><div className="org-section-heading"><div><span className="org-eyebrow">02 · ORGANIZÁ LAS RESPONSABILIDADES</span><h2 id="org-team-title">Equipo de {areaRow.Nombre} <span className="org-count">{members.length}</span></h2><p>Asigná las funciones que necesita cada integrante.</p></div><button className="org-button org-primary" disabled={disabled || !available.length} onClick={() => open('miembro')}><Plus size={16} />Agregar integrante</button></div>
+        {members.length > 0 && <div className="org-team-tools"><label className="org-search"><Search size={16} /><input aria-label="Buscar integrante por nombre" placeholder="Buscar en este equipo…" value={search} onChange={e => setSearch(e.target.value)} />{search && <button type="button" aria-label="Limpiar búsqueda" onClick={() => setSearch('')}><X size={15} /></button>}</label><button type="button" aria-pressed={onlyPending} className={`org-filter ${onlyPending ? 'is-active' : ''}`} onClick={() => setOnlyPending(value => !value)}><Clock3 size={14} />Sin función <span>{needsFunctions.length}</span></button></div>}
+        <div className="org-member-grid">{filtered.map(m => {
+          const functions = getFunctions(m)
+          const isLeader = leader?.idEmpleado === m.idEmpleado
+          const canAdd = data.funciones.some(f => f.Area === area && !functions.some(p => p.Funcion === f.Codigo))
+          return <article key={m.idEmpleadoArea} className="org-member-card"><div className="org-member-heading"><span className="org-avatar">{initials(getName(m.idEmpleado))}</span><div><h3>{getName(m.idEmpleado)}</h3><p>{data.empleados.find(e => e.idEmpleado === m.idEmpleado)?.Cargo || 'Integrante del equipo'}</p></div>{isLeader && <span className="org-leader-badge"><ShieldCheck size={13} />Encargado</span>}</div><div className="org-member-functions"><span className="org-eyebrow">FUNCIONES ASIGNADAS</span>{functions.length ? <ul>{functions.map(f => { const label = data.funciones.find(x => x.Codigo === f.Funcion)?.Nombre || f.Funcion; return <li key={f.idEmpleadoFuncion}><span>{label}</span><button type="button" aria-label={`Quitar función ${label} a ${getName(m.idEmpleado)}`} disabled={disabled} onClick={() => open('confirmar', { label: 'Quitar función', description: `Se quitará la función ${label} de ${getName(m.idEmpleado)} en ${areaRow.Nombre}.`, payload: { Accion: 'Funcion', idEmpleado: m.idEmpleado, Funcion: f.Funcion, Activo: false, Version: f.Version } })}><X size={13} /></button></li> })}</ul> : <p className={isLeader ? 'org-muted' : 'org-missing'}>{isLeader ? 'Puede coordinar y revisar como encargado.' : 'Asignale una función para habilitar sus tareas.'}</p>}</div><button className="org-add-function" disabled={disabled || !canAdd} onClick={() => open('funcion', { employeeId: m.idEmpleado, memberId: m.idEmpleadoArea })}><Plus size={14} />{canAdd ? 'Asignar función' : 'Todas las funciones asignadas'}</button><footer><span>Desde {date(m.DesdeUtc)}</span><button disabled={disabled} onClick={() => open('confirmar', { label: 'Quitar integrante del área', description: `${getName(m.idEmpleado)} dejará de integrar ${areaRow.Nombre}. Su cuenta laboral se conserva.`, employeeId: m.idEmpleado, payload: { Accion: 'Miembro', idEmpleado: m.idEmpleado, Activo: false, Version: m.Version } })}>Quitar del área</button></footer></article>
+        })}</div>
+        {!filtered.length && <div className="org-empty"><Users size={30} /><h3>{members.length ? 'No encontramos integrantes con ese filtro' : 'Empezá por armar tu equipo'}</h3><p>{members.length ? 'Probá con otro nombre o mostrá todos los integrantes.' : 'Agregá un empleado registrado y luego elegí sus funciones.'}</p>{members.length ? <button className="org-button" onClick={() => { setSearch(''); setOnlyPending(false) }}>Ver todo el equipo</button> : available.length ? <button className="org-button org-primary" disabled={disabled} onClick={() => open('miembro')}><UserPlus size={16} />Agregar primer integrante</button> : <Link className="org-button" to="/admin/empleados">Ir a empleados <ArrowRight size={15} /></Link>}</div>}
+      </section>
+      <details className="org-history"><summary><span><History size={18} />Historial de encargados <small>{history.length}</small></span><ChevronDown size={16} /></summary><div className="org-history-content">{history.map(row => <article key={row.idEncargadoArea}><span className={`org-history-dot ${!row.HastaUtc ? 'is-current' : ''}`} /><div><strong>{getName(row.idEmpleado)}</strong>{!row.HastaUtc && <span className="org-status is-complete">Actual</span>}<p>{date(row.DesdeUtc)} → {row.HastaUtc ? date(row.HastaUtc) : 'Actualidad'}</p><small>{row.Motivo}</small></div></article>)}{!history.length && <p className="org-muted">Las designaciones aparecerán aquí cuando asignes el primer encargado.</p>}</div></details>
+    </div>}
+    <aside className="org-onboarding"><div className="org-section-heading"><div><h2><UserPlus size={19} />¿Hay alguien nuevo en el equipo?</h2><p>El alta del empleado crea su cuenta. Después asignale un área y sus funciones.</p></div><Link className="org-text-link" to="/admin/empleados">Gestionar empleados <ArrowUpRight size={15} /></Link></div>{unassigned.length > 0 && <details><summary>{unassigned.length} empleado{unassigned.length !== 1 ? 's' : ''} sin área asignada <ChevronDown size={14} /></summary><div className="org-unassigned">{unassigned.map(e => <div key={e.idEmpleado}><span className="org-avatar">{initials(e.Nombre)}</span><strong>{e.Nombre}</strong><button className="org-button" disabled={disabled || !areaRow} onClick={() => open('miembro', { idEmpleado: String(e.idEmpleado), Motivo: 'Asignación inicial' })}>Asignar a {areaRow?.Nombre || 'un área'} <Plus size={14} /></button></div>)}</div></details>}</aside>
+  </>
+}

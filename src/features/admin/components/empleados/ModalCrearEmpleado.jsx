@@ -1,16 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { CheckCircle2, ArrowRight } from 'lucide-react'
 import { useEmpleados } from '@/hooks/useEmpleados.js'
 import { firstValidationError, isPositiveNumber, validateStrongPassword } from '@/utils/validation.js'
 
 const initialForm = {
   idPersona: '',
-  idCargo: '',
   PasswordLaboral: ''
 }
 
 export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosExistentes = [] }) {
+  const navigate = useNavigate()
   const {
-    cargos,
     personasRegistradas,
     loadingCatalogos,
     catalogosError,
@@ -21,6 +22,7 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
   const [form, setForm] = useState(initialForm)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [created, setCreated] = useState(null)
 
   useEffect(() => {
     if (!show) return
@@ -47,19 +49,19 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
   const handleClose = () => {
     if (saving) return
     setForm(initialForm)
+    setCreated(null)
     setError('')
     onClose()
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    if (saving || created) return
     const idPersona = Number(form.idPersona)
-    const idCargo = Number(form.idCargo)
     const validationError = firstValidationError([
       validateStrongPassword(form.PasswordLaboral, "La contraseña laboral"),
       !isPositiveNumber(idPersona) ? 'Seleccioná una persona válida.' : '',
-      !isPositiveNumber(idCargo) ? 'Selecciona un cargo valido.' : '',
       personasElegibles.some((socio) => String(socio.idPersona) === String(form.idPersona)) ? '' : 'La persona seleccionada ya no está disponible.',
-      cargos.some((cargo) => String(cargo.idCargo) === String(form.idCargo)) ? '' : 'El cargo seleccionado ya no esta disponible.'
     ])
 
     if (validationError) {
@@ -73,19 +75,19 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
     try {
       const today = new Date().toISOString().slice(0, 10)
 
-      await crearEmpleado({
+      const result = await crearEmpleado({
         idPersona,
-        idCargo,
         FechaDeInicio: today,
         PasswordLaboral: form.PasswordLaboral
       })
 
-      await onSaved?.()
+      const person = personasElegibles.find(item => String(item.idPersona) === String(idPersona))
+      setCreated({ idEmpleado: result.idEmpleado, nombre: `${person.Nombre} ${person.Apellido}`, email: person.Email, documento: person.Documento })
       setForm(initialForm)
-      onClose()
+      await onSaved?.()
     } catch (saveError) {
       console.error('Error al crear empleado', saveError)
-      setError(saveError.message || 'No se pudo crear el empleado.')
+      setError(saveError.message || 'No se pudo completar la operación.')
     } finally {
       setSaving(false)
     }
@@ -94,9 +96,17 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
   if (!show) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="w-full max-w-xl rounded-lg bg-white p-6 shadow-xl">
-        <h2 className="mb-4 text-xl font-bold">Dar de alta un empleado</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+      <div role="dialog" aria-modal="true" aria-labelledby="alta-empleado-title" className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
+        <h2 id="alta-empleado-title" className="mb-4 text-xl font-bold">{created ? 'Empleado y cuenta creados' : 'Dar de alta un empleado'}</h2>
+        {created ? <div className="space-y-5">
+          <div role="status" className="flex items-start gap-3 rounded-xl bg-emerald-50 p-4 text-emerald-900"><CheckCircle2 className="shrink-0" size={24} /><div><strong>{created.nombre}</strong><p className="mt-1 text-sm">Ya tiene su usuario laboral y puede iniciar sesión.</p></div></div>
+          <div className="rounded-xl border border-slate-200 p-4 text-sm"><h3 className="font-semibold">Datos para ingresar</h3><p className="mt-3">Elegir <strong>Empleado</strong> en la pantalla de inicio de sesión.</p>{created.email && <p className="mt-2 break-all">Correo: <strong>{created.email}</strong></p>}<p className="mt-2">DNI: <strong>{created.documento || 'El documento registrado'}</strong></p><p className="mt-2 text-slate-600">Contraseña: la contraseña laboral que acabás de definir.</p></div>
+          <p className="rounded-xl bg-blue-50 p-4 text-sm leading-6 text-blue-900">Por ahora verá <strong>«Aún no tenés un área y un puesto asignados»</strong>. Asignale un área y un puesto para habilitar su espacio de trabajo.</p>
+          {error && <p role="alert" className="text-sm text-red-700">El alta se guardó, pero no se pudo actualizar el listado: {error}</p>}
+          <div className="flex flex-wrap justify-end gap-3"><button disabled={saving} className="btn-secondary" onClick={handleClose}>Asignar después</button><button disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-3 font-semibold text-white hover:bg-blue-800 disabled:opacity-60" onClick={() => { const id = created.idEmpleado; handleClose(); navigate(`/admin/organizacion?empleado=${encodeURIComponent(id)}`) }}>Asignar área y puesto <ArrowRight size={17} /></button></div>
+        </div> : <form onSubmit={handleSubmit}>
+        <p className="mb-5 rounded-xl bg-blue-50 p-4 text-sm leading-6 text-blue-900">Al guardar se crean el empleado y su usuario laboral en una sola operación. La asignación de área y puesto se realiza después.</p>
 
         <div className="space-y-4">
           <div>
@@ -121,29 +131,10 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
             ) : null}
           </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Cargo</label>
-            <select
-              value={form.idCargo}
-              onChange={(e) => setForm((prev) => ({ ...prev, idCargo: e.target.value }))}
-              className="input-field"
-              disabled={saving || loadingCatalogos}
-            >
-              <option value="">Seleccionar cargo...</option>
-              {cargos.map((cargo) => (
-                <option key={cargo.idCargo} value={cargo.idCargo}>
-                  {cargo.Nombre}
-                </option>
-              ))}
-            </select>
-            {!loadingCatalogos && !cargos.length ? (
-              <p className="mt-1 text-sm text-red-600">
-                {catalogosError || 'No hay cargos disponibles para seleccionar.'}
-              </p>
-            ) : null}
-          </div>
-          <label className="block">Contraseña inicial laboral<input type="password" autoComplete="new-password" required minLength={8} maxLength={100} className="input-field" value={form.PasswordLaboral} onChange={e => setForm(f => ({ ...f, PasswordLaboral: e.target.value }))} /></label>
-          <p className="text-sm text-gray-600">Incluí mayúscula, minúscula, número y símbolo. Se crea una cuenta laboral independiente; la cuenta de socio se conserva. Después asigná sus áreas y funciones.</p>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><strong>Pendiente de asignación</strong><p className="mt-1">El empleado se crea sin cargo ni área. Los vas a definir juntos desde Organización laboral.</p></div>
+          {catalogosError && <p role="alert" className="text-sm text-red-700">{catalogosError}</p>}
+          <label className="block">Contraseña inicial laboral<input disabled={saving} type="password" autoComplete="new-password" required minLength={8} maxLength={100} className="input-field" value={form.PasswordLaboral} onChange={e => setForm(f => ({ ...f, PasswordLaboral: e.target.value }))} /></label>
+          <p className="text-sm text-gray-600">Incluí mayúscula, minúscula, número y símbolo. Se crea una cuenta laboral independiente; la cuenta de socio se conserva. Después asigná su área y puesto.</p>
           <p className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700">
             La fecha de inicio se asignara automaticamente con la fecha actual.
           </p>
@@ -157,6 +148,7 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
 
         <div className="mt-6 flex justify-end space-x-2">
           <button
+            type="button"
             onClick={handleClose}
             className="rounded bg-gray-200 px-4 py-2 hover:bg-gray-300 disabled:opacity-60"
             disabled={saving}
@@ -164,13 +156,14 @@ export default function ModalCrearEmpleado({ show, onClose, onSaved, empleadosEx
             Cancelar
           </button>
           <button
-            onClick={handleSubmit}
+            type="submit"
             className="rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-60"
             disabled={saving || loadingCatalogos || !personasElegibles.length}
           >
-            {saving ? 'Guardando...' : 'Crear empleado'}
+            {saving ? 'Creando empleado y cuenta…' : 'Crear empleado y cuenta'}
           </button>
         </div>
+        </form>}
       </div>
     </div>
   )

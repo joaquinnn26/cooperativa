@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Briefcase, ChevronLeft, ChevronRight, FileDown, FileSpreadsheet, Plus, Search, Table } from 'lucide-react'
 import { useEmpleados } from '@/hooks/useEmpleados.js'
 import TablaEmpleados from '@/features/admin/components/empleados/TablaEmpleados.jsx'
 import ModalCrearEmpleado from '@/features/admin/components/empleados/ModalCrearEmpleado.jsx'
-import ModalEditarEmpleado from '@/features/admin/components/empleados/ModalEditarEmpleado.jsx'
 import ModalEliminarEmpleado from '@/features/admin/components/empleados/ModalEliminarEmpleado.jsx'
 import { showToast } from '@/utils/alerts.js'
 import { exportTable } from '@/utils/exportTable.js'
@@ -21,6 +21,7 @@ const EMPLEADOS_EXPORT_COLUMNS = [
 ]
 
 export default function AdminEmpleados() {
+  const navigate = useNavigate()
   const {
     empleados,
     loading,
@@ -31,7 +32,6 @@ export default function AdminEmpleados() {
 
   const [search, setSearch] = useState('')
   const [showCrear, setShowCrear] = useState(false)
-  const [showEditar, setShowEditar] = useState(false)
   const [showEliminar, setShowEliminar] = useState(false)
   const [empleadoSeleccionado, setEmpleadoSeleccionado] = useState(null)
   const [estadoFiltro, setEstadoFiltro] = useState('todos')
@@ -118,8 +118,7 @@ export default function AdminEmpleados() {
   }
 
   const abrirEditar = (empleado) => {
-    setEmpleadoSeleccionado(empleado)
-    setShowEditar(true)
+    navigate(`/admin/organizacion?empleado=${empleado.idEmpleado}`)
   }
 
   const abrirEliminar = (empleado) => {
@@ -197,7 +196,7 @@ export default function AdminEmpleados() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Empleados</h1>
-          <p className="text-gray-600">Promueve socios registrados, asigna cargos y administra bajas.</p>
+          <p className="text-gray-600">Creá empleados con su cuenta laboral y luego asignales su área y puesto desde Organización laboral.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -316,13 +315,6 @@ export default function AdminEmpleados() {
         onClose={() => setShowCrear(false)}
         onSaved={fetchEmpleados}
         empleadosExistentes={empleados}
-      />
-
-      <ModalEditarEmpleado
-        show={showEditar}
-        empleado={empleadoSeleccionado}
-        onClose={() => setShowEditar(false)}
-        onRefresh={fetchEmpleados}
       />
 
       <ModalEliminarEmpleado

@@ -56,7 +56,7 @@ const storedToken = localStorage.getItem('token')
 const initialToken = storedToken && !isTokenExpired(storedToken) ? storedToken : null
 if (!initialToken) clearSessionStorage()
 
-const useAuthStore = create((set) => ({
+const useAuthStore = create((set, get) => ({
   token: initialToken,
   rol: null,
   cargo: null,
@@ -223,6 +223,27 @@ const useAuthStore = create((set) => ({
     }
 
     set({ idEmpleado: idEmpleado != null ? String(idEmpleado) : null })
+  },
+
+  refreshLaboralProfile: async ({ signal } = {}) => {
+    const token = get().token
+    if (!token) throw new Error('Iniciá sesión para consultar tu asignación.')
+    const response = await fetch(apiUrl('/laboral/perfil'), {
+      signal,
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    if (!response.ok) throw new Error('No se pudo consultar tu asignación. Volvé a intentarlo.')
+    const profile = await response.json()
+    if (!Array.isArray(profile?.areas)) throw new Error('No se pudo verificar tu área de trabajo.')
+    // Una respuesta demorada no debe restaurar permisos después de cerrar sesión.
+    if (signal?.aborted || get().token !== token) return null
+    const cargo = profile.cargo ?? null
+    if (JSON.stringify(get().areas) !== JSON.stringify(profile.areas) || get().cargo !== cargo) {
+      set({ areas: profile.areas, cargo })
+      if (cargo) localStorage.setItem('cargo', cargo)
+      else localStorage.removeItem('cargo')
+    }
+    return profile.areas
   },
 
   updateAltaSocio: (altaSocio) => set({ altaSocio }),

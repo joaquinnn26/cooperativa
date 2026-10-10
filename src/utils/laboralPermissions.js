@@ -10,8 +10,13 @@ export function rutasLaborales(areas = []) {
   if (tieneFuncion(areas, 'GERENCIA', 'CONSULTA_GENERAL')) routes.push({ to: '/empleado/reportes', label: 'Actividad de las áreas' })
   return routes
 }
-export function permiteRutaLaboral(areas, pathname) {
+export function inicioLaboral(areas = []) {
+  if (areas.length === 1 && !tieneFuncion(areas, 'GERENCIA', 'CONSULTA_GENERAL')) return `/empleado/areas/${areas[0].Area}`
+  return '/empleado'
+}
+export function permiteRutaLaboral(areas = [], pathname) {
   if (pathname === '/empleado') return true
+  if (!areas?.length) return false
   // El menú expone este historial a cuentas laborales; la API limita los datos
   // a las áreas asignadas y habilita la consulta global para Gerencia.
   if (pathname === '/empleado/estadisticas-eventos') return true
