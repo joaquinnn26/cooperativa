@@ -28,6 +28,8 @@ import cospralLogo from '@/assets/cospral-wordmark.png'
 import useAuthStore from '../store/authStore.js'
 import AuthSessionManager from './AuthSessionManager.jsx'
 import PublicAnnouncementsBanner from './PublicAnnouncementsBanner.jsx'
+import PublicFooter from '@/features/home/PublicFooter.jsx'
+import '@/features/home/Home.css'
 import { getDefaultRouteByRole, normalizeCargo, normalizeRole } from '@/utils/auth.js'
 import { rutasLaborales } from '@/utils/laboralPermissions.js'
 
@@ -118,6 +120,9 @@ export default function Layout() {
   const logout = useAuthStore((state) => state.logout)
   const rol = useAuthStore((state) => state.rol)
   const location = useLocation()
+  const isLoginRoute = location.pathname === '/login'
+  const isHomeRoute = location.pathname === '/'
+  const isInstitutionalPublic = !usuario && !isLoginRoute
   const [menuOpen, setMenuOpen] = useState(false)
 
   const normalizedRole = normalizeRole(rol)
@@ -146,9 +151,9 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-gray-50">
       <AuthSessionManager />
-      {!usuario ? <PublicAnnouncementsBanner /> : null}
+      {!usuario && !isHomeRoute ? <PublicAnnouncementsBanner /> : null}
 
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
+      <header className={`bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40 ${isInstitutionalPublic ? 'public-site-header' : ''}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-3">
@@ -163,18 +168,18 @@ export default function Layout() {
                 </button>
               ) : null}
 
-              <Link to={usuario ? panelPath : '/'} className="flex items-center space-x-3">
-                <img src={cospralLogo} alt="COSPRAL · Cooperativa de Agua y Luz" className="h-10 w-[150px] object-contain object-left sm:w-[175px]" />
+              <Link to={isHomeRoute ? '/' : usuario ? panelPath : '/'} className="flex items-center space-x-3">
+                <img src={cospralLogo} alt="COSPRAL · Cooperativa de Agua y Luz" className="public-header-logo h-10 w-[150px] object-contain object-left sm:w-[175px]" />
               </Link>
             </div>
 
             {!usuario ? (
-              <nav className="hidden md:flex space-x-8">
-                {publicLinks.map((item) => (
+              <nav aria-label="Navegación principal" className={isInstitutionalPublic ? 'public-nav' : 'hidden md:flex space-x-8'}>
+                {(isInstitutionalPublic ? publicLinks.filter(item => ['/', '/ayuda'].includes(item.to)) : publicLinks).map((item) => (
                   <NavLink
                     key={item.to}
                     to={item.to}
-                    className={({ isActive }) =>
+                    className={({ isActive }) => isInstitutionalPublic ? `public-nav-link ${isActive ? 'active' : ''}` :
                       [
                         'text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-lg font-medium transition-colors',
                         isActive ? 'text-blue-600 bg-blue-50' : ''
@@ -192,7 +197,7 @@ export default function Layout() {
               </div>
             ) : null}
 
-            <div className="flex items-center space-x-3">
+            <div className="public-header-actions flex items-center space-x-3">
               {usuario ? (
                 <>
                   <Link
@@ -217,7 +222,7 @@ export default function Layout() {
                   </button>
                 </>
               ) : (
-                <Link to="/login" className="btn-primary text-sm">
+                <Link to="/login" className={isInstitutionalPublic ? 'public-login-button' : 'btn-primary text-sm'}>
                   Iniciar sesion
                 </Link>
               )}
@@ -226,7 +231,7 @@ export default function Layout() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className={isLoginRoute || isHomeRoute ? 'w-full' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'}>
         {usuario && isPanelRoute ? (
           <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] py-6">
             <aside className="hidden lg:block">
@@ -356,7 +361,7 @@ export default function Layout() {
         </div>
       ) : null}
 
-      <footer className="bg-gray-800 text-white mt-16">
+      {isInstitutionalPublic || isHomeRoute ? <PublicFooter /> : <footer className={`bg-gray-800 text-white ${isLoginRoute ? '' : 'mt-16'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
@@ -394,7 +399,7 @@ export default function Layout() {
             <p>&copy; 2024 COSPRAL · Cooperativa de Agua y Luz. Todos los derechos reservados.</p>
           </div>
         </div>
-      </footer>
+      </footer>}
     </div>
   )
 }

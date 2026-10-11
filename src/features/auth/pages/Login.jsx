@@ -4,6 +4,8 @@ import { BriefcaseBusiness, UserRound } from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
 import useAppStore from '@/store/appStore.js'
 import cospralLogo from '@/assets/cospral-wordmark.png'
+import loginBackground from '@/assets/images/login-background.png'
+import './Login.css'
 import { cleanText, FIELD_LIMITS, firstValidationError, validateRequired } from '@/utils/validation.js'
 
 export default function Login() {
@@ -74,8 +76,8 @@ export default function Login() {
   }
 
   return (
-    <div className="mx-auto max-w-md px-4 py-10">
-      <div className={`card overflow-hidden border transition-all duration-300 ${theme.border}`}>
+    <div className="login-background" style={{ backgroundImage: `url("${loginBackground}")` }}>
+      <div className={`card w-full max-w-[416px] overflow-hidden border transition-all duration-300 ${theme.border}`}>
         <div className="mb-8 text-center">
           <img src={cospralLogo} alt="COSPRAL · Cooperativa de Agua y Luz" className="mx-auto mb-5 h-auto w-56 max-w-full object-contain" />
           <h1 className="mb-2 text-2xl font-bold text-gray-900">Iniciar sesion</h1>
