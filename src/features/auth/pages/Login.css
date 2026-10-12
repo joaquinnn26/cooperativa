@@ -1,0 +1,20 @@
+.login-background {
+  /* The existing navbar is 64px tall, with a 1px bottom border. */
+  min-height: calc(100vh - 65px);
+  min-height: calc(100svh - 65px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1rem;
+  background-color: #dce9e6;
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+}
+
+@media (max-width: 640px) {
+  .login-background {
+    padding: 1.5rem 1rem;
+    background-position: 60% center;
+  }
+}

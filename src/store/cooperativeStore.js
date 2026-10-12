@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { apiUrl } from '@/config/api.js'
+import { fetchPublicAnnouncements } from '../features/home/publicAnnouncements.js'
 
 const initialServices = [
   {
@@ -209,15 +210,7 @@ const useCooperativeStore = create(
 
       fetchServices: async () => get().services,
       fetchAnnouncements: async () => {
-        try {
-          const data = await firstSuccessfulJson(['/anuncios', '/anuncio'])
-          const normalized = ensureArray(data).map(normalizeAnnouncementFromApi)
-          set((state) => ({ ...state, announcements: normalized }))
-          return normalized
-        } catch (error) {
-          if (!apiModuleUnavailable(error)) throw error
-          return get().announcements.filter((announcement) => announcement.active !== false)
-        }
+        return fetchPublicAnnouncements(apiUrl('/anuncios'))
       },
       fetchAnnouncementsAdmin: async () => {
         try {
