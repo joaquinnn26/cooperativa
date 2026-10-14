@@ -68,6 +68,7 @@ export default function SocioSolicitudServicioNueva() {
   const [error, setError] = useState('')
   const [form, setForm] = useState({
     idServicio: '',
+    direccionInstalacion: '',
     observaciones: ''
   })
   const [filesByRequirement, setFilesByRequirement] = useState({})
@@ -167,7 +168,7 @@ export default function SocioSolicitudServicioNueva() {
 
   const missingFiles = requirements.filter((item) => !filesByRequirement[item.idRequisitoServicio])
   const selectedServiceBlocked = blockedServiceIds.includes(String(form.idServicio))
-  const canSubmit = Boolean(form.idServicio && form.observaciones.trim() && !missingFiles.length && !selectedServiceBlocked)
+  const canSubmit = Boolean(form.idServicio && form.direccionInstalacion.trim() && form.observaciones.trim() && !missingFiles.length && !selectedServiceBlocked)
 
   const handleFileChange = (requirementId, fileList) => {
     const file = Array.from(fileList || []).find((item) => ACCEPTED_TYPES.includes(item.type))
@@ -198,7 +199,8 @@ export default function SocioSolicitudServicioNueva() {
     const resolvedSocioId = socioId ?? (await resolveSocioId())
     const validationError = firstValidationError([
       !isPositiveNumber(form.idServicio) ? 'Selecciona un servicio valido.' : '',
-      validateMeaningfulText(form.observaciones, 'Las observaciones', FIELD_LIMITS.longText),
+      validateMeaningfulText(form.direccionInstalacion, 'El domicilio de instalacion', { min: 5, max: 200 }),
+      validateMeaningfulText(form.observaciones, 'Las observaciones', { min: FIELD_LIMITS.longText.min, max: 650 }),
       missingFiles.length ? 'Debes adjuntar un archivo por cada requisito.' : '',
       selectedServiceBlocked ? 'Ya tenés una solicitud pendiente para este servicio.' : ''
     ])
@@ -218,7 +220,7 @@ export default function SocioSolicitudServicioNueva() {
       await createServiceRequest({
         idSocio: Number(resolvedSocioId),
         idServicio: Number(form.idServicio),
-        observaciones: cleanText(form.observaciones),
+        observaciones: `Domicilio de instalacion: ${cleanText(form.direccionInstalacion)}. Detalle: ${cleanText(form.observaciones)}`,
         socioUsuario: usuario,
         socioNombre: nombre || usuario,
         filesByRequirement
@@ -290,12 +292,25 @@ export default function SocioSolicitudServicioNueva() {
           ) : null}
 
           <div>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Domicilio donde se solicita el alta</label>
+            <input
+              required
+              maxLength={200}
+              value={form.direccionInstalacion}
+              onChange={(event) => setForm((prev) => ({ ...prev, direccionInstalacion: event.target.value }))}
+              className="input-field"
+              placeholder="Calle, numero, localidad y referencias de acceso"
+            />
+            <p className="mt-1 text-xs text-gray-500">Este domicilio se enviara al area tecnica junto con la solicitud.</p>
+          </div>
+
+          <div>
             <label className="mb-2 block text-sm font-medium text-gray-700">Observaciones</label>
             <textarea
               value={form.observaciones}
               onChange={(event) => setForm((prev) => ({ ...prev, observaciones: event.target.value }))}
               minLength={FIELD_LIMITS.longText.min}
-              maxLength={FIELD_LIMITS.longText.max}
+              maxLength={650}
               className="input-field min-h-40"
               placeholder="Describe el pedido, direccion del servicio, referencias y cualquier dato util."
             />

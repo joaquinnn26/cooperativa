@@ -7,7 +7,9 @@ export function rutasLaborales(areas = []) {
   if (areas.some(a => ['AGUA', 'ENERGIA'].includes(a.Area) && (a.Encargado || a.Funciones?.includes('OPERARIO')))) routes.push({ to: '/empleado/medidores', label: 'Medidores de mi trabajo' })
   if (areas.some(a => ['AGUA', 'ENERGIA'].includes(a.Area) && a.Encargado)) routes.push({ to: '/empleado/rutas-medicion', label: 'Organizar recorridos' }, { to: '/empleado/mediciones', label: 'Revisión de lecturas' })
   if (tieneFuncion(areas, 'ADMINISTRACION', 'ATENCION') || esEncargado(areas, 'ADMINISTRACION')) routes.push({ to: '/empleado/atencion', label: 'Atención y trámites' })
+  if (tieneFuncion(areas, 'ADMINISTRACION', 'ATENCION') || esEncargado(areas, 'ADMINISTRACION')) routes.push({ to: '/empleado/turnos', label: 'Gestión de turnos', description: 'Revisa solicitudes de visita y organiza la agenda de atención.' })
   if (areas.some(a => a.Funciones?.includes('FACTURACION')) || esEncargado(areas, 'ADMINISTRACION')) routes.push({ to: '/empleado/facturas', label: 'Facturación externa' })
+  if (tieneFuncion(areas, 'BENEFICIOS', 'GESTION_BENEFICIO') || esEncargado(areas, 'BENEFICIOS')) routes.push({ to: '/empleado/beneficios', label: 'Sepelio y ortopedia' })
   if (tieneFuncion(areas, 'GERENCIA', 'CONSULTA_GENERAL')) routes.push({ to: '/empleado/reportes', label: 'Actividad de las áreas' })
   return routes
 }

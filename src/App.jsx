@@ -2,6 +2,7 @@ import LaboralPanel from '@/features/empleado/pages/LaboralPanel.jsx'
 import LaboralTarea from '@/features/empleado/pages/LaboralTarea.jsx'
 import LaboralFacturas from '@/features/empleado/pages/LaboralFacturas.jsx'
 import LaboralAtencion from '@/features/empleado/pages/LaboralAtencion.jsx'
+import LaboralTurnos from '@/features/empleado/pages/LaboralTurnos.jsx'
 import LaboralLecturas from '@/features/empleado/pages/LaboralLecturas.jsx'
 import JefeRutas from '@/features/empleado/pages/JefeRutas.jsx'
 import AdminOrganizacionLaboral from '@/features/admin/pages/AdminOrganizacionLaboral.jsx'
@@ -11,6 +12,7 @@ import LegajoPersona from '@/features/socio/pages/LegajoPersona.jsx'
 import AdminAltasSocio from '@/features/admin/pages/AdminAltasSocio.jsx'
 import AdminLegajos from '@/features/admin/pages/AdminLegajos.jsx'
 import EventosEstadisticas from '@/features/admin/pages/EventosEstadisticas.jsx'
+import AdminMotivosEventos from '@/features/admin/pages/AdminMotivosEventos.jsx'
 import React from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from '@/components/Layout.jsx'
@@ -23,6 +25,8 @@ import ReclamosList from '@/features/socio/pages/ReclamosList.jsx'
 import ReclamoNuevo from '@/features/socio/pages/ReclamoNuevo.jsx'
 import SocioSolicitudesServicio from '@/features/socio/pages/SocioSolicitudesServicio.jsx'
 import SocioSolicitudServicioNueva from '@/features/socio/pages/SocioSolicitudServicioNueva.jsx'
+import SocioBeneficios from '@/features/socio/pages/SocioBeneficios.jsx'
+import BeneficiosTercerizados from '@/features/empleado/pages/BeneficiosTercerizados.jsx'
 import SocioServicios from '@/features/socio/pages/SocioServicios.jsx'
 import SocioMediciones from '@/features/socio/pages/SocioMediciones.jsx'
 import SocioFacturas from '@/features/socio/pages/SocioFacturas.jsx'
@@ -104,6 +108,7 @@ export default function App() {
           <Route path="/socio/reclamos/nuevo" element={<ReclamoNuevo />} />
           <Route path="/socio/solicitudes-servicio" element={<SocioSolicitudesServicio />} />
           <Route path="/socio/solicitudes-servicio/nueva" element={<SocioSolicitudServicioNueva />} />
+          <Route path="/socio/beneficios" element={<SocioBeneficios />} />
           <Route path="/socio/mis-servicios" element={<SocioServicios />} />
           <Route path="/socio/mis-mediciones" element={<SocioMediciones />} />
           <Route path="/socio/perfil" element={<SocioPerfil />} />
@@ -116,6 +121,7 @@ export default function App() {
           <Route path="/admin/legajos" element={<AdminLegajos />} />
           <Route path="/admin/organizacion" element={<AdminOrganizacionLaboral />} />
           <Route path="/admin/estadisticas-eventos" element={<EventosEstadisticas />} />
+          <Route path="/admin/motivos-eventos" element={<AdminMotivosEventos />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/socios" element={<AdminSocios />} />
           <Route path="/admin/empleados" element={<AdminEmpleados />} />
@@ -132,7 +138,7 @@ export default function App() {
           <Route path="/admin/requisitos-servicio" element={<AdminRequisitosServicio />} />
           <Route path="/admin/instalaciones" element={<Navigate to="/empleado" replace />} />
           <Route path="/admin/medidores" element={<AdminMedidores />} />
-          <Route path="/admin/turnos" element={<Navigate to="/empleado/atencion" replace />} />
+          <Route path="/admin/turnos" element={<Navigate to="/empleado/turnos" replace />} />
         </Route>
 
         <Route element={<ProtectedRoute roles={['Empleado', 'Administrador']} />}>
@@ -142,7 +148,9 @@ export default function App() {
             <Route path="/empleado/areas/:area" element={<LaboralPanel />} />
             <Route path="/empleado/tareas/:id" element={<LaboralTarea />} />
             <Route path="/empleado/atencion" element={<LaboralAtencion />} />
+            <Route path="/empleado/turnos" element={<LaboralTurnos />} />
             <Route path="/empleado/facturas" element={<LaboralFacturas />} />
+            <Route path="/empleado/beneficios" element={<BeneficiosTercerizados />} />
             <Route path="/empleado/hoja-ruta" element={<EmpleadoHojaRuta />} />
             <Route path="/empleado/medidores" element={<AdminMedidores />} />
             <Route path="/empleado/mediciones" element={<LaboralLecturas />} />

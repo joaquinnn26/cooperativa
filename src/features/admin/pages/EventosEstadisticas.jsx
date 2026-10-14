@@ -1,120 +1,268 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { Activity, BarChart3, ChevronRight, Search, RotateCcw } from 'lucide-react'
-import { eventosOperativosApi } from '@/utils/eventosOperativosApi.js'
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { AlertTriangle, BarChart3, RefreshCw } from 'lucide-react'
+import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import useAuthStore from '@/store/authStore.js'
 import { normalizeRole } from '@/utils/auth.js'
+import { apiLaboralExistente } from '@/utils/laboral.js'
+import { eventosOperativosApi } from '@/utils/eventosOperativosApi.js'
+import { tieneFuncion } from '@/utils/laboralPermissions.js'
 
-const CONTEXTOS = [
-  ['LECTURA_NO_REALIZADA', 'Lecturas no realizadas'], ['LECTURA_REALIZADA', 'Lecturas realizadas'],
-  ['MEDIDOR_FALLA', 'Fallas de medidor'],
-  ['LECTURA_CORRECCION', 'Correcciones de lectura'], ['MEDIDOR_MIGRACION', 'Historial de medidores'],
-  ['MEDIDOR_REEMPLAZO', 'Reemplazos de medidor'], ['INSTALACION_NO_REALIZADA', 'Instalaciones no realizadas'],
-  ['SOLICITUD_SERVICIO_RECHAZO', 'Solicitudes de servicio rechazadas'], ['TERRITORIO', 'Territorio'],
-  ['HOJA_RUTA', 'Hojas de ruta'], ['LECTURA_CORRECCION', 'Corrección de lectura'], ['RECLAMO', 'Reclamos'],
-  ['RECLAMO_DERIVACION', 'Derivación de reclamos'], ['RECLAMO_DEVOLUCION', 'Devolución de reclamos'],
-  ['RECLAMO_RESOLUCION', 'Resolución de reclamos'], ['DOCUMENTO_PERSONA', 'Documentos de persona'],
-  ['BAJA_SERVICIO', 'Baja de servicio'], ['BAJA_SOCIO', 'Baja de socio'], ['EMPLEADO_BAJA', 'Baja laboral'],
-  ['HOJA_RUTA_CANCELACION', 'Cancelación de ruta'], ['HOJA_RUTA_REASIGNACION', 'Reasignación de ruta']
-]
-const AREAS = { ADMINISTRACION: 'Administración', AGUA: 'Agua potable', ENERGIA: 'Electricidad', INTERNET: 'Internet', GAS: 'Gas', GERENCIA: 'Gerencia', GENERAL: 'General', SIN_AREA: 'Sin área' }
-const EVENTOS = { AltaEmpleado: 'Alta de empleado', BajaEmpleado: 'Baja de empleado', SocioRegistrado: 'Socio registrado', SocioDadoDeBaja: 'Socio dado de baja', SocioReactivado: 'Socio reactivado', AltaSocioAprobada: 'Alta de socio aprobada', AltaSocioRechazada: 'Alta de socio rechazada', LecturaNoRealizada: 'Lectura no realizada', LecturaRealizada: 'Lectura realizada', RegistrarLectura: 'Lectura registrada', MedidorReemplazado: 'Medidor reemplazado', InstalacionNoRealizada: 'Instalación no realizada', SolicitudRechazada: 'Solicitud rechazada', ReclamoCreado: 'Reclamo creado', EstadoReclamoCambiado: 'Estado del reclamo actualizado', CambiarCargo: 'Cambio de cargo', SocioEstado: 'Cambio de estado del socio', TiempoCaducado: 'Plazo vencido', CorregirLectura: 'Corrección de lectura' }
-const humanizar = value => { const text = String(value || '').trim().replace(/([a-záéíóúñ0-9])([A-ZÁÉÍÓÚÑ])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').toLocaleLowerCase('es-AR'); return text ? text[0].toLocaleUpperCase('es-AR') + text.slice(1) : 'Sin especificar' }
-const etiquetaArea = value => AREAS[String(value || '').toUpperCase()] || humanizar(value || 'General')
-const etiquetaEvento = value => EVENTOS[value] || humanizar(value)
-const etiquetaContexto = code => { const known = CONTEXTOS.find(([value]) => value === code)?.[1]; if (known) return known; if (code?.startsWith('LABORAL_')) { const rest = code.slice(8); const area = Object.keys(AREAS).filter(key => key !== 'GENERAL' && rest.startsWith(`${key}_`)).sort((a, b) => b.length - a.length)[0]; if (area) return `Actividad laboral · ${etiquetaArea(area)} · ${etiquetaEvento(rest.slice(area.length + 1))}`; return `Actividad laboral · ${etiquetaEvento(rest.startsWith('GENERAL_') ? rest.slice(8) : rest)}` } if (code?.startsWith('MEDIDOR_')) return `Medidores · ${humanizar(code.slice(8))}`; if (code?.startsWith('TERRITORIO_')) return `Territorio · ${humanizar(code.slice(10))}`; if (code === 'DOCUMENTO_PERSONA_RECHAZO') return 'Rechazo de documentación personal'; return humanizar(code) }
-const today = () => new Date().toISOString().slice(0, 10)
-const monthAgo = () => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10) }
+const COLORS = ['#2563eb', '#0f766e', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#65a30d']
+const AREA_NAMES = { ADMINISTRACION: 'Administración', AGUA: 'Agua potable', ENERGIA: 'Electricidad', INTERNET: 'Internet', GAS: 'Gas', GERENCIA: 'Gerencia', SIN_AREA: 'Sin área' }
+const STATE_NAMES = { PendienteAsignacion: 'Pendiente de asignar', Asignada: 'Asignada', EnCurso: 'En curso', EnRevision: 'En revisión', Observada: 'Devuelta', Aprobada: 'Aprobada', Rechazada: 'Rechazada', Cerrada: 'Cerrada', PendienteDocumentacion: 'Falta documentación', Recibida: 'Recibida', 'En Revision': 'En revisión', Pagada: 'Pagada', Pendiente: 'Pendiente', Anulada: 'Anulada', Exportado: 'Sin respuesta', Validado: 'Validado', Aplicado: 'Aplicado', FACTURADA: 'Facturada', RECHAZADA: 'Rechazada', 'Sin respuesta': 'Sin respuesta' }
+const EVENT_NAMES = { Aprobar: 'Aprobaciones', Rechazar: 'Rechazos', Devolver: 'Devoluciones', CorregirLectura: 'Correcciones', RegistrarLectura: 'Lecturas registradas', IncidenciaRuta: 'Incidencias de visita', SolicitudRechazada: 'Solicitudes rechazadas', AltaSocioRechazada: 'Altas rechazadas' }
+const monthKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+const labelArea = value => AREA_NAMES[value] || value || 'Sin área'
+const labelState = value => STATE_NAMES[value] || value || 'Sin estado'
+const pct = value => value == null ? 'Porcentaje no disponible' : `${Number(value).toLocaleString('es-AR', { maximumFractionDigits: 1 })}%`
+
+function EmptyChart({ children }) { return <div className="flex min-h-48 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 text-center text-sm text-slate-600">{children}</div> }
+function ChartPanel({ title, period, description, children, className = '' }) {
+  return <section className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${className}`}><div className="mb-4"><p className="text-xs font-bold uppercase tracking-wider text-blue-700">{period}</p><h2 className="mt-1 text-lg font-bold text-slate-900">{title}</h2><p className="mt-1 text-sm text-slate-600">{description}</p></div>{children}</section>
+}
 
 export default function EventosEstadisticas() {
-  const role = useAuthStore(state => state.rol)
+  const role = useAuthStore(s => s.rol)
+  const areas = useAuthStore(s => s.areas) || []
   const isAdmin = normalizeRole(role) === 'Administrador'
-  const [filters, setFilters] = useState({ desde: monthAgo(), hasta: today(), contexto: '', area: '', folio: '', empleado: '', servicio: '', conexion: '', medidor: '', ruta: '' })
-  const [rows, setRows] = useState([]), [records, setRecords] = useState([]), [selected, setSelected] = useState(null)
-  const [previousRows, setPreviousRows] = useState([]), [comparePeriods, setComparePeriods] = useState(false)
-  const [loading, setLoading] = useState(false), [error, setError] = useState(''), [searched, setSearched] = useState(false)
-  const [contexts, setContexts] = useState([])
-  const [catalogContext, setCatalogContext] = useState('LECTURA_NO_REALIZADA'), [catalogContexts, setCatalogContexts] = useState(CONTEXTOS), [catalog, setCatalog] = useState([]), [catalogMessage, setCatalogMessage] = useState('')
-  const [reasonContext, setReasonContext] = useState('BAJA_SOCIO')
-  const query = useMemo(() => {
-    const p = new URLSearchParams()
-    if (filters.desde) p.set('DesdeUtc', `${filters.desde}T00:00:00Z`)
-    if (filters.hasta) { const end = new Date(`${filters.hasta}T00:00:00Z`); end.setUTCDate(end.getUTCDate() + 1); p.set('HastaUtc', end.toISOString()) }
-    if (filters.contexto) p.set('Contexto', filters.contexto)
-    if (filters.area.trim()) p.set('Area', filters.area.trim().toUpperCase())
-    if (filters.folio.trim()) p.set('Folio', filters.folio.trim())
-    if (filters.empleado) p.set('idEmpleado', filters.empleado)
-    if (filters.servicio) p.set('idServicio', filters.servicio)
-    if (filters.conexion) p.set('idServicioSocio', filters.conexion)
-    if (filters.medidor) p.set('idMedidor', filters.medidor)
-    if (filters.ruta) p.set('idRutaMedicion', filters.ruta)
-    return p.toString()
-  }, [filters])
-  const motivosPorProceso = useMemo(() => {
+  const isManager = isAdmin || tieneFuncion(areas, 'GERENCIA', 'CONSULTA_GENERAL')
+  const [area, setArea] = useState('')
+  const [areaOptions, setAreaOptions] = useState([])
+  const [data, setData] = useState(null)
+  const [records, setRecords] = useState([])
+  const [selected, setSelected] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const load = useCallback(async () => {
+    setLoading(true); setError(''); setRecords([]); setSelected(null)
+    try {
+      const query = isManager && area ? `?area=${encodeURIComponent(area)}` : ''
+      setData(await eventosOperativosApi(`/dashboard${query}`))
+    } catch (e) { setError(e.message || 'No se pudieron cargar las estadísticas.') } finally { setLoading(false) }
+  }, [area, isManager])
+
+  useEffect(() => {
+    if (!isManager) return
+    const loadAreas = async () => {
+      try {
+        const result = isAdmin ? await apiLaboralExistente('/laboral/configuracion') : await apiLaboralExistente('/laboral/resumen')
+        setAreaOptions((isAdmin ? result.areas : result).map(x => ({ Codigo: x.Codigo || x.Area, Nombre: x.Nombre })))
+      } catch { setAreaOptions([]) }
+    }
+    loadAreas()
+  }, [isAdmin, isManager])
+
+  useEffect(() => { load() }, [load])
+
+  const stateData = useMemo(() => {
     const grouped = new Map()
-    for (const row of rows) {
-      if (row.Contexto !== reasonContext) continue
-      const motivo = row.Motivo?.trim() || 'Sin motivo clasificado'
-      grouped.set(motivo, (grouped.get(motivo) || 0) + Number(row.CantidadEventos || 0))
+    for (const item of [...(data?.estadosTareas || []), ...(data?.estadosProcesos || [])]) {
+      const name = `${item.Proceso} · ${labelArea(item.Area)}`
+      const row = grouped.get(name) || { name }
+      row[labelState(item.Estado)] = (row[labelState(item.Estado)] || 0) + Number(item.Cantidad || 0)
+      grouped.set(name, row)
     }
-    const total = [...grouped.values()].reduce((sum, count) => sum + count, 0)
-    return [...grouped].map(([Motivo, Cantidad]) => ({ Motivo, Cantidad, Porcentaje: total ? Cantidad / total * 100 : 0 })).sort((a, b) => b.Cantidad - a.Cantidad)
-  }, [rows, reasonContext])
-  const maxMotivo = Math.max(1, ...motivosPorProceso.map(item => item.Cantidad))
-  const run = async () => {
-    setLoading(true); setError(''); setRecords([]); setSelected(null); setPreviousRows([])
-    try {
-      const result = await eventosOperativosApi(`/estadisticas?${query}`); setRows(result.datos || [])
-      if (comparePeriods && filters.desde && filters.hasta) {
-        const start = new Date(`${filters.desde}T00:00:00Z`), end = new Date(`${filters.hasta}T00:00:00Z`)
-        end.setUTCDate(end.getUTCDate() + 1)
-        const duration = end.getTime() - start.getTime(), previousStart = new Date(start.getTime() - duration)
-        const p = new URLSearchParams(query); p.set('DesdeUtc', previousStart.toISOString()); p.set('HastaUtc', start.toISOString())
-        const previous = await eventosOperativosApi(`/estadisticas?${p.toString()}`); setPreviousRows(previous.datos || [])
-      }
-      setSearched(true)
+    return [...grouped.values()]
+  }, [data])
+  const stateKeys = useMemo(() => [...new Set(stateData.flatMap(row => Object.keys(row).filter(k => k !== 'name')))], [stateData])
+
+  const todayData = useMemo(() => (data?.actividadHoy || []).filter(x => !data?.area || x.Area === data.area).map(x => ({ ...x, name: `${EVENT_NAMES[x.CodigoEvento] || x.CodigoEvento} · ${labelArea(x.Area)}`, value: Number(x.Cantidad) })), [data])
+  const motiveData = useMemo(() => (data?.motivosMes || data?.motivosDocumentacionMes || []).filter(x => !data?.area || x.Area === data.area).slice(0, 30).map(x => ({ ...x, name: `${x.Motivo} · ${labelArea(x.Area)}`, value: Number(x.Cantidad), porcentaje: x.Denominador ? Number(x.Cantidad) * 100 / Number(x.Denominador) : null })), [data])
+  const qualityData = useMemo(() => (data?.indicadoresCalidad || []).filter(x => !data?.area || x.Area === data.area).map(x => ({ ...x, name: `${x.Proceso} · ${EVENT_NAMES[x.Resultado] || labelState(x.Resultado)} · ${labelArea(x.Area)}`, value: Number(x.Cantidad), porcentaje: x.Porcentaje == null ? null : Number(x.Porcentaje) })), [data])
+  const ageData = useMemo(() => (data?.pendientesAntiguedad || []).filter(x => !data?.area || x.Area === data.area).map(x => ({ ...x, name: `${x.Proceso} · ${labelArea(x.Area)} · ${x.Rango}`, value: Number(x.Cantidad) })), [data])
+  const flowData = useMemo(() => {
+    const rows = new Map()
+    for (const item of data?.semanasFlujo || []) {
+      const date = new Date(item.Semana)
+      const key = date.toISOString().slice(0, 10)
+      const row = rows.get(key) || { key, semana: date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }) }
+      const series = `${item.Proceso} · ${item.Tipo}`
+      row[series] = (row[series] || 0) + Number(item.Cantidad)
+      rows.set(key, row)
     }
-    catch (e) { setError(e.message || 'No se pudieron consultar las estadísticas.') }
-    finally { setLoading(false) }
-  }
-  useEffect(() => { run() }, [])
-  useEffect(() => { eventosOperativosApi('/contextos').then(setContexts).catch(() => setContexts([])) }, [])
-  const openRecords = async (row) => {
-    setSelected(row); setRecords([]); setError('')
+    return [...rows.values()].sort((a, b) => a.key.localeCompare(b.key))
+  }, [data])
+  const flowSeries = useMemo(() => [...new Set((data?.semanasFlujo || []).map(x => `${x.Proceso} · ${x.Tipo}`))], [data])
+  const repeatData = useMemo(() => (data?.medidoresRecurrentes || []).filter(x => !data?.area || x.Area === data.area).map(x => ({ ...x, name: labelArea(x.Area), value: Number(x.Cantidad) })), [data])
+  const focusArea = data?.esGerencia ? data.area : data?.areasPermitidas?.length === 1 ? data.areasPermitidas[0] : null
+  const focusedStateData = useMemo(() => {
+    const rows = new Map()
+    for (const item of [...(data?.estadosTareas || []), ...(data?.estadosProcesos || [])].filter(x => x.Area === focusArea)) {
+      const name = item.Proceso
+      const row = rows.get(name) || { name }
+      row[labelState(item.Estado)] = (row[labelState(item.Estado)] || 0) + Number(item.Cantidad || 0)
+      rows.set(name, row)
+    }
+    return [...rows.values()]
+  }, [data, focusArea])
+  const focusedStateKeys = useMemo(() => [...new Set(focusedStateData.flatMap(row => Object.keys(row).filter(k => k !== 'name')))], [focusedStateData])
+  const focusedAge = useMemo(() => ageData.filter(x => x.Area === focusArea), [ageData, focusArea])
+  const focusedFlow = useMemo(() => {
+    const rows = new Map()
+    for (const item of (data?.semanasFlujo || []).filter(x => x.Area === focusArea)) {
+      const date = new Date(item.Semana); const key = date.toISOString().slice(0, 10)
+      const row = rows.get(key) || { key, semana: date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }) }
+      row[item.Tipo] = (row[item.Tipo] || 0) + Number(item.Cantidad || 0); rows.set(key, row)
+    }
+    return [...rows.values()].sort((a, b) => a.key.localeCompare(b.key))
+  }, [data, focusArea])
+  const focusedMotives = useMemo(() => motiveData.filter(x => x.Area === focusArea), [motiveData, focusArea])
+  const focusedQuality = useMemo(() => qualityData.filter(x => x.Area === focusArea), [qualityData, focusArea])
+  const focusedToday = useMemo(() => todayData.filter(x => x.Area === focusArea), [todayData, focusArea])
+  const focusedIncidentMotives = useMemo(() => (data?.motivosIncidenciasAbiertas || []).filter(x => x.Area === focusArea).map(x => ({ ...x, name: x.Motivo, value: Number(x.Cantidad) })), [data, focusArea])
+  const focusedRepeat = useMemo(() => (data?.medidoresRecurrentes || []).filter(x => x.Area === focusArea).map(x => ({ ...x, name: labelArea(x.Area), value: Number(x.Cantidad) })), [data, focusArea])
+  const focusedResolution = useMemo(() => (data?.tiemposResolucionPorMotivo || []).filter(x => x.Area === focusArea).map(x => ({ ...x, name: x.Motivo, value: Number(x.HorasPromedio) })), [data, focusArea])
+  const focusedInvoiceStates = useMemo(() => focusedStateData.find(x => x.name === 'Facturación Internet') || null, [focusedStateData])
+  const focusedInvoiceKeys = useMemo(() => focusedInvoiceStates ? Object.keys(focusedInvoiceStates).filter(k => k !== 'name') : [], [focusedInvoiceStates])
+
+  const trend = useMemo(() => {
+    if (!data?.periodos) return { rows: [], series: [], coverageKey: '' }
+    const start = new Date(`${data.periodos.tendenciaDesdeLocal.slice(0, 10)}T12:00:00`)
+    const currentMonthKey = monthKey(new Date(`${data.periodos.mesDesdeLocal.slice(0, 10)}T12:00:00`))
+    const months = Array.from({ length: 12 }, (_, i) => { const d = new Date(start); d.setMonth(d.getMonth() + i); return monthKey(d) })
+    const byMonth = new Map(months.map(m => [m, { key: m, name: new Date(`${m}-01T12:00:00`).toLocaleDateString('es-AR', { month: 'short', year: '2-digit' }) + (m === currentMonthKey ? ' · parcial' : '') }]))
+    const managerAll = data.esGerencia && !data.area
+    const countBySeries = new Map()
+    const visibleTrends = (data.tendencias || []).filter(item => !data.esGerencia || data.area || data.areasPermitidas?.includes(item.Area))
+    for (const item of visibleTrends) {
+      const key = monthKey(new Date(item.Periodo))
+      const series = managerAll ? labelArea(item.Area) : item.Contexto
+      const row = byMonth.get(key)
+      if (!row) continue
+      row[series] = (row[series] || 0) + Number(item.Cantidad || 0)
+      countBySeries.set(series, (countBySeries.get(series) || 0) + Number(item.Cantidad || 0))
+    }
+    const allSeries = [...countBySeries].sort((a, b) => b[1] - a[1]).slice(0, 6).map(x => x[0])
+    const coverageKey = data.coberturaEventosDesdeUtc ? monthKey(new Date(data.coberturaEventosDesdeUtc)) : ''
+    const rows = [...byMonth.values()].map(row => { for (const s of allSeries) if (coverageKey && row.key < coverageKey) row[s] = null; return row })
+    return { rows, series: allSeries, coverageKey }
+  }, [data])
+
+  async function openRecords(event) {
+    if (!event?.desde || !event?.hasta || !data?.periodos) return
+    setSelected(event); setRecords([]); setError('')
     try {
-      const p = new URLSearchParams(query); p.set('contexto', row.Contexto); p.set('codigoEvento', row.CodigoEvento)
-      const result = await eventosOperativosApi(`/registros?${p.toString()}`); setRecords(result.items || [])
-    } catch (e) { setError(e.message || 'No se pudieron abrir los registros.') }
-  }
-  const set = (key, value) => setFilters(prev => ({ ...prev, [key]: value }))
-  const loadCatalog = async () => {
-    try { const result = await eventosOperativosApi(`/motivos?contexto=${encodeURIComponent(catalogContext)}&incluirPendientes=true&incluirInactivos=true`); setCatalog(result || []); setCatalogMessage('') }
-    catch (e) { setCatalogMessage(e.message || 'No se pudo cargar el catálogo.') }
-  }
-  useEffect(() => { if (isAdmin) loadCatalog() }, [isAdmin, catalogContext])
-  useEffect(() => { if (isAdmin) eventosOperativosApi('/catalogos').then(rows => { const merged = new Map(CONTEXTOS); (rows || []).forEach(row => merged.set(row.Contexto, etiquetaContexto(row.Contexto))); setCatalogContexts([...merged].map(([code, label]) => [code, label])) }).catch(() => {}) }, [isAdmin])
-  const updateMotive = async (motive, changes) => {
-    setCatalogMessage('')
-    try { await eventosOperativosApi(`/motivos/${motive.idMotivoEvento}`, { method: 'PUT', body: JSON.stringify({ ...motive, ...changes }) }); await loadCatalog() }
-    catch (e) { setCatalogMessage(e.message || 'No se pudo actualizar la opción.') }
+      const q = new URLSearchParams({ DesdeUtc: event.desde, HastaUtc: event.hasta })
+      if (event.Contexto) q.set('contexto', event.Contexto)
+      if (event.CodigoEvento) q.set('codigoEvento', event.CodigoEvento)
+      if (event.idMotivoEvento) q.set('idMotivoEvento', event.idMotivoEvento)
+      if (isManager && (event.Area || data.area)) q.set('Area', event.Area || data.area)
+      const result = await eventosOperativosApi(`/registros?${q}`)
+      setRecords(result.items || [])
+    } catch (e) { setError(e.message || 'No se pudieron abrir los registros asociados.') }
   }
 
-  return <div className="event-history space-y-6">
-    <header className="event-hero relative overflow-hidden rounded-3xl p-7 text-white shadow-lg"><div className="relative z-10 max-w-2xl"><p className="text-xs font-bold uppercase tracking-[.18em] text-cyan-100">Panel de gestión</p><h1 className="mt-2 text-3xl font-bold">Estadísticas e historial</h1><p className="mt-2 text-sm text-blue-50">Indicadores y motivos registrados en las distintas áreas para reconocer tendencias y oportunidades de mejora.</p></div><div className="event-hero-orb" aria-hidden="true"><BarChart3 size={58}/></div></header>
-    <section className="event-panel grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-5" aria-label="Filtros">
-      <label className="text-sm font-medium">Desde<input type="date" value={filters.desde} onChange={e => set('desde', e.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
-      <label className="text-sm font-medium">Hasta<input type="date" value={filters.hasta} onChange={e => set('hasta', e.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
-      <label className="text-sm font-medium">Proceso<select value={filters.contexto} onChange={e => set('contexto', e.target.value)} className="mt-1 w-full rounded-lg border p-2"><option value="">Todos</option>{contexts.map(v => <option key={v} value={v}>{etiquetaContexto(v)}</option>)}</select></label>
-      <label className="text-sm font-medium">Área<input value={filters.area} onChange={e => set('area', e.target.value)} placeholder="Ej.: AGUA o ADMINISTRACION" className="mt-1 w-full rounded-lg border p-2" /></label>
-      <label className="text-sm font-medium">Folio<input value={filters.folio} onChange={e => set('folio', e.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
-      {[["empleado", "ID empleado"], ["servicio", "ID servicio"], ["conexion", "ID conexión"], ["medidor", "ID medidor"], ["ruta", "ID ruta"]].map(([key, label]) => <label key={key} className="text-sm font-medium">{label}<input type="number" min="1" value={filters[key]} onChange={e => set(key, e.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>)}
-      <label className="flex items-center gap-2 text-sm sm:col-span-2 lg:col-span-5"><input type="checkbox" checked={comparePeriods} onChange={e => setComparePeriods(e.target.checked)} />Comparar con el período inmediatamente anterior de igual duración</label>
-      <div className="flex flex-wrap gap-3 sm:col-span-2 lg:col-span-5"><button type="button" onClick={run} disabled={loading} className="event-primary-button"><Search size={16}/>{loading ? 'Consultando…' : 'Aplicar filtros'}</button><button type="button" onClick={() => setFilters({ desde: monthAgo(), hasta: today(), contexto: '', area: '', folio: '', empleado: '', servicio: '', conexion: '', medidor: '', ruta: '' })} className="event-secondary-button"><RotateCcw size={16}/>Restablecer</button></div>
-    </section>
-    {error && <p role="alert" className="rounded-lg bg-red-50 p-4 text-red-800">{error}</p>}
-    {searched && !loading && !rows.length && !error && <p className="card text-gray-600">Sin datos para este período.</p>}
-    <section className="event-panel p-5 sm:p-6" aria-label="Motivos por proceso"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.14em] text-blue-700">Causas registradas</p><h2 className="mt-1 text-xl font-bold text-slate-900">Motivos por proceso</h2><p className="mt-1 text-sm text-slate-500">Cada porcentaje se calcula sobre el total de motivos del proceso seleccionado y los filtros aplicados.</p></div><label className="text-sm font-medium text-slate-600">Proceso<select value={reasonContext} onChange={e => setReasonContext(e.target.value)} className="ml-2 rounded-xl border border-slate-200 bg-white px-3 py-2">{[...new Map([...CONTEXTOS, ...contexts.map(code => [code, etiquetaContexto(code)])]).entries()].map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select></label></div>{loading ? <p className="py-10 text-center text-sm text-slate-400">Calculando distribución…</p> : motivosPorProceso.length ? <div className="mt-6 grid gap-3">{motivosPorProceso.map((item, index) => <article key={item.Motivo} className="rounded-xl border border-slate-100 bg-slate-50/70 p-4" style={{ animation: 'event-rise .35s ease both', animationDelay: `${index * 45}ms` }}><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><span className="font-semibold text-slate-800">{item.Motivo}</span><span className="text-sm font-bold text-slate-700">{item.Cantidad.toLocaleString('es-AR')} <span className="font-normal text-slate-400">({item.Porcentaje.toLocaleString('es-AR', { maximumFractionDigits: 1 })}%)</span></span></div><div className="h-3 overflow-hidden rounded-full bg-slate-200"><div className="event-reason-bar h-full rounded-full bg-gradient-to-r from-blue-500 to-teal-500" style={{ width: `${item.Cantidad / maxMotivo * 100}%`, animationDelay: `${index * 45}ms` }} /></div></article>)}</div> : <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-10 text-center"><Activity className="mx-auto mb-2 text-slate-400" size={22}/><p className="font-medium text-slate-700">Todavía no hay motivos para este proceso</p><p className="mt-1 text-sm text-slate-500">Cuando se registren bajas con motivo, vas a ver acá la cantidad y el porcentaje de cada causa.</p></div>}</section>
-    {rows.length > 0 && <section className="event-panel overflow-hidden"><div className="border-b border-slate-100 p-5"><h2 className="text-lg font-bold text-slate-900">Actividad registrada</h2><p className="mt-1 text-sm text-slate-500">Seleccioná un evento para revisar los registros que lo componen.</p><p className="mt-3 text-xs text-slate-500">El porcentaje se calcula sobre los eventos del mismo proceso y tipo dentro del período seleccionado.</p>{comparePeriods && <p className="mt-3 rounded-xl bg-blue-50 p-3 text-sm text-blue-900">Eventos totales: {rows.reduce((n, r) => n + r.CantidadEventos, 0)} en el período actual y {previousRows.reduce((n, r) => n + r.CantidadEventos, 0)} en el período anterior.</p>}</div><div className="overflow-x-auto p-3 sm:p-5"><table className="event-table w-full min-w-[900px] text-left text-sm"><thead><tr><th>Proceso / evento</th><th>Motivo o resultado</th><th>Eventos</th><th>Operaciones</th><th>Registros distintos</th><th>Desconocidos</th><th>% de eventos</th><th></th></tr></thead><tbody>{rows.map((r, i) => <tr key={`${r.Contexto}-${r.CodigoEvento}-${r.Motivo}-${i}`}><td><span className="block font-semibold text-slate-800">{etiquetaContexto(r.Contexto)}</span><span className="mt-1 inline-block rounded-md bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">{etiquetaEvento(r.CodigoEvento)}</span></td><td>{r.Motivo || 'Sin motivo registrado'}</td><td className="font-bold">{r.CantidadEventos}</td><td>{r.CantidadOperaciones}</td><td>{r.RegistrosDistintos}</td><td>{r.MotivosDesconocidos}</td><td><span className="font-semibold text-blue-700">{r.PorcentajeDelEvento}%</span><span className="block text-xs text-slate-400">de {r.DenominadorEventos}</span></td><td><button onClick={() => openRecords(r)} className="event-detail-button">Ver origen<ChevronRight size={15}/></button></td></tr>)}</tbody></table></div></section>}
-    {selected && <section className="card space-y-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-xl font-bold">Registros de {selected.CodigoEvento}</h2><p className="text-sm text-gray-600">{selected.Contexto} · {selected.Motivo || 'Motivo no clasificado'}</p></div><button onClick={() => setSelected(null)} className="rounded-lg border px-3 py-2">Cerrar</button></div>{!records.length ? <p className="text-sm text-gray-600">Sin registros disponibles para esos filtros.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead><tr className="border-b text-gray-500"><th className="p-2">Fecha del evento (UTC)</th><th className="p-2">Entidad / registro</th><th className="p-2">Realizado por</th><th className="p-2">Empleado relacionado</th><th className="p-2">Área</th><th className="p-2">Socio</th><th className="p-2">Medidor</th><th className="p-2">Estado anterior → nuevo</th><th className="p-2">Motivo / resultado</th></tr></thead><tbody>{records.map(r => <tr key={r.idEventoOperativo} className="border-b"><td className="p-2">{new Date(r.FechaEventoUtc).toLocaleString()}</td><td className="p-2">{r.Entidad} · {r.idEntidad}</td><td className="p-2">{r.EmpleadoActor || r.Usuario || (r.ActorSistema ? 'Sistema' : 'Usuario')}</td><td className="p-2">{r.idEmpleado && r.idEmpleado !== r.idEmpleadoActor ? (r.EmpleadoRelacionado || `Empleado #${r.idEmpleado}`) : '-'}</td><td className="p-2">{r.Area || '—'}</td><td className="p-2">{r.idSocio ?? '—'}</td><td className="p-2">{r.idMedidor ?? '—'}</td><td className="p-2">{r.EstadoAnterior || '—'} → {r.EstadoNuevo || '—'}</td><td className="p-2">{r.Motivo || r.Resultado || (r.MotivoDesconocido ? 'Motivo histórico desconocido' : '—')}{r.Detalle ? ` · ${r.Detalle}` : ''}</td></tr>)}</tbody></table></div>}</section>}
-    {isAdmin && <section className="card space-y-4"><div><h2 className="text-xl font-bold">Catálogos de motivos</h2><p className="text-sm text-gray-600">Motivos predefinidos para conservar estadísticas comparables. Desde aquí solo se ordenan o activan.</p></div><div className="flex flex-wrap gap-3"><select value={catalogContext} onChange={e => setCatalogContext(e.target.value)} className="rounded-lg border p-2">{catalogContexts.map(([v, label]) => <option key={v} value={v}>{label}</option>)}</select></div>{catalogMessage && <p role="status" className="text-sm text-blue-800">{catalogMessage}</p>}<div className="divide-y">{catalog.map(m => <div key={m.idMotivoEvento} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><p className="font-medium">{m.Nombre}</p><p className="text-xs text-gray-500">{m.Codigo} · {m.ConfirmadoCooperativa ? 'Confirmado' : 'Pendiente de validación'} · {m.Activo ? 'Activo' : 'Inactivo'}{m.RequiereDetalle ? ' · detalle obligatorio' : ''}</p></div><div className="flex gap-2"><label className="flex items-center gap-2 text-sm"><span>Orden</span><input type="number" min="0" defaultValue={m.Orden} onBlur={e => { if (Number(e.target.value) !== Number(m.Orden)) updateMotive(m, { Orden: Number(e.target.value) }) }} className="w-16 rounded border p-1" /></label><button onClick={() => updateMotive(m, { Activo: !m.Activo })} className="rounded border px-3 py-1 text-sm">{m.Activo ? 'Desactivar' : 'Reactivar'}</button>{!m.ConfirmadoCooperativa && <button onClick={() => updateMotive(m, { ConfirmadoCooperativa: true })} className="rounded border border-green-300 px-3 py-1 text-sm text-green-800">Confirmar catálogo</button>}</div></div>)}</div></section>}
-  </div>
+  const eventsTodayClick = point => { const p = data?.periodos; if (point?.payload && p) openRecords({ ...point.payload, desde: p.hoyDesdeUtc, hasta: p.hoyHastaUtcExclusivo }) }
+  const motivesClick = point => { const p = data?.periodos; if (point?.payload && p) openRecords({ ...point.payload, desde: p.mesDesdeUtc, hasta: p.mesHastaUtcExclusivo }) }
+  const trendClick = point => { const p = data?.periodos; if (point?.payload && p) { const from = new Date(`${point.payload.key}-01T00:00:00Z`); const to = new Date(from); to.setUTCMonth(to.getUTCMonth() + 1); openRecords({ Contexto: data.esGerencia && !data.area ? null : point.dataKey, Area: data.esGerencia && !data.area ? point.dataKey : data.area, desde: from.toISOString(), hasta: to.toISOString() }) } }
+
+  return <main className="mx-auto max-w-7xl space-y-6 px-4 py-8">
+    <header className="flex flex-wrap items-end justify-between gap-4 rounded-3xl bg-gradient-to-r from-slate-950 via-blue-950 to-cyan-900 p-7 text-white shadow-lg">
+      <div><p className="text-xs font-bold uppercase tracking-[.18em] text-cyan-200">Panel gráfico de gestión</p><h1 className="mt-2 text-3xl font-bold">Estadísticas e historial</h1><p className="mt-2 max-w-3xl text-sm text-blue-100">Trabajo, estados, causas y tendencias construidos a partir de eventos registrados y estados vigentes.</p></div>
+      <div className="grid gap-2 text-right"><span className="text-xs text-blue-100">Actualizado: {data?.actualizadoUtc ? new Date(data.actualizadoUtc).toLocaleString('es-AR') : 'cargando'}</span><button onClick={load} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/30 px-4 py-2 text-sm font-semibold hover:bg-white/10 disabled:opacity-60"><RefreshCw size={16} className={loading ? 'animate-spin' : ''}/>Actualizar</button></div>
+      {isManager && <label className="grid gap-1 text-sm font-semibold">Área<select className="min-w-56 rounded-xl border border-white/30 bg-slate-900 px-3 py-2 text-white" value={area} onChange={e => setArea(e.target.value)}><option value="">Todas las áreas</option>{areaOptions.map(x => <option key={x.Codigo} value={x.Codigo}>{x.Nombre}</option>)}</select></label>}
+    </header>
+
+    {error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-red-800">{error}</p>}
+    {loading && <p role="status" className="rounded-xl bg-slate-50 p-5 text-slate-600">Calculando los gráficos según tus permisos…</p>}
+    {data && <>
+      {focusArea && <section className="space-y-4"><div><p className="text-xs font-bold uppercase tracking-widest text-blue-700">Panel del área</p><h2 className="text-2xl font-bold text-slate-900">Indicadores de {labelArea(focusArea)}</h2><p className="text-sm text-slate-600">Métricas seleccionadas para el trabajo y las decisiones de esta área.</p></div><div className="grid gap-5 xl:grid-cols-2">
+        <ChartPanel title="Estados de los procesos" period="Situación actual" description="Casos actuales por proceso y estado; sirve para localizar acumulaciones y cuellos de botella.">
+          {focusedStateData.length ? <ResponsiveContainer width="100%" height={300}><BarChart data={focusedStateData} layout="vertical"><CartesianGrid strokeDasharray="3 3"/><XAxis type="number" allowDecimals={false}/><YAxis type="category" dataKey="name" width={150}/><Tooltip/><Legend/>{focusedStateKeys.map((key,i)=><Bar key={key} dataKey={key} stackId="s" fill={COLORS[i%COLORS.length]}/>)}</BarChart></ResponsiveContainer> : <EmptyChart>Este módulo aún no tiene registros para mostrar estados.</EmptyChart>}
+        </ChartPanel>
+        <ChartPanel title="Trabajo recibido y resuelto" period="Semanas · últimos 12 meses" description="Entradas frente a resoluciones. Permite observar si el volumen que ingresa supera la capacidad de resolución.">
+          {focusedFlow.length ? <ResponsiveContainer width="100%" height={300}><BarChart data={focusedFlow}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="semana"/><YAxis allowDecimals={false}/><Tooltip/><Legend/><Bar dataKey="Recibidos" fill="#2563eb"/><Bar dataKey="Resueltos" fill="#0f766e"/></BarChart></ResponsiveContainer> : <EmptyChart>Falta historial de creación y resolución para comparar entradas y salidas.</EmptyChart>}
+        </ChartPanel>
+        <ChartPanel title="Pendientes por antigüedad" period="Situación actual" description="Casos abiertos por días desde su creación. Ayuda a priorizar expedientes y tareas demoradas.">
+          {focusedAge.length ? <ResponsiveContainer width="100%" height={Math.max(240,focusedAge.length*34)}><BarChart data={focusedAge} layout="vertical"><CartesianGrid strokeDasharray="3 3"/><XAxis type="number" allowDecimals={false}/><YAxis type="category" dataKey="name" width={210} tick={{fontSize:11}}/><Tooltip/><Bar dataKey="value" fill="#d97706" radius={[0,6,6,0]}/></BarChart></ResponsiveContainer> : <EmptyChart>No hay pendientes con fechas de creación en esta área.</EmptyChart>}
+        </ChartPanel>
+        <ChartPanel title="Actividad diaria" period="Hoy" description="Eventos registrados hoy en el ?rea; permite monitorear el movimiento operativo diario.">
+          {focusedToday.length ? <ResponsiveContainer width="100%" height={Math.max(240,focusedToday.length*34)}><BarChart data={focusedToday} layout="vertical"><CartesianGrid strokeDasharray="3 3"/><XAxis type="number" allowDecimals={false}/><YAxis type="category" dataKey="name" width={220} tick={{fontSize:11}}/><Tooltip/><Bar dataKey="value" fill="#0f766e"/></BarChart></ResponsiveContainer> : <EmptyChart>Hoy no se registraron eventos para esta área.</EmptyChart>}
+        </ChartPanel>
+        {focusArea === 'ADMINISTRACION' && <>
+          <ChartPanel title="Motivos de rechazo documental" period="Mes actual · hasta hoy" description="Causas del catálogo ligadas a documentos rechazados; ayuda a detectar requisitos que generan más devoluciones.">
+            {focusedMotives.filter(x=>x.Contexto==='DOCUMENTO_PERSONA_RECHAZO').length ? <ResponsiveContainer width="100%" height={280}><BarChart data={focusedMotives.filter(x=>x.Contexto==='DOCUMENTO_PERSONA_RECHAZO')} layout="vertical"><CartesianGrid strokeDasharray="3 3"/><XAxis type="number" allowDecimals={false}/><YAxis type="category" dataKey="Motivo" width={220} tick={{fontSize:11}}/><Tooltip formatter={(v,n,p)=>[`${v} ? ${pct(p.payload.porcentaje)} de rechazos`,n]}/><Bar dataKey="value" fill="#dc2626"/></BarChart></ResponsiveContainer> : <EmptyChart>Sin rechazos documentales con motivo catalogado en el mes.</EmptyChart>}
+          </ChartPanel>
+          <ChartPanel title="Decisiones de revisión" period="Mes actual · hasta hoy" description="Aprobaciones, rechazos y devoluciones en las revisiones registradas, para seguir la calidad de la documentación recibida.">
+            {focusedQuality.filter(x=>x.Proceso==='Documentaci?n').length ? <div className="space-y-3">{focusedQuality.filter(x=>x.Proceso==='Documentaci?n').map((x,i)=><div key={x.Resultado} className="rounded-xl border p-3"><div className="flex justify-between text-sm"><b>{labelState(x.Resultado)}</b><b>{x.value} ? {pct(x.porcentaje)}</b></div><div className="mt-2 h-3 rounded-full bg-slate-100"><div className="h-3 rounded-full" style={{width:`${Math.min(100,Number(x.porcentaje||0))}%`,background:COLORS[i%COLORS.length]}}/></div><small className="text-slate-500">Denominador: {x.Denominador} decisiones del período.</small></div>)}</div> : <EmptyChart>No hay historial suficiente de decisiones para calcular calidad de revisión.</EmptyChart>}
+          </ChartPanel>
+        </>}
+        {(focusArea==='AGUA'||focusArea==='ENERGIA') && <>
+          <ChartPanel title="Correcciones de lecturas" period="Mes actual · hasta hoy" description="Correcciones registradas; la comparación es con lecturas del período sin corrección. Una corrección no se cuenta como lectura omitida.">
+            {focusedQuality.filter(x=>x.Proceso==='Correcciones de lectura').length ? <div className="space-y-3">{focusedQuality.filter(x=>x.Proceso==='Correcciones de lectura').map(x=><div key={x.Area} className="rounded-xl border p-3"><b>{x.value} correcciones ? {pct(x.porcentaje)}</b><div className="mt-2 h-3 rounded-full bg-slate-100"><div className="h-3 rounded-full bg-amber-500" style={{width:`${Math.min(100,Number(x.porcentaje||0))}%`}}/></div><small className="text-slate-500">Denominador: {x.Denominador ?? 'no disponible'} lecturas del período.</small></div>)}</div> : <EmptyChart>Sin correcciones registradas este mes; el sistema no las confunde con lecturas omitidas.</EmptyChart>}
+          </ChartPanel>
+          <ChartPanel title="Motivos de incidencias abiertas" period="Situación actual" description="Motivos técnicos de los medidores todav?a sin resolución; orienta mantenimiento y reposición.">
+            {focusedIncidentMotives.length ? <ResponsiveContainer width="100%" height={260}><BarChart data={focusedIncidentMotives} layout="vertical"><CartesianGrid strokeDasharray="3 3"/><XAxis type="number" allowDecimals={false}/><YAxis type="category" dataKey="name" width={210}/><Tooltip/><Bar dataKey="value" fill="#d97706"/></BarChart></ResponsiveContainer> : <EmptyChart>Sin incidencias abiertas con motivo registrado.</EmptyChart>}
+          </ChartPanel>
+          <ChartPanel title="Medidores con incidencias recurrentes" period="últimos 12 meses" description="Medidores ?nicos con m?s de una incidencia t?cnica en una ventana m?vil de 12 meses.">
+            {focusedRepeat.length ? <ResponsiveContainer width="100%" height={240}><BarChart data={focusedRepeat}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="name"/><YAxis allowDecimals={false}/><Tooltip/><Bar dataKey="value" fill="#dc2626"/></BarChart></ResponsiveContainer> : <EmptyChart>Sin reincidencias identificadas en medidores.</EmptyChart>}
+          </ChartPanel>
+          <ChartPanel title="Tiempo de resolución por motivo" period="Resoluciones del mes actual" description="Horas promedio hasta reparar o reemplazar; ayuda a reconocer incidencias que tardan m?s en resolverse.">
+            {focusedResolution.length ? <ResponsiveContainer width="100%" height={Math.max(240,focusedResolution.length*34)}><BarChart data={focusedResolution} layout="vertical"><CartesianGrid strokeDasharray="3 3"/><XAxis type="number"/><YAxis type="category" dataKey="name" width={210}/><Tooltip formatter={v=>[`${Number(v).toFixed(1)} horas`, 'Promedio']}/><Bar dataKey="value" fill="#7c3aed"/></BarChart></ResponsiveContainer> : <EmptyChart>Sin incidencias resueltas con fechas de apertura y cierre durante el mes.</EmptyChart>}
+          </ChartPanel>
+        </>}
+        {(focusArea==='GAS'||focusArea==='GERENCIA') && <ChartPanel title="Motivos de decisiones del área" period="Mes actual · hasta hoy" description="Causas registradas en aprobaciones, rechazos y devoluciones. Sirve para identificar problemas repetidos que requieren cambios de proceso.">
+          {focusedMotives.length ? <ResponsiveContainer width="100%" height={Math.max(240,focusedMotives.length*34)}><BarChart data={focusedMotives} layout="vertical"><CartesianGrid strokeDasharray="3 3"/><XAxis type="number" allowDecimals={false}/><YAxis type="category" dataKey="name" width={240} tick={{fontSize:11}}/><Tooltip formatter={(v,n,p)=>[`${v} ? ${pct(p.payload.porcentaje)} de su tipo de decisi?n`,n]}/><Bar dataKey="value" fill="#7c3aed"/></BarChart></ResponsiveContainer> : <EmptyChart>Este mes no hay motivos registrados para las decisiones de esta ?rea.</EmptyChart>}
+        </ChartPanel>}
+        {focusArea==='INTERNET' && <>
+          <ChartPanel title="Resultado de facturación externa" period="Período operativo actual" description="Filas del lote de Internet facturadas frente a rechazadas o pendientes de respuesta; permite detectar problemas del intercambio de archivos.">
+            {focusedInvoiceStates ? <ResponsiveContainer width="100%" height={250}><BarChart data={[focusedInvoiceStates]}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="name" hide/><YAxis allowDecimals={false}/><Tooltip/><Legend/>{focusedInvoiceKeys.map((key,i)=><Bar key={key} dataKey={key} stackId="s" fill={COLORS[i%COLORS.length]}/>)}</BarChart></ResponsiveContainer> : <EmptyChart>No hay filas de facturación de Internet en el período operativo actual.</EmptyChart>}
+          </ChartPanel>
+          <ChartPanel title="Motivos de rechazo de facturas" period="Mes actual · hasta hoy" description="Motivos informados en respuestas de lotes externos; la fuente es la respuesta del sistema de facturación.">
+            {focusedMotives.filter(x=>x.Contexto==='INTERNET_FACTURACION').length ? <ResponsiveContainer width="100%" height={260}><BarChart data={focusedMotives.filter(x=>x.Contexto==='INTERNET_FACTURACION')} layout="vertical"><CartesianGrid strokeDasharray="3 3"/><XAxis type="number" allowDecimals={false}/><YAxis type="category" dataKey="Motivo" width={220} tick={{fontSize:11}}/><Tooltip/><Bar dataKey="value" fill="#dc2626"/></BarChart></ResponsiveContainer> : <EmptyChart>Sin motivos de rechazo importados en los lotes de este período.</EmptyChart>}
+          </ChartPanel>
+        </>}
+      </div></section>}
+      {!focusArea && <div className="grid gap-5 xl:grid-cols-2">
+        <ChartPanel title="Pendientes por antigüedad" period="Situación actual · casos abiertos" description="Casos únicos por edad desde su creación. Los rangos describen antigüedad; no indican vencimiento ni cumplimiento de plazo.">
+          {ageData.length ? <ResponsiveContainer width="100%" height={Math.max(260, ageData.length * 34)}><BarChart data={ageData} layout="vertical" margin={{ left: 12, right: 16 }}><CartesianGrid strokeDasharray="3 3"/><XAxis type="number" allowDecimals={false}/><YAxis type="category" dataKey="name" width={230} tick={{ fontSize: 11 }}/><Tooltip formatter={v => [`${v} casos`, 'Pendientes']}/><Bar dataKey="value" name="Casos abiertos" fill="#d97706" radius={[0, 6, 6, 0]}/></BarChart></ResponsiveContainer> : <EmptyChart>No hay tareas abiertas con datos de antigüedad dentro de tu alcance.</EmptyChart>}
+        </ChartPanel>
+
+        <ChartPanel title="Casos recibidos y resueltos" period="Semanas · últimos 12 meses" description="Recibidos: evento de creación de tarea o solicitud. Resueltos: transición a estado final. Se cuentan eventos/casos de cada semana, no el pendiente acumulado histórico.">
+          {flowData.length ? <ResponsiveContainer width="100%" height={320}><BarChart data={flowData}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="semana"/><YAxis allowDecimals={false}/><Tooltip formatter={v => [`${v} casos`, '']}/><Legend/>{flowSeries.map((key, i) => <Bar key={key} dataKey={key} fill={COLORS[i % COLORS.length]}/>)}</BarChart></ResponsiveContainer> : <EmptyChart>No hay historial suficiente de entradas y resoluciones para este período.</EmptyChart>}
+        </ChartPanel>
+
+        <ChartPanel title="Medidores con incidencias recurrentes" period="Últimos 12 meses" description="Cantidad de medidores únicos que tuvieron un evento de medidor y ya tenían otro evento previo en una ventana móvil de 12 meses. Un medidor recurrente se cuenta una sola vez.">
+          {repeatData.length ? <ResponsiveContainer width="100%" height={260}><BarChart data={repeatData} layout="vertical"><CartesianGrid strokeDasharray="3 3"/><XAxis type="number" allowDecimals={false}/><YAxis type="category" dataKey="name" width={150}/><Tooltip formatter={v => [`${v} medidores únicos`, 'Recurrentes']}/><Bar dataKey="value" name="Medidores recurrentes" fill="#dc2626" radius={[0, 6, 6, 0]}/></BarChart></ResponsiveContainer> : <EmptyChart>No hay activos con incidencias repetidas identificables en este período.</EmptyChart>}
+        </ChartPanel>
+
+        <ChartPanel title="Motivos de incidencias abiertas" period="Situación actual" description="Incidencias activas por motivo técnico del catálogo de medidores. Cada incidencia abierta se cuenta una vez.">
+          {data.motivosIncidenciasAbiertas?.length ? <ResponsiveContainer width="100%" height={Math.max(240, data.motivosIncidenciasAbiertas.length * 34)}><BarChart data={data.motivosIncidenciasAbiertas.map(x => ({ ...x, name: `${x.Motivo} · ${labelArea(x.Area)}`, value: Number(x.Cantidad) }))} layout="vertical"><CartesianGrid strokeDasharray="3 3"/><XAxis type="number" allowDecimals={false}/><YAxis type="category" dataKey="name" width={220} tick={{ fontSize: 11 }}/><Tooltip formatter={v => [`${v} casos abiertos`, 'Incidencias']}/><Bar dataKey="value" name="Abiertas" fill="#d97706" radius={[0, 6, 6, 0]}/></BarChart></ResponsiveContainer> : <EmptyChart>Sin incidencias abiertas con motivo identificable. El historial enlazado se habilita con la migración de incidencias.</EmptyChart>}
+        </ChartPanel>
+
+        <ChartPanel title="Tiempo de resolución por motivo" period="Resoluciones del mes actual" description="Horas desde la apertura hasta la reparación o reemplazo. Se muestran casos cerrados durante el mes; no mide incidencias aún abiertas.">
+          {data.tiemposResolucionPorMotivo?.length ? <ResponsiveContainer width="100%" height={Math.max(240, data.tiemposResolucionPorMotivo.length * 38)}><BarChart data={data.tiemposResolucionPorMotivo.map(x => ({ ...x, name: `${x.Motivo} · ${labelArea(x.Area)}`, promedio: Number(x.HorasPromedio), casos: Number(x.Casos) }))} layout="vertical"><CartesianGrid strokeDasharray="3 3"/><XAxis type="number"/><YAxis type="category" dataKey="name" width={220} tick={{ fontSize: 11 }}/><Tooltip formatter={(v, n, p) => n === 'Horas promedio' ? [`${Number(v).toFixed(1)} h · ${p.payload.casos} casos`, n] : [v, n]}/><Bar dataKey="promedio" name="Horas promedio" fill="#7c3aed" radius={[0, 6, 6, 0]}/></BarChart></ResponsiveContainer> : <EmptyChart>Sin incidencias resueltas este mes con fechas de apertura y cierre enlazadas.</EmptyChart>}
+        </ChartPanel>
+        <ChartPanel title="Actividad: mismo tramo del mes anterior" period="Mes actual vs. período comparable" description={`Compara eventos registrados hasta hoy con el mismo número de días del mes anterior (${data.periodos.comparacionDesdeLocal.slice(0, 10)} a ${data.periodos.comparacionHastaLocalExclusivo.slice(0, 10)}). Unidades: eventos, no casos únicos.`}>
+          {data.comparacionMensualEventos?.some(x => Number(x.Cantidad) > 0) ? <ResponsiveContainer width="100%" height={260}><BarChart data={data.comparacionMensualEventos.map(x => ({ name: x.Periodo, cantidad: Number(x.Cantidad) }))}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="name"/><YAxis allowDecimals={false}/><Tooltip formatter={v => [`${v} eventos`, 'Cantidad']}/><Bar dataKey="cantidad" name="Eventos registrados" fill="#0f766e" radius={[6, 6, 0, 0]}/></BarChart></ResponsiveContainer> : <EmptyChart>Sin datos de eventos para el período seleccionado.</EmptyChart>}
+        </ChartPanel>
+
+        <ChartPanel title="Decisiones y estados actuales" period="Situación actual" description="Tareas, altas, documentos, solicitudes, mediciones, medidores y facturas según los estados que conserva cada módulo.">
+          {stateData.length ? <ResponsiveContainer width="100%" height={350}><BarChart data={stateData} layout="vertical" margin={{ left: 24, right: 18 }}><CartesianGrid strokeDasharray="3 3"/><XAxis type="number" allowDecimals={false}/><YAxis type="category" dataKey="name" width={175} tick={{ fontSize: 11 }}/><Tooltip formatter={(v, k) => [v, k]}/><Legend/>{stateKeys.map((key, i) => <Bar key={key} dataKey={key} stackId="states" fill={COLORS[i % COLORS.length]} />)}</BarChart></ResponsiveContainer> : <EmptyChart>No hay estados disponibles dentro de tu alcance.</EmptyChart>}
+        </ChartPanel>
+
+        <ChartPanel title="Actividad registrada" period="Hoy" description="Cantidad de eventos registrados por tipo. Al hacer clic se abren los eventos de ese tipo y período.">
+          {todayData.length ? <ResponsiveContainer width="100%" height={350}><BarChart data={todayData} layout="vertical" margin={{ left: 15, right: 18 }} onClick={e => eventsTodayClick(e?.activePayload?.[0])}><CartesianGrid strokeDasharray="3 3"/><XAxis type="number" allowDecimals={false}/><YAxis type="category" dataKey="name" width={220} tick={{ fontSize: 11 }}/><Tooltip/><Bar dataKey="value" name="Eventos" fill="#0f766e" cursor="pointer" radius={[0, 6, 6, 0]}/></BarChart></ResponsiveContainer> : <EmptyChart>No hay eventos registrados hoy dentro de tu alcance. El gráfico aparecerá cuando se registren.</EmptyChart>}
+        </ChartPanel>
+
+        <ChartPanel title="Motivos más frecuentes" period="Mes actual · hasta hoy" description="Barras ordenadas. El porcentaje usa decisiones del mismo flujo y período: tareas por acción, documentación sobre rechazos, y facturación por filas recibidas en los lotes del período. Los motivos heredados sin equivalencia confirmada se identifican aparte.">
+          {motiveData.length ? <ResponsiveContainer width="100%" height={Math.max(300, motiveData.length * 42)}><BarChart data={motiveData} layout="vertical" margin={{ left: 12, right: 42 }} onClick={e => motivesClick(e?.activePayload?.[0])}><CartesianGrid strokeDasharray="3 3"/><XAxis type="number" allowDecimals={false}/><YAxis type="category" dataKey="name" width={250} tick={{ fontSize: 11 }}/><Tooltip formatter={(value, _name, props) => [`${value} · ${pct(props.payload.porcentaje)} del mismo tipo de evento`, 'Casos']}/><Bar dataKey="value" name="Casos" fill="#2563eb" cursor="pointer" radius={[0, 6, 6, 0]}>{motiveData.map((x, i) => <Cell key={`${x.idMotivoEvento}-${i}`} fill={x.MotivoDesconocido ? '#b45309' : COLORS[i % COLORS.length]}/>)}</Bar></BarChart></ResponsiveContainer> : <EmptyChart>Este mes no hay motivos registrados para tu alcance. No se muestra una distribución vacía como si fuera un resultado.</EmptyChart>}
+        </ChartPanel>
+
+        <ChartPanel title="Tendencia de actividad" period="Últimos 12 meses" description={`Eventos registrados por ${data.esGerencia && !data.area ? 'área' : 'proceso'}. El mes actual es parcial. La cobertura histórica comienza ${trend.coverageKey || 'cuando exista el primer evento'}.`}>
+          {trend.series.length ? <ResponsiveContainer width="100%" height={350}><LineChart data={trend.rows} margin={{ left: 0, right: 15, top: 12 }} onClick={e => trendClick(e?.activePayload?.[0])}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="name"/><YAxis allowDecimals={false}/><Tooltip/><Legend/>{trend.series.map((key, i) => <Line key={key} type="monotone" dataKey={key} connectNulls={false} stroke={COLORS[i % COLORS.length]} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 6 }}/>)}</LineChart></ResponsiveContainer> : <EmptyChart>No hay suficiente historial de eventos para construir una tendencia. No se completan meses anteriores con ceros.</EmptyChart>}
+        </ChartPanel>
+
+        <ChartPanel title="Rechazos, devoluciones y correcciones" period="Mes actual · hasta hoy" description="Cantidad y porcentaje sobre las decisiones del flujo. Las correcciones de lectura se comparan con mediciones del período que no fueron corregidas y se distinguen de lecturas no realizadas.">
+          {qualityData.length ? <div className="space-y-4">{qualityData.map((item, i) => <div key={`${item.Proceso}-${item.Resultado}-${item.Area}`} className="rounded-xl border border-slate-200 p-3"><div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm"><span className="font-semibold">{item.name}</span><b>{item.value} {item.Denominador != null ? `· ${pct(item.porcentaje)}` : ''}</b></div>{item.Denominador != null ? <div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.max(0, item.porcentaje || 0))}%`, background: COLORS[i % COLORS.length] }}/></div> : <p className="text-xs text-amber-800">Hay fecha y motivo actual, pero falta historial para calcular un porcentaje fiable.</p>}<p className="mt-1 text-xs text-slate-500">{item.Denominador != null ? `Denominador: ${item.Denominador} decisiones/lecturas/respuestas del flujo y período correspondiente.` : 'Porcentaje no calculado.'}</p>{item.Contexto && <button onClick={() => openRecords({ Contexto: item.Contexto, desde: data.periodos.mesDesdeUtc, hasta: data.periodos.mesHastaUtcExclusivo })} className="mt-2 text-xs font-semibold text-blue-700 hover:underline">Abrir eventos relacionados</button>}</div>)}</div> : <EmptyChart>No hay decisiones o correcciones registradas este mes dentro de tu alcance.</EmptyChart>}
+        </ChartPanel>
+      </div>}
+
+      {data.pendientesDeDatos?.length > 0 && <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5"><h2 className="flex items-center gap-2 font-bold text-amber-950"><AlertTriangle size={18}/>Datos que faltan para completar estadísticas</h2><ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-amber-950">{data.pendientesDeDatos.map((x, i) => <li key={i}>{x}</li>)}</ul></section>}
+      {data.coberturaEventosDesdeUtc && <p className="text-xs text-slate-500">La bitácora disponible para este alcance comienza el {new Date(data.coberturaEventosDesdeUtc).toLocaleDateString('es-AR')}. Los meses anteriores quedan fuera de cobertura.</p>}
+
+      {selected && <section className="rounded-2xl border border-blue-200 bg-white p-5 shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold">Eventos asociados</h2><p className="text-sm text-slate-600">{selected.Contexto} · {selected.CodigoEvento || selected.Motivo || 'Período seleccionado'}</p></div><button onClick={() => { setSelected(null); setRecords([]) }} className="rounded-lg border px-3 py-2 text-sm">Cerrar detalle</button></div>{records.length ? <div className="mt-4 max-h-96 overflow-auto"><ul className="space-y-2">{records.map(x => <li key={x.idEventoOperativo} className="rounded-lg bg-slate-50 p-3 text-sm"><b>{new Date(x.FechaEventoUtc).toLocaleString('es-AR')}</b><span> · {x.EmpleadoActor || x.Usuario || 'Sistema'} · {labelArea(x.Area)}</span><p className="mt-1 text-slate-600">{x.EstadoAnterior || '—'} → {x.EstadoNuevo || x.Resultado || '—'}{x.Motivo ? ` · ${x.Motivo}` : ''}</p><span className="text-xs text-slate-500">{x.Entidad} #{x.idEntidad}</span></li>)}</ul></div> : <EmptyChart>El registro no tiene eventos asociados en la bitácora disponible.</EmptyChart>}</section>}
+    </>}
+  </main>
 }

@@ -6,6 +6,7 @@ import useAuthStore from '@/store/authStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
 import { useCurrentSocio } from '@/hooks/useCurrentSocio.js'
 import { formatDate } from '@/utils/formatDate.js'
+import { laboralApi } from '@/utils/laboral.js'
 
 function estadoColor(estado) {
   switch (estado) {
@@ -28,6 +29,20 @@ export default function SocioSolicitudesServicio() {
   const fetchServiceRequests = useServiceWorkflowStore((state) => state.fetchServiceRequests)
   const fetchServiceRequestsBySocio = useServiceWorkflowStore((state) => state.fetchServiceRequestsBySocio)
   const [requests, setRequests] = useState([])
+  const [expandedRequest, setExpandedRequest] = useState(null)
+  const [tracking, setTracking] = useState({})
+  const [trackingError, setTrackingError] = useState('')
+  const [trackingLoading, setTrackingLoading] = useState(false)
+
+  async function toggleTracking(id) {
+    if (expandedRequest === id) { setExpandedRequest(null); return }
+    setExpandedRequest(id); setTrackingError('')
+    if (tracking[id]) return
+    setTrackingLoading(true)
+    try { const events = await laboralApi(`/seguimiento/solicitud/${id}`); setTracking(current => ({ ...current, [id]: events })) }
+    catch (error) { setTrackingError(error.message || 'No se pudo cargar el seguimiento.') }
+    finally { setTrackingLoading(false) }
+  }
 
   useEffect(() => {
     const matchesSocio = (item) =>
@@ -122,6 +137,19 @@ export default function SocioSolicitudesServicio() {
                     <strong>Motivo rechazo:</strong> {request.motivoRechazo}
                   </div>
                 ) : null}
+                <button type="button" className="mt-2 text-sm font-semibold text-blue-700 hover:underline" onClick={() => toggleTracking(request.idSolicitudServicio)}>
+                  {expandedRequest === request.idSolicitudServicio ? 'Ocultar seguimiento' : 'Ver seguimiento de la solicitud'}
+                </button>
+                {expandedRequest === request.idSolicitudServicio && <section className="mt-3 rounded-xl bg-slate-50 p-4">
+                  <h3 className="font-semibold text-gray-900">Historial de la solicitud</h3>
+                  {trackingLoading && <p className="mt-2 text-sm text-gray-500">Cargando movimientos...</p>}
+                  {trackingError && <p role="alert" className="mt-2 text-sm text-red-700">{trackingError}</p>}
+                  {tracking[id] && <ol className="mt-3 space-y-3">{tracking[id].map((event, index) => <li key={`${event.FechaUtc}-${index}`} className="border-l-2 border-blue-200 pl-3">
+                    <p className="text-sm font-medium text-gray-800">{event.Detalle || event.Estado}</p>
+                    <p className="text-xs text-gray-500">{event.Area || event.Tipo} · {event.Responsable} · {new Date(event.FechaUtc).toLocaleString('es-AR')}</p>
+                  </li>)}</ol>}
+                  {tracking[id]?.length === 0 && !trackingLoading && <p className="mt-2 text-sm text-gray-500">Todavía no hay movimientos registrados.</p>}
+                </section>}
               </div>
               <div className="space-y-2 text-right">
                 <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${estadoColor(request.estado)}`}>

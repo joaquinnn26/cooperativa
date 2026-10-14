@@ -13,6 +13,7 @@ import {
   FilePlus2,
   Gauge,
   Headphones,
+  HeartHandshake,
   Menu,
   Megaphone,
   Receipt,
@@ -38,6 +39,7 @@ const employeeIconByPath = {
   '/empleado/cobranzas': CreditCard,
   '/empleado/documentacion': FileText,
   '/empleado/facturas': Receipt,
+  '/empleado/beneficios': HeartHandshake,
   '/empleado/hoja-ruta': MapPinned,
   '/empleado/incidencias': AlertTriangle,
   '/empleado/indicadores': BarChart3,
@@ -74,7 +76,8 @@ function buildPanelSections(role, areas) {
       { to: '/admin/territorio', label: 'Conexiones y territorio', icon: MapPinned },
       { to: '/admin/requisitos-servicio', label: 'Requisitos de servicios', icon: FilePlus2 },
       { to: '/admin/anuncios', label: 'Anuncios', icon: Megaphone },
-      { to: '/admin/estadisticas-eventos', label: 'Estadísticas e historial', icon: BarChart3 }
+      { to: '/admin/estadisticas-eventos', label: 'Estadísticas e historial', icon: BarChart3 },
+      { to: '/admin/motivos-eventos', label: 'Catálogo de motivos', icon: ClipboardList }
     ] }, ...(areas.length ? [trabajo] : [])]
   if (normalizedRole === 'Empleado') return [
     { title: 'Mi cuenta', items: [{ to: '/empleado/legajo', label: 'Mi legajo', icon: FileText }] },
@@ -86,7 +89,8 @@ function buildPanelSections(role, areas) {
     { to: '/socio/perfil', label: 'Mi perfil', icon: UserCircle2 },
     { to: '/socio/documentos', label: 'Mi documentación', icon: FileText },
     { to: '/socio/mis-servicios', label: 'Mis servicios', icon: Settings },
-    { to: '/socio/mis-mediciones', label: 'Mis mediciones', icon: Gauge }
+    { to: '/socio/mis-mediciones', label: 'Mis mediciones', icon: Gauge },
+    { to: '/socio/beneficios', label: 'Sepelio y ortopedia', icon: HeartHandshake }
   ] }, { title: 'Trámites', items: [
     { to: '/socio/solicitudes-servicio', label: 'Solicitudes de servicio', icon: ClipboardList },
     { to: '/socio/solicitudes-servicio/nueva', label: 'Nuevo servicio', icon: FilePlus2 },

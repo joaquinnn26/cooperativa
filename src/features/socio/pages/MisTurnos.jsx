@@ -38,6 +38,8 @@ import {
   validarSolicitudTurno
 } from '@/utils/turnosUtils.jsx'
 import { firstValidationError, isTodayOrFuture } from '@/utils/validation.js'
+import './Turnos.css'
+import './Turnos.css'
 
 const CANTIDAD_POR_PAGINA = 5
 
@@ -398,49 +400,45 @@ export default function MisTurnos() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
+    <div className="turnos-page mx-auto max-w-6xl space-y-6 px-4 py-8">
       <BackToSocioDashboard />
 
-      <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Mis turnos presenciales</h1>
-          <p className="mt-2 text-gray-600">Consulta tus solicitudes y responde propuestas de horario.</p>
+      <div className="turnos-hero flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+        <div className="relative z-10 max-w-2xl">
+          <p className="mb-2 text-xs font-bold uppercase tracking-[.16em] text-cyan-100">Atención presencial</p>
+          <h1>Mis turnos</h1>
+          <p className="mt-2 max-w-xl text-sm leading-6">Pedí un horario, seguí la respuesta de Administración y confirmá cualquier propuesta desde un solo lugar.</p>
         </div>
         <button
           type="button"
           onClick={abrirModalSolicitud}
-          className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+          className="turnos-hero-button relative z-10"
         >
           <PlusCircle className="mr-2 h-5 w-5" />
           Nuevo turno
         </button>
       </div>
 
-      <div className="mb-8 grid gap-4 md:grid-cols-3">
-        <div className="card">
-          <p className="text-sm text-gray-500">Total</p>
-          <p className="mt-2 text-3xl font-bold text-gray-900">{resumen.total}</p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="turnos-summary"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Solicitudes realizadas</p><strong>{resumen.total}</strong><p className="text-xs text-slate-500">En tu historial</p>
         </div>
-        <div className="card">
-          <p className="text-sm text-gray-500">Pendientes</p>
-          <p className="mt-2 text-3xl font-bold text-amber-700">{resumen.pendientes}</p>
+        <div className="turnos-summary"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Esperan respuesta</p><strong className="!text-amber-700">{resumen.pendientes}</strong><p className="text-xs text-slate-500">Pendientes o con propuesta</p>
         </div>
-        <div className="card">
-          <p className="text-sm text-gray-500">Confirmados</p>
-          <p className="mt-2 text-3xl font-bold text-emerald-700">{resumen.confirmados}</p>
+        <div className="turnos-summary"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Confirmados</p><strong className="!text-emerald-700">{resumen.confirmados}</strong><p className="text-xs text-slate-500">Listos para asistir</p>
         </div>
       </div>
 
-      <div className="card mb-6 space-y-4">
+      <div className="turnos-panel space-y-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="grid w-full gap-3 lg:grid-cols-[minmax(240px,1fr)] xl:max-w-md">
-            <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2">
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 focus-within:border-cyan-600 focus-within:bg-white focus-within:ring-2 focus-within:ring-cyan-100">
             <Search className="h-4 w-4 text-gray-400" />
             <input
               value={busqueda}
               onChange={(evento) => setBusqueda(evento.target.value)}
-              placeholder="Buscar por fecha, motivo o estado..."
-              className="w-full min-w-0 text-sm outline-none"
+              placeholder="Buscá por fecha, motivo o estado..."
+              aria-label="Buscar turnos"
+              className="w-full min-w-0 bg-transparent text-sm outline-none"
             />
             </div>
           </div>
@@ -455,7 +453,7 @@ export default function MisTurnos() {
                 key={filtro.key}
                 type="button"
                 onClick={() => setFiltroEstado(filtro.key)}
-                className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
                   filtroEstado === filtro.key
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -467,22 +465,22 @@ export default function MisTurnos() {
           </div>
         </div>
 
-        <p className="text-sm text-gray-500">
-          Mostrando {turnosFiltrados.length} de {turnos.length} turnos. Ordenados por mas recientes.
+        <p className="text-xs text-slate-500">
+          Se muestran {turnosFiltrados.length} de {turnos.length} turnos, del más reciente al más antiguo.
         </p>
       </div>
 
       <div className="space-y-4">
         {turnosPaginados.map((turno) => (
-          <div key={turno.id} className="card">
+          <div key={turno.id} className="turnos-panel turnos-list-card">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-4">
                 <div className="flex items-start gap-3">
-                  <div className="rounded-lg bg-blue-100 p-2 text-blue-700">
+                  <div className="rounded-xl bg-cyan-50 p-2.5 text-cyan-800">
                     <CalendarClock className="h-5 w-5" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold capitalize text-gray-900">
+                    <h2 className="text-lg font-bold capitalize tracking-tight text-slate-900">
                       {formatearFechaLarga(turno.fecha)} - {turno.hora} hs
                     </h2>
                     <p className="mt-1 text-sm text-gray-600">{turno.motivo}</p>
@@ -490,8 +488,8 @@ export default function MisTurnos() {
                 </div>
 
                 {turno.fechaPropuesta && turno.horaPropuesta ? (
-                  <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
-                    <p className="text-xs uppercase text-blue-700">Propuesta del administrador</p>
+                  <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-cyan-50 px-4 py-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Administración te propone</p>
                     <p className="mt-1 font-semibold capitalize text-gray-900">
                       {formatearFechaLarga(turno.fechaPropuesta)} - {turno.horaPropuesta} hs
                     </p>
@@ -552,7 +550,7 @@ export default function MisTurnos() {
         ))}
 
         {!turnosFiltrados.length ? (
-          <div className="card py-12 text-center">
+          <div className="turnos-panel py-12 text-center">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 text-gray-500">
               <Clock3 className="h-7 w-7" />
             </div>
@@ -603,16 +601,17 @@ export default function MisTurnos() {
       </div>
 
       {modalSolicitudAbierto ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
+        <div className="turnos-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget && !creandoTurno) cerrarModalSolicitud() }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="turnos-solicitud-title" className="turnos-modal max-h-[94vh] w-full max-w-6xl overflow-y-auto rounded-[1.5rem] border border-white/70 bg-[#f8fbfc] p-4 shadow-2xl sm:p-7">
             <div className="mb-6 flex items-start justify-between gap-4">
               <div className="flex items-start gap-3">
                 <div className="rounded-lg bg-cyan-100 p-2 text-cyan-700">
                   <CalendarCheck className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900">Solicitar visita presencial</h2>
-                  <p className="mt-1 text-sm text-gray-600">Reserva un turno con atencion administrativa en la cooperativa.</p>
+                  <p className="text-xs font-bold uppercase tracking-[.14em] text-cyan-800">Nueva solicitud</p>
+                  <h2 id="turnos-solicitud-title" className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Elegí cuándo venir</h2>
+                  <p className="mt-1 text-sm text-slate-600">Elegí un día y horario libre, contanos el motivo y enviá la solicitud a Administración.</p>
                 </div>
               </div>
               <button
@@ -627,12 +626,10 @@ export default function MisTurnos() {
 
             <form onSubmit={manejarCreacionTurno} className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
               <div className="space-y-6">
-                <section className="rounded-lg border border-gray-200 p-4">
+                <section className="turnos-step-card">
                   <div className="mb-4 flex items-center gap-3">
-                    <div className="rounded-lg bg-blue-100 p-2 text-blue-700">
-                      <CalendarDays className="h-5 w-5" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900">Dias disponibles</h3>
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-100 text-sm font-extrabold text-cyan-900">1</div>
+                    <div><h3 className="text-base font-bold text-gray-900">Elegí un día</h3><p className="text-xs text-slate-500">Solo mostramos fechas con disponibilidad real</p></div>
                   </div>
 
                   {cargandoDisponibilidad ? (
@@ -651,7 +648,8 @@ export default function MisTurnos() {
                             type="button"
                             onClick={() => manejarSeleccionFecha(dia)}
                             disabled={!dia.horarios.length || creandoTurno}
-                            className={`rounded-lg border px-4 py-3 text-left transition ${
+                            aria-pressed={activo}
+                            className={`turnos-choice rounded-xl border px-4 py-3 text-left ${
                               activo
                                 ? 'border-blue-500 bg-blue-50 text-blue-900'
                                 : dia.horarios.length
@@ -661,7 +659,7 @@ export default function MisTurnos() {
                           >
                             <span className="block text-sm font-semibold capitalize">{formatearFechaCorta(dia.fecha)}</span>
                             <span className="mt-1 block text-xs">
-                              {dia.horarios.length ? `${dia.horarios.length} horarios` : 'Sin horarios'}
+                              {dia.horarios.length ? `${dia.horarios.length} horarios libres` : 'Completo'}
                             </span>
                           </button>
                         )
@@ -674,12 +672,10 @@ export default function MisTurnos() {
                   )}
                 </section>
 
-                <section className="rounded-lg border border-gray-200 p-4">
+                <section className="turnos-step-card">
                   <div className="mb-4 flex items-center gap-3">
-                    <div className="rounded-lg bg-cyan-100 p-2 text-cyan-700">
-                      <Clock3 className="h-5 w-5" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900">Horarios</h3>
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-100 text-sm font-extrabold text-cyan-900">2</div>
+                    <div><h3 className="text-base font-bold text-gray-900">Elegí un horario</h3><p className="text-xs text-slate-500">{fechaSeleccionada ? formatearFechaCorta(fechaSeleccionada) : 'Primero seleccioná un día'}</p></div>
                   </div>
 
                   {diaSeleccionado?.horarios?.length ? (
@@ -690,7 +686,8 @@ export default function MisTurnos() {
                           type="button"
                           onClick={() => setHorarioSeleccionado(horario)}
                           disabled={creandoTurno}
-                          className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                          aria-pressed={horarioSeleccionado === horario}
+                          className={`turnos-choice rounded-xl border px-3 py-2.5 text-sm font-semibold ${
                             horarioSeleccionado === horario
                               ? 'border-blue-500 bg-blue-600 text-white'
                               : 'border-gray-200 bg-white text-gray-700 hover:border-blue-200 hover:bg-gray-50'
@@ -707,13 +704,14 @@ export default function MisTurnos() {
                   )}
                 </section>
 
-                <section className="grid gap-4 rounded-lg border border-gray-200 p-4 md:grid-cols-[0.8fr_1.2fr]">
+                <section className="turnos-step-card grid gap-4 md:grid-cols-[0.8fr_1.2fr]">
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">Razon</label>
+                    <div className="mb-3 flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-100 text-sm font-extrabold text-cyan-900">3</span><div><h3 className="text-base font-bold text-gray-900">Contanos el motivo</h3><p className="text-xs text-slate-500">Así podemos preparar la atención</p></div></div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">Tipo de consulta</label>
                     <select
                       value={tipoMotivo}
                       onChange={(evento) => setTipoMotivo(evento.target.value)}
-                      className="input-field"
+                      className="turnos-field w-full px-3 py-3 text-sm"
                       disabled={creandoTurno}
                     >
                       {TIPOS_MOTIVO.map((tipo) => (
@@ -734,7 +732,7 @@ export default function MisTurnos() {
                       minLength={MINIMO_CARACTERES_MOTIVO_TURNO}
                       maxLength={MAXIMO_CARACTERES_MOTIVO_TURNO}
                       required
-                      className="input-field"
+                      className="turnos-field w-full px-3 py-3 text-sm"
                       disabled={creandoTurno}
                     />
                     <p className="mt-2 text-xs text-gray-500">
@@ -744,24 +742,24 @@ export default function MisTurnos() {
                 </section>
               </div>
 
-              <aside className="h-fit space-y-5 rounded-lg border border-gray-200 bg-gray-50 p-5">
+              <aside className="h-fit space-y-4 rounded-2xl border border-cyan-100 bg-gradient-to-br from-[#eaf6f7] to-white p-5 shadow-sm lg:sticky lg:top-2">
                 <div>
-                  <p className="text-sm text-gray-500">Turno seleccionado</p>
-                  <h3 className="mt-1 text-xl font-bold text-gray-900">
+                  <p className="text-xs font-bold uppercase tracking-wide text-cyan-800">Resumen de tu turno</p>
+                  <h3 className="mt-3 text-lg font-bold capitalize text-gray-900">
                     {fechaSeleccionada ? formatearFechaLarga(fechaSeleccionada) : 'Sin dia seleccionado'}
                   </h3>
-                  <p className="mt-2 text-lg font-semibold text-blue-700">
+                  <p className="mt-1 text-2xl font-extrabold text-cyan-800">
                     {horarioSeleccionado ? `${horarioSeleccionado} hs` : 'Sin horario'}
                   </p>
                 </div>
 
                 <div className="rounded-lg border border-gray-200 bg-white p-4">
-                  <p className="text-xs uppercase text-gray-500">Estado inicial</p>
-                  <p className="mt-1 font-semibold text-gray-900">Pendiente de aprobacion</p>
+                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Después de enviar</p>
+                  <p className="mt-1 font-semibold text-gray-900">Administración revisará tu solicitud</p>
                 </div>
 
                 <div className="rounded-lg border border-gray-200 bg-white p-4">
-                  <p className="text-xs uppercase text-gray-500">Razon</p>
+                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Motivo</p>
                   <p className="mt-1 text-sm text-gray-700">
                     {motivoDetalleLimpio ? motivoCompleto : 'Todavia no completaste el detalle.'}
                   </p>
@@ -769,11 +767,11 @@ export default function MisTurnos() {
 
                 {loadingSocio ? <p className="text-sm text-gray-500">Identificando socio actual...</p> : null}
 
-                <div className="flex flex-col gap-2 sm:flex-row sm:justify-end lg:flex-col">
+                <div className="turnos-modal-footer -mx-2 flex flex-col gap-2 px-2 pt-3 sm:flex-row sm:justify-end lg:flex-col">
                   <button
                     type="button"
                     onClick={cerrarModalSolicitud}
-                    className="rounded-lg bg-gray-100 px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-200"
+                    className="rounded-xl bg-white px-4 py-3 text-sm font-semibold text-gray-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50"
                     disabled={creandoTurno}
                   >
                     Cancelar
@@ -781,7 +779,7 @@ export default function MisTurnos() {
                   <button
                     type="submit"
                     disabled={creandoTurno || loadingSocio || cargandoDisponibilidad || !puedeEnviarSolicitud}
-                    className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-cyan-800 to-blue-700 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-cyan-900/15 transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Send className="mr-2 h-5 w-5" />
                     {creandoTurno ? 'Enviando...' : 'Solicitar turno'}
@@ -794,12 +792,12 @@ export default function MisTurnos() {
       ) : null}
 
       {turnoSeleccionado ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-xl">
+        <div className="turnos-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setTurnoSeleccionado(null) }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="turno-detalle-title" className="turnos-modal w-full max-w-2xl rounded-[1.4rem] border border-white/70 bg-[#f9fcfd] p-5 shadow-2xl sm:p-7">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-medium text-gray-500">Detalle del turno</p>
-                <h2 className="mt-1 text-2xl font-bold text-gray-900">{turnoSeleccionado.motivo || 'Turno presencial'}</h2>
+                <p className="text-xs font-bold uppercase tracking-[.14em] text-cyan-800">Detalle del turno</p>
+                <h2 id="turno-detalle-title" className="mt-1 text-2xl font-bold text-gray-900">{turnoSeleccionado.motivo || 'Turno presencial'}</h2>
               </div>
               <button
                 type="button"
