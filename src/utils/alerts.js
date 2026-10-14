@@ -29,8 +29,9 @@ export function showToast({ title, message, type = 'info' }) {
   })
 }
 
-export function showInfo({ title, message, type = 'info' }) {
+export function showInfo({ title, message, type = 'info', target }) {
   return Swal.fire({
+    ...(target ? { target } : {}),
     icon: TYPE_TO_ICON[type] || 'info',
     title: title || 'Aviso',
     text: message || '',

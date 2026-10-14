@@ -71,7 +71,7 @@ export default function SocioSolicitudesServicio() {
   const summary = useMemo(
     () => ({
       total: requests.length,
-      pending: requests.filter((item) => ['Pendiente', 'En revision', 'Pendiente instalacion'].includes(item.estado)).length,
+      pending: requests.filter((item) => ['Pendiente', 'En revision', 'Pendiente instalacion', 'Pendiente documentacion'].includes(item.estado)).length,
       rejected: requests.filter((item) => item.estado === 'Rechazada').length
     }),
     [requests]
@@ -144,11 +144,11 @@ export default function SocioSolicitudesServicio() {
                   <h3 className="font-semibold text-gray-900">Historial de la solicitud</h3>
                   {trackingLoading && <p className="mt-2 text-sm text-gray-500">Cargando movimientos...</p>}
                   {trackingError && <p role="alert" className="mt-2 text-sm text-red-700">{trackingError}</p>}
-                  {tracking[id] && <ol className="mt-3 space-y-3">{tracking[id].map((event, index) => <li key={`${event.FechaUtc}-${index}`} className="border-l-2 border-blue-200 pl-3">
+                  {tracking[request.idSolicitudServicio] && <ol className="mt-3 space-y-3">{tracking[request.idSolicitudServicio].map((event, index) => <li key={`${event.FechaUtc}-${index}`} className="border-l-2 border-blue-200 pl-3">
                     <p className="text-sm font-medium text-gray-800">{event.Detalle || event.Estado}</p>
                     <p className="text-xs text-gray-500">{event.Area || event.Tipo} · {event.Responsable} · {new Date(event.FechaUtc).toLocaleString('es-AR')}</p>
                   </li>)}</ol>}
-                  {tracking[id]?.length === 0 && !trackingLoading && <p className="mt-2 text-sm text-gray-500">Todavía no hay movimientos registrados.</p>}
+                  {tracking[request.idSolicitudServicio]?.length === 0 && !trackingLoading && <p className="mt-2 text-sm text-gray-500">Todavía no hay movimientos registrados.</p>}
                 </section>}
               </div>
               <div className="space-y-2 text-right">
