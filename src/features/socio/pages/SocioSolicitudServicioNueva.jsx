@@ -1,390 +1,70 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Send, Sparkles } from 'lucide-react'
+import React,{useEffect,useRef,useState} from 'react'
+import {Link,useNavigate} from 'react-router-dom'
+import {ArrowLeft,ArrowRight,CheckCircle2,Eye,FileCheck2,Info,Loader2,MapPin,Paperclip,Send,ShieldCheck,UploadCloud,X} from 'lucide-react'
 import BackToSocioDashboard from '@/components/BackToSocioDashboard.jsx'
-import useAuthStore from '@/store/authStore.js'
-import useAppStore from '@/store/appStore.js'
-import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
-import { useCurrentSocio } from '@/hooks/useCurrentSocio.js'
-import { cleanText, FIELD_LIMITS, firstValidationError, isPositiveNumber, validateMeaningfulText } from '@/utils/validation.js'
+import {useCurrentSocio} from '@/hooks/useCurrentSocio.js'
+import {apiLaboralExistente} from '@/utils/laboral.js'
+import {apiUrl} from '@/config/api.js'
+import {confirmAction,showInfo,showToast} from '@/utils/alerts.js'
+import {cleanText,validateMeaningfulText} from '@/utils/validation.js'
+import {RequestSteps,RequestFilePreview,ServiceIcon,requestText} from './SocioSolicitudUI.jsx'
+import './SocioSolicitudes.css'
 
-const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
-const CLOSED_REQUEST_STATUSES = new Set(['rechazada', 'rechazado', 'cancelada', 'cancelado'])
-const INACTIVE_SERVICE_STATUSES = new Set(['inactivo', 'inactiva', 'baja', 'cancelada', 'cancelado'])
-
-function normalizeStatus(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase()
-}
-
-function requirementKey(requirement) {
-  const serviceId = requirement?.idServicio ?? ''
-  const name = normalizeStatus(requirement?.Nombre || requirement?.nombre || '')
-  return serviceId !== '' && name ? `service:${serviceId}:name:${name}` : `id:${requirement?.idRequisitoServicio}`
-}
-
-function dedupeRequirements(requirements) {
-  const map = new Map()
-
-  ;(requirements || []).forEach((requirement) => {
-    map.set(requirementKey(requirement), requirement)
-  })
-
-  return Array.from(map.values())
-}
-
-function isBlockingServiceAssignment(assignment) {
-  const status = normalizeStatus(assignment?.estado ?? assignment?.Estado ?? 'Activo')
-  return !INACTIVE_SERVICE_STATUSES.has(status)
-}
-
-function isBlockingServiceRequest(request) {
-  const status = normalizeStatus(request?.estado ?? request?.Estado ?? 'Pendiente')
-  return !CLOSED_REQUEST_STATUSES.has(status)
-}
-
-export default function SocioSolicitudServicioNueva() {
-  const navigate = useNavigate()
-  const usuario = useAuthStore((state) => state.usuario)
-  const nombre = useAuthStore((state) => state.nombre)
-  const { socioId, resolveSocioId, loadingSocio } = useCurrentSocio()
-  const addNotification = useAppStore((state) => state.addNotification)
-  const fetchServicesCatalog = useServiceWorkflowStore((state) => state.fetchServicesCatalog)
-  const fetchRequirementsByService = useServiceWorkflowStore((state) => state.fetchRequirementsByService)
-  const fetchSocioServices = useServiceWorkflowStore((state) => state.fetchSocioServices)
-  const fetchServiceRequestsBySocio = useServiceWorkflowStore((state) => state.fetchServiceRequestsBySocio)
-  const createServiceRequest = useServiceWorkflowStore((state) => state.createServiceRequest)
-
-  const [services, setServices] = useState([])
-  const [blockedServiceIds, setBlockedServiceIds] = useState([])
-  const [requirements, setRequirements] = useState([])
-  const [loadingServices, setLoadingServices] = useState(true)
-  const [loadingRequirements, setLoadingRequirements] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [form, setForm] = useState({
-    idServicio: '',
-    direccionInstalacion: '',
-    observaciones: ''
-  })
-  const [filesByRequirement, setFilesByRequirement] = useState({})
-
-  useEffect(() => {
-    let cancelled = false
-    setLoadingServices(true)
-
-    async function loadAvailableServices() {
-      try {
-        const resolvedSocioId = socioId ?? (await resolveSocioId())
-
-        if (!resolvedSocioId) {
-          throw new Error('No se pudo identificar el socio actual.')
-        }
-
-        const [catalog, currentServices, currentRequests] = await Promise.all([
-          fetchServicesCatalog(),
-          fetchSocioServices(resolvedSocioId),
-          fetchServiceRequestsBySocio(resolvedSocioId)
-        ])
-
-        if (cancelled) return
-
-        const blockedIds = new Set([
-          ...(currentRequests || [])
-            .filter(isBlockingServiceRequest)
-            .map((item) => String(item.idServicio))
-        ])
-        const available = (catalog || []).filter((item) => item.Activo && !blockedIds.has(String(item.idServicio)))
-
-        setBlockedServiceIds(Array.from(blockedIds))
-        setServices(available)
-        setError('')
-        setForm((prev) => {
-          const previousStillAvailable = available.some((item) => String(item.idServicio) === String(prev.idServicio))
-          return previousStillAvailable
-            ? prev
-            : { ...prev, idServicio: available.length ? String(available[0].idServicio) : '' }
-        })
-      } catch (loadError) {
-        if (cancelled) return
-        console.error('Error al cargar servicios disponibles', loadError)
-        setServices([])
-        setBlockedServiceIds([])
-        setForm((prev) => ({ ...prev, idServicio: '' }))
-        setError(loadError.message || 'No se pudieron cargar los servicios disponibles.')
-      } finally {
-        if (!cancelled) setLoadingServices(false)
-      }
-    }
-
-    loadAvailableServices()
-
-    return () => {
-      cancelled = true
-    }
-  }, [fetchServiceRequestsBySocio, fetchServicesCatalog, fetchSocioServices, resolveSocioId, socioId])
-
-  useEffect(() => {
-    if (!form.idServicio) {
-      setRequirements([])
-      setFilesByRequirement({})
-      return
-    }
-
-    let cancelled = false
-    setLoadingRequirements(true)
-    fetchRequirementsByService(form.idServicio)
-      .then((data) => {
-        if (cancelled) return
-        const uniqueRequirements = dedupeRequirements(data)
-        setRequirements(uniqueRequirements)
-        setFilesByRequirement((prev) => {
-          const next = {}
-          uniqueRequirements.forEach((requirement) => {
-            if (prev[requirement.idRequisitoServicio]) {
-              next[requirement.idRequisitoServicio] = prev[requirement.idRequisitoServicio]
-            }
-          })
-          return next
-        })
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingRequirements(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [fetchRequirementsByService, form.idServicio])
-
-  const selectedService = useMemo(
-    () => services.find((item) => String(item.idServicio) === String(form.idServicio)),
-    [form.idServicio, services]
-  )
-
-  const missingFiles = requirements.filter((item) => !filesByRequirement[item.idRequisitoServicio])
-  const selectedServiceBlocked = blockedServiceIds.includes(String(form.idServicio))
-  const canSubmit = Boolean(form.idServicio && form.direccionInstalacion.trim() && form.observaciones.trim() && !missingFiles.length && !selectedServiceBlocked)
-
-  const handleFileChange = (requirementId, fileList) => {
-    const file = Array.from(fileList || []).find((item) => ACCEPTED_TYPES.includes(item.type))
-
-    if (file && file.size > MAX_FILE_SIZE_BYTES) {
-      addNotification({
-        title: 'Archivo invalido',
-        message: 'Cada archivo debe pesar 5 MB o menos.',
-        type: 'error'
-      })
-      return
-    }
-
-    setFilesByRequirement((prev) => {
-      const next = { ...prev }
-      if (file) {
-        next[requirementId] = file
-      } else {
-        delete next[requirementId]
-      }
-      return next
-    })
-  }
-
-  const handleSubmit = async (event) => {
-    event.preventDefault()
-
-    const resolvedSocioId = socioId ?? (await resolveSocioId())
-    const validationError = firstValidationError([
-      !isPositiveNumber(form.idServicio) ? 'Selecciona un servicio valido.' : '',
-      validateMeaningfulText(form.direccionInstalacion, 'El domicilio de instalacion', { min: 5, max: 200 }),
-      validateMeaningfulText(form.observaciones, 'Las observaciones', { min: FIELD_LIMITS.longText.min, max: 650 }),
-      missingFiles.length ? 'Debes adjuntar un archivo por cada requisito.' : '',
-      selectedServiceBlocked ? 'Ya tenés una solicitud pendiente para este servicio.' : ''
-    ])
-
-    if (validationError || !resolvedSocioId) {
-      setError(
-        validationError ||
-          'No se pudo identificar el socio actual.'
-      )
-      return
-    }
-
-    setSaving(true)
-    setError('')
-
-    try {
-      await createServiceRequest({
-        idSocio: Number(resolvedSocioId),
-        idServicio: Number(form.idServicio),
-        observaciones: `Domicilio de instalacion: ${cleanText(form.direccionInstalacion)}. Detalle: ${cleanText(form.observaciones)}`,
-        socioUsuario: usuario,
-        socioNombre: nombre || usuario,
-        filesByRequirement
-      })
-
-      addNotification({
-        title: 'Solicitud creada',
-        message: 'Tu solicitud se registro correctamente.',
-        type: 'success'
-      })
-
-      navigate('/socio/solicitudes-servicio')
-    } catch (submitError) {
-      console.error('Error al crear solicitud', submitError)
-      setError(submitError.message || 'No se pudo crear la solicitud.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
-      <BackToSocioDashboard />
-
-      <div className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Solicitar servicio</h1>
-          <p className="mt-2 text-gray-600">Selecciona un servicio, revisa requisitos y sube un archivo por requisito.</p>
-        </div>
-        <div className="rounded-full bg-cyan-100 p-3 text-cyan-700">
-          <Sparkles className="h-6 w-6" />
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="card space-y-6">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">Servicio</label>
-            <select
-              value={form.idServicio}
-              onChange={(event) => setForm((prev) => ({ ...prev, idServicio: event.target.value }))}
-              className="input-field"
-              disabled={loadingServices || !services.length}
-            >
-              {!services.length ? (
-                <option value="">
-                  {loadingServices ? 'Cargando servicios...' : 'No hay servicios disponibles para solicitar'}
-                </option>
-              ) : null}
-              {services.map((service) => (
-                <option key={service.idServicio} value={service.idServicio}>
-                  {service.Nombre}
-                </option>
-              ))}
-            </select>
-            {!loadingServices && !services.length ? (
-              <p className="mt-2 text-sm text-gray-500">
-                Ya tenés solicitudes pendientes para los servicios disponibles.
-              </p>
-            ) : null}
-          </div>
-
-          {selectedService ? (
-            <div className="rounded-2xl border border-cyan-100 bg-cyan-50 p-5">
-              <p className="text-xs uppercase tracking-wide text-cyan-700">Servicio seleccionado</p>
-              <h2 className="mt-1 text-xl font-semibold text-gray-900">{selectedService.Nombre}</h2>
-              <p className="mt-2 text-sm text-gray-600">{selectedService.Descripcion}</p>
-            </div>
-          ) : null}
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">Domicilio donde se solicita el alta</label>
-            <input
-              required
-              maxLength={200}
-              value={form.direccionInstalacion}
-              onChange={(event) => setForm((prev) => ({ ...prev, direccionInstalacion: event.target.value }))}
-              className="input-field"
-              placeholder="Calle, numero, localidad y referencias de acceso"
-            />
-            <p className="mt-1 text-xs text-gray-500">Este domicilio se enviara al area tecnica junto con la solicitud.</p>
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">Observaciones</label>
-            <textarea
-              value={form.observaciones}
-              onChange={(event) => setForm((prev) => ({ ...prev, observaciones: event.target.value }))}
-              minLength={FIELD_LIMITS.longText.min}
-              maxLength={650}
-              className="input-field min-h-40"
-              placeholder="Describe el pedido, direccion del servicio, referencias y cualquier dato util."
-            />
-          </div>
-
-          <div>
-            <label className="mb-3 block text-sm font-medium text-gray-700">Documentacion por requisito</label>
-            <div className="space-y-4">
-              {requirements.map((requirement) => {
-                const currentFile = filesByRequirement[requirement.idRequisitoServicio]
-
-                return (
-                  <div key={requirement.idRequisitoServicio} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                    <h3 className="font-semibold text-gray-900">{requirement.Nombre}</h3>
-                    <p className="mt-1 text-sm text-gray-600">{requirement.Descripcion}</p>
-
-                    <input
-                      type="file"
-                      accept=".pdf,.jpg,.jpeg,.png,.webp"
-                      className="mt-3 block w-full text-sm text-gray-700"
-                      onChange={(event) => handleFileChange(requirement.idRequisitoServicio, event.target.files)}
-                    />
-
-                    <p className="mt-2 text-xs text-gray-500">
-                      {currentFile ? `Archivo seleccionado: ${currentFile.name}` : 'Aun no hay archivo seleccionado.'}
-                    </p>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          {loadingSocio ? <p className="text-sm text-gray-500">Identificando socio actual...</p> : null}
-
-          {error ? (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </div>
-          ) : null}
-
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={saving || loadingSocio || !canSubmit}
-              className="inline-flex items-center rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Send className="mr-2 h-5 w-5" />
-              {saving ? 'Creando...' : 'Crear solicitud'}
-            </button>
-          </div>
-        </div>
-
-        <div className="card">
-          <h2 className="text-xl font-semibold text-gray-900">Requisitos</h2>
-          <p className="mt-2 text-sm text-gray-500">Cada requisito debe subirse por separado.</p>
-
-          <div className="mt-5 space-y-3">
-            {loadingRequirements ? (
-              <p className="text-sm text-gray-500">Cargando requisitos...</p>
-            ) : requirements.length ? (
-              requirements.map((requirement) => (
-                <div key={requirement.idRequisitoServicio} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                  <h3 className="font-semibold text-gray-900">{requirement.Nombre}</h3>
-                  <p className="mt-1 text-sm text-gray-600">{requirement.Descripcion}</p>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-5 text-sm text-gray-500">
-                No hay requisitos configurados para este servicio.
-              </div>
-            )}
-          </div>
-        </div>
-      </form>
-    </div>
-  )
+const accepted=['application/pdf','image/jpeg','image/png','image/webp']
+export default function SocioSolicitudServicioNueva(){
+ const navigate=useNavigate(),{socioId,resolveSocioId,loadingSocio}=useCurrentSocio()
+ const [services,setServices]=useState([]),[catalog,setCatalog]=useState([]),[blocked,setBlocked]=useState([]),[profile,setProfile]=useState(null)
+ const [loading,setLoading]=useState(true),[error,setError]=useState(''),[retry,setRetry]=useState(0),[step,setStep]=useState(0),[serviceId,setServiceId]=useState('')
+ const [notes,setNotes]=useState(''),[files,setFiles]=useState({}),[preview,setPreview]=useState(null),[busy,setBusy]=useState(false),[createdId,setCreatedId]=useState(null)
+ const uploaded=useRef(new Set()),sending=useRef(false),stepTitle=useRef(null)
+ useEffect(()=>{const abort=new AbortController();setLoading(true);setError('');setProfile(null);setServices([]);setCatalog([]);(async()=>{try{
+  const id=socioId??await resolveSocioId();if(!id)throw new Error('No se pudo identificar tu cuenta de socio.')
+  const [all,requirements,requests,people]=await Promise.all([apiLaboralExistente('/servicio',{signal:abort.signal}),apiLaboralExistente('/requisitoservicio',{signal:abort.signal}),apiLaboralExistente(`/solicitudservicio/socio/${id}`,{signal:abort.signal}),apiLaboralExistente('/socio',{signal:abort.signal})])
+  if(abort.signal.aborted)return
+  setBlocked(requests.filter(r=>!['rechazada','rechazado','cancelada','cancelado'].includes(requestText(r.Estado))).map(r=>String(r.idServicio)))
+  // El catálogo Servicio no tiene una columna Activo; la API devuelve sus servicios disponibles.
+  setServices(all);setCatalog(requirements);setProfile(people.find(p=>Number(p.idSocio)===Number(id))||null)
+ }catch(e){if(!abort.signal.aborted)setError(e.message)}finally{if(!abort.signal.aborted)setLoading(false)}})();return()=>abort.abort()},[socioId,resolveSocioId,retry])
+ useEffect(()=>{stepTitle.current?.focus()},[step])
+ const service=services.find(s=>String(s.idServicio)===serviceId)
+ const requirements=catalog.filter(r=>String(r.idServicio)===serviceId)
+ const missing=requirements.filter(r=>r.Obligatorio!==false&&!files[r.idRequisitoServicio])
+ const address=[profile?.Persona?.Calle,profile?.Persona?.Numero].filter(Boolean).join(' ').trim()
+ const addressValid=!!profile?.Persona?.Calle?.trim()&&!!String(profile?.Persona?.Numero||'').trim()
+ const detailsValid=addressValid&&!validateMeaningfulText(notes,'El detalle del pedido',{min:10,max:650})&&!missing.length
+ async function notify(title,message,type='warning'){await showInfo({title,message,type})}
+ function chooseService(value){if(createdId||busy)return;setServiceId(String(value));setFiles({});setError('')}
+ async function chooseFile(id,file){if(busy||uploaded.current.has(String(id)))return;if(file&&(!accepted.includes(file.type)||file.size>5*1024*1024||!file.size)){await notify('Revisá el archivo','Adjuntá un PDF, JPG, PNG o WebP con contenido, de hasta 5 MB.');return}setFiles(old=>{const next={...old};if(file)next[id]=file;else delete next[id];return next})}
+ async function next(){if(step===0){if(!service||blocked.includes(serviceId)){await notify('Elegí un servicio disponible','Los servicios con una solicitud existente se muestran deshabilitados para evitar pedidos duplicados.');return}setStep(1);return}
+  const invalid=!addressValid?'Completá tu calle y número desde Mi perfil antes de enviar la solicitud.':validateMeaningfulText(notes,'El detalle del pedido',{min:10,max:650})|| (missing.length?'Adjuntá los documentos obligatorios antes de continuar.':'')
+  if(invalid){await notify('Falta completar el pedido',invalid);return}setStep(2)
+ }
+ async function send(event){event.preventDefault();if(sending.current||busy||step!==2||!detailsValid)return;sending.current=true;setBusy(true);setError('')
+  try{
+   if(!await confirmAction({title:createdId?'¿Reintentar los documentos pendientes?':'¿Enviar esta solicitud?',message:createdId?`La solicitud #${createdId} ya existe. Se adjuntarán únicamente los documentos pendientes, sin crear otra solicitud.`:`Solicitás ${service.Nombre} para el domicilio ${address}. Se enviarán ${Object.values(files).length} archivos adjuntos y podrás seguir el trámite en Mis solicitudes.`,confirmButtonText:createdId?'Enviar documentos pendientes':'Enviar solicitud'}))return
+   let id=createdId
+   if(!id){const result=await apiLaboralExistente('/solicitudservicio',{method:'POST',body:{idSocio:Number(socioId??await resolveSocioId()),idServicio:Number(serviceId),observaciones:`Domicilio de instalacion: ${cleanText(address)}. Detalle: ${cleanText(notes)}`}});id=result.idSolicitudServicio;if(!id)throw new Error('El servidor no devolvió el número de solicitud. Consultá Mis solicitudes antes de volver a enviar.');setCreatedId(id)}
+   for(const [requirementId,file] of Object.entries(files)){
+    if(uploaded.current.has(String(requirementId)))continue
+    const body=new FormData();body.append('archivo',file);body.append('idSolicitudServicio',String(id));body.append('idRequisitoServicio',requirementId)
+    const response=await fetch(apiUrl('/documentosolicitud/upload'),{method:'POST',headers:{Authorization:`Bearer ${localStorage.getItem('token')}`},body})
+    if(!response.ok){const raw=await response.text();let message;try{const data=JSON.parse(raw);message=typeof data==='string'?data:data.Message}catch{message=raw}throw new Error(`La solicitud #${id} ya se creó, pero falta adjuntar ${file.name}. ${message||'Reintentá los documentos pendientes.'}`)}
+    uploaded.current.add(String(requirementId))
+   }
+   showToast({title:'Solicitud enviada',message:`Tu pedido #${id} quedó registrado. Consultá su seguimiento en Mis solicitudes.`,type:'success'});navigate('/socio/solicitudes-servicio',{replace:true})
+  }catch(e){setError(e.message);setStep(1);await notify('No se pudo completar el envío',e.message,'error')}finally{sending.current=false;setBusy(false)}
+ }
+ return <section className="socio-requests sr-new"><BackToSocioDashboard/><header className="sr-hero"><div><small><FileCheck2 size={15}/>NUEVA SOLICITUD</small><h1>Solicitá tu servicio</h1><p>Elegí lo que necesitás, adjuntá la documentación y revisá el pedido antes de enviarlo.</p></div><ShieldCheck size={61} className="sr-hero-art" aria-hidden="true"/></header>
+  {loading||loadingSocio?<div className="sr-empty" role="status"><Loader2 size={28} className="sr-spin"/><p>Preparando los servicios y requisitos de tu cuenta…</p></div>:!profile||!services.length?<div className="sr-empty" role="alert"><Info size={29}/><h2>{error?'No pudimos preparar tu solicitud':'No hay servicios disponibles'}</h2><p>{error||'Consultá con la cooperativa para conocer los servicios habilitados.'}</p><button type="button" className="sr-secondary" onClick={()=>setRetry(r=>r+1)}>Reintentar</button></div>:<>
+  <RequestSteps {...{step}} disabled={busy} minStep={createdId?1:0} maxStep={createdId?2:step} onStep={i=>setStep(i)}/>
+  <form onSubmit={send} className="sr-form-layout" noValidate><div className="sr-form-card"><div className="sr-step-heading"><small>PASO {step+1} DE 3</small><h2 tabIndex={-1} ref={stepTitle}>{['¿Qué servicio necesitás?','Completá tu pedido','Revisá antes de enviar'][step]}</h2><p>{['Seleccioná un servicio para conocer sus requisitos.','Usaremos el domicilio de tu perfil para la instalación.','Comprobá el servicio, el domicilio y los archivos adjuntos.'][step]}</p></div>
+  {error&&<div className="sr-error" role="alert">{error}</div>}
+  {createdId&&<div className="sr-notice"><Info size={18}/><p>Tu solicitud #{createdId} ya está registrada. El reintento completa los documentos pendientes. El servicio y los datos del pedido ya no se modifican desde este formulario.</p></div>}
+  {step===0&&<><div className="sr-service-grid">{services.map(s=>{const unavailable=blocked.includes(String(s.idServicio));return <button type="button" disabled={unavailable||busy} key={s.idServicio} className={`sr-service-choice ${String(s.idServicio)===serviceId?'is-selected':''}`} aria-pressed={String(s.idServicio)===serviceId} onClick={()=>chooseService(s.idServicio)}><span><ServiceIcon name={s.Nombre}/>{String(s.idServicio)===serviceId&&<CheckCircle2 size={17}/>}</span><h3>{s.Nombre}</h3><p>{unavailable?'Ya tenés una solicitud registrada para este servicio.':s.Descripcion||'Consultá los requisitos y completá tu pedido.'}</p>{unavailable&&<small>Consultá su seguimiento en Mis solicitudes</small>}</button>})}</div><Link className="sr-text-link" to="/socio/solicitudes-servicio">Ver mis solicitudes existentes <ArrowRight size={15}/></Link></>}
+  {step===1&&<><div className="sr-address"><MapPin size={23}/><div><small>DOMICILIO DE TU PERFIL</small><strong>{address||'Todavía no completaste tu domicilio'}</strong><p>{addressValid?'El área responsable utilizará esta dirección para el trámite.':'Falta completar calle y número para poder continuar.'}</p>{!createdId&&<Link to="/socio/perfil">{addressValid?'Actualizar domicilio en Mi perfil':'Completar mi domicilio'} <ArrowRight size={13}/></Link>}</div></div><label className="sr-field">Contanos qué necesitás<textarea disabled={busy||!!createdId} minLength={10} maxLength={650} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Describí el pedido y agregá referencias útiles para coordinar la atención."/><small>{notes.length}/650 caracteres · Mínimo 10</small></label><div className="sr-doc-heading"><div><h3>Documentación del servicio</h3><p>Adjuntá un archivo por requisito. PDF, JPG, PNG o WebP, hasta 5 MB por archivo.</p></div><span>{requirements.filter(r=>files[r.idRequisitoServicio]).length}/{requirements.length}</span></div>{!requirements.length?<div className="sr-notice"><Info size={18}/><p>Este servicio no tiene requisitos documentales configurados en el catálogo.</p></div>:<div className="sr-documents">{requirements.map(r=>{const file=files[r.idRequisitoServicio],sent=uploaded.current.has(String(r.idRequisitoServicio));return <article key={r.idRequisitoServicio} className={file?'has-file':''}><div className="sr-doc-title"><FileCheck2 size={19}/><h4>{r.Nombre}</h4><span>{sent?'Enviado':r.Obligatorio!==false?'Obligatorio':'Opcional'}</span></div>{r.Descripcion&&<p>{r.Descripcion}</p>}{file?<div className="sr-selected-file"><Paperclip size={16}/><div><strong>{file.name}</strong><small>{(file.size/1024).toLocaleString('es-AR',{maximumFractionDigits:1})} KB</small></div><button type="button" disabled={busy} aria-label={`Ver ${file.name}`} onClick={()=>setPreview(file)}><Eye size={17}/></button><button type="button" disabled={busy||sent} aria-label={`Quitar ${file.name}`} onClick={()=>chooseFile(r.idRequisitoServicio,null)}><X size={17}/></button></div>:<p className="sr-document-pending">Todavía no adjuntaste este documento.</p>}{!sent&&<label className="sr-file-button"><UploadCloud size={16}/>{file?'Cambiar archivo':'Adjuntar archivo'}<input type="file" disabled={busy} accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e=>{const value=e.target.files?.[0];e.target.value='';if(value)chooseFile(r.idRequisitoServicio,value)}}/></label>}</article>})}</div>}</>}
+  {step===2&&<><div className="sr-review-service"><ServiceIcon name={service?.Nombre} size={30}/><div><small>SERVICIO SOLICITADO</small><h3>{service?.Nombre}</h3></div><CheckCircle2 size={24}/></div><dl className="sr-review-details"><div><dt>Domicilio de instalación</dt><dd>{address}</dd></div><div><dt>Detalle del pedido</dt><dd className="whitespace-pre-wrap">{notes}</dd></div></dl><h3 className="sr-subtitle">Archivos que vas a enviar</h3>{Object.values(files).length?<ul className="sr-review-files">{requirements.filter(r=>files[r.idRequisitoServicio]).map(r=><li key={r.idRequisitoServicio}><FileCheck2 size={18}/><div><strong>{r.Nombre}</strong><span>{files[r.idRequisitoServicio].name}</span></div><button type="button" className="sr-text-link" onClick={()=>setPreview(files[r.idRequisitoServicio])}>Ver</button></li>)}</ul>:<p className="sr-description">Este pedido no tiene archivos adjuntos.</p>}<div className="sr-notice"><Info size={19}/><p>La solicitud se registrará para su revisión. Podrás consultar los movimientos y novedades desde Mis solicitudes. El envío no confirma la aprobación ni una fecha de instalación.</p></div></>}
+  <footer className="sr-form-footer">{step>0?<button type="button" className="sr-secondary" disabled={busy||!!createdId&&step===1} onClick={()=>setStep(s=>s-1)}><ArrowLeft size={16}/>Anterior</button>:<Link className="sr-secondary" to="/socio/solicitudes-servicio">Volver a mis solicitudes</Link>}{step<2?<button type="button" className="sr-primary" disabled={busy||step===0&&!serviceId} onClick={next}>Continuar<ArrowRight size={16}/></button>:<button className="sr-primary" disabled={busy||!detailsValid}>{busy?<Loader2 size={17} className="sr-spin"/>:<Send size={17}/>} {busy?'Enviando…':createdId?'Reintentar documentos pendientes':'Enviar solicitud'}</button>}</footer></div>
+  <aside className="sr-form-aside"><span className="sr-aside-icon"><ShieldCheck size={27}/></span><h3>Tu pedido, paso a paso</h3><p>Revisá los datos antes de enviar. Si hay una novedad, quedará registrada en el seguimiento.</p><ol><li><b>1</b><div><strong>Servicio</strong><small>{service?.Nombre||'Todavía no seleccionaste uno'}</small></div></li><li><b>2</b><div><strong>Datos y documentos</strong><small>{service?`${requirements.filter(r=>files[r.idRequisitoServicio]).length} de ${requirements.length} documentos adjuntos`:'Los requisitos se muestran al elegir el servicio'}</small></div></li><li><b>3</b><div><strong>Confirmación</strong><small>El sistema te dará un número de solicitud</small></div></li></ol><Link to="/socio/solicitudes-servicio">Consultar mis solicitudes<ArrowRight size={15}/></Link></aside></form>
+  </>}{preview&&<RequestFilePreview file={preview} onClose={()=>setPreview(null)}/>}
+ </section>
 }

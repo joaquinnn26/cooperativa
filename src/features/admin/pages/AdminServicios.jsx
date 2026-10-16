@@ -1,9 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Droplet, Pencil, PlusCircle, ToggleRight, Trash2, Wifi, Wrench, X, Zap } from 'lucide-react'
 
 import { useServicios } from '@/hooks/useServicios.js'
 import { confirmAction, showToast } from '@/utils/alerts.js'
 import { cleanText, FIELD_LIMITS, firstValidationError, isPositiveNumber, validateMeaningfulText, validateServiceName } from '@/utils/validation.js'
+import ServicioRequisitosPanel from './ServicioRequisitosPanel.jsx'
+import './ServicioRequisitos.css'
 
 const initialForm = {
   idServicio: null,
@@ -178,6 +180,11 @@ export default function AdminServicios() {
   const [formError, setFormError] = useState('')
   const [modalMode, setModalMode] = useState('create')
   const [deletingId, setDeletingId] = useState(null)
+  const [requirementsServiceId,setRequirementsServiceId]=useState(null)
+  const requirementsRef=useRef(null)
+  const requirementsService=servicios.find(s=>String(s.idServicio)===String(requirementsServiceId))
+  useEffect(()=>{if(!servicios.some(s=>String(s.idServicio)===String(requirementsServiceId)))setRequirementsServiceId(servicios[0]?.idServicio??null)},[servicios,requirementsServiceId])
+  function openRequirements(service){setRequirementsServiceId(service.idServicio);requestAnimationFrame(()=>requirementsRef.current?.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'}))}
 
   useEffect(() => {
     if (modalOpen && !tiposTarifa.length) {
@@ -320,11 +327,11 @@ export default function AdminServicios() {
 
   return (
     <>
-      <div className="mx-auto max-w-6xl space-y-4 px-4 py-8">
+      <div className="service-catalog mx-auto max-w-6xl space-y-4 px-4 py-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Servicios</h1>
-            <p className="text-gray-600">Configura tarifas y disponibilidad</p>
+            <h1 className="text-3xl font-bold text-gray-900">Servicios y requisitos</h1>
+            <p className="text-gray-600">Administrá las tarifas y la documentación de cada servicio desde esta misma pantalla.</p>
           </div>
           <button
             type="button"
@@ -371,6 +378,7 @@ export default function AdminServicios() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      <button type="button" className="btn-secondary" aria-controls="service-requirements-panel" aria-pressed={String(servicio.id)===String(requirementsServiceId)} onClick={()=>openRequirements(servicio.raw)}>Requisitos</button>
                       <span className="inline-flex items-center rounded bg-green-100 px-3 py-2 text-sm font-semibold text-green-700">
                         <ToggleRight className="mr-1 h-4 w-4" />
                         Disponible
@@ -402,6 +410,7 @@ export default function AdminServicios() {
             ) : null}
           </div>
         </div>
+        {requirementsService&&<div ref={requirementsRef} id="service-requirements-panel" className="service-requirements-anchor"><ServicioRequisitosPanel key={requirementsService.idServicio} service={requirementsService}/></div>}
       </div>
 
       <ModalCrearServicio

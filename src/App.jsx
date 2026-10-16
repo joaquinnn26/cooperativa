@@ -37,7 +37,6 @@ import AdminSocios from '@/features/admin/pages/AdminSocios.jsx'
 import AdminEmpleados from '@/features/admin/pages/AdminEmpleados.jsx'
 import AdminServicios from '@/features/admin/pages/AdminServicios.jsx'
 import AdminAnuncios from '@/features/admin/pages/AdminAnuncios.jsx'
-import AdminRequisitosServicio from '@/features/admin/pages/AdminRequisitosServicio.jsx'
 import AdminMedidores from '@/features/admin/pages/AdminInventarioMedidores.jsx'
 import AdminTerritorio from '@/features/admin/pages/AdminTerritorio.jsx'
 import EmpleadoHojaRuta from '@/features/empleado/pages/EmpleadoHojaRuta.jsx'
@@ -135,7 +134,7 @@ export default function App() {
           <Route path="/admin/rutas-medicion" element={<Navigate to="/empleado/rutas-medicion" replace />} />
           <Route path="/admin/territorio" element={<AdminTerritorio />} />
           <Route path="/admin/solicitudes-servicio" element={<Navigate to="/empleado/areas/ADMINISTRACION" replace />} />
-          <Route path="/admin/requisitos-servicio" element={<AdminRequisitosServicio />} />
+          <Route path="/admin/requisitos-servicio" element={<Navigate to="/admin/servicios" replace />} />
           <Route path="/admin/instalaciones" element={<Navigate to="/empleado" replace />} />
           <Route path="/admin/medidores" element={<AdminMedidores />} />
           <Route path="/admin/turnos" element={<Navigate to="/empleado/turnos" replace />} />

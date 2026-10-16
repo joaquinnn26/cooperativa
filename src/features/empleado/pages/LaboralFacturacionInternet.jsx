@@ -1,148 +1,31 @@
-import React, { useEffect, useState } from 'react'
-import { apiLaboralExistente } from '@/utils/laboral.js'
-import { apiUrl } from '@/config/api.js'
+import React,{useEffect,useState} from 'react'
+import Swal from 'sweetalert2'
+import {CheckCircle2,Download,Loader2,RefreshCw,ShieldCheck} from 'lucide-react'
+import {apiLaboralExistente} from '@/utils/laboral.js'
+import {apiUrl} from '@/config/api.js'
+import {confirmAction,showInfo,showToast} from '@/utils/alerts.js'
+import {BillingDialog,BillingSteps,BillingNotice,BillingFile,BillingResult,billingPeriod,billingTarget,billingDownload,billingResponseError,saveBillingDownload} from './FacturacionUI.jsx'
 
-const currentPeriod = () => {
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-}
-
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = filename
-  anchor.click()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
-
-export default function LaboralFacturacionInternet() {
-  const [periodo, setPeriodo] = useState(currentPeriod)
-  const [lote, setLote] = useState(null)
-  const [archivo, setArchivo] = useState(null)
-  const [resultado, setResultado] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    const abort = new AbortController()
-    setLoading(true)
-    setError('')
-  setLote(null)
-  setResultado(null)
-  if (!periodo) { setLoading(false); return () => abort.abort() }
-    apiLaboralExistente(`/facturacion/intercambio/internet/lotes?periodo=${encodeURIComponent(periodo)}`, { signal: abort.signal })
-      .then(value => { if (!abort.signal.aborted) { setLote(value); setResultado(value?.Estado === 'Validado' ? value : null) } })
-      .catch(e => { if (!abort.signal.aborted) { setLote(null); setError(e.message) } })
-      .finally(() => { if (!abort.signal.aborted) setLoading(false) })
-    return () => abort.abort()
-  }, [periodo])
-
-  async function reload() {
-    const value = await apiLaboralExistente(`/facturacion/intercambio/internet/lotes?periodo=${encodeURIComponent(periodo)}`)
-    setLote(value)
-    setResultado(value?.Estado === 'Validado' ? value : null)
-    return value
-  }
-
-  async function createAndDownload() {
-    setBusy(true); setError(''); setResultado(null)
-    try {
-      const created = await apiLaboralExistente('/facturacion/intercambio/internet/lotes', { method: 'POST', body: { Periodo: periodo } })
-      setLote(created)
-      const response = await fetch(apiUrl(`/facturacion/intercambio/internet/lotes/${created.idLote}/archivo`), {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      })
-      if (!response.ok) throw new Error((await response.text()) || 'El lote quedó guardado, pero no se pudo descargar el archivo.')
-      const disposition = response.headers.get('Content-Disposition') || ''
-      const filename = disposition.match(/filename\*?=(?:UTF-8''|"?)([^";]+)/i)?.[1] || created.NombreArchivoSalida || `internet_facturacion_${periodo}_lote-${created.idLote}.csv`
-      downloadBlob(await response.blob(), decodeURIComponent(filename.replace(/"/g, '')))
-    } catch (e) {
-      setError(e.message)
-      try { await reload() } catch { /* mantener el error original */ }
-    } finally { setBusy(false) }
-  }
-
-  async function downloadExisting() {
-    if (!lote?.idLote) return
-    setBusy(true); setError('')
-    try {
-      const response = await fetch(apiUrl(`/facturacion/intercambio/internet/lotes/${lote.idLote}/archivo`), {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      })
-      if (!response.ok) throw new Error((await response.text()) || 'No se pudo descargar el archivo del lote.')
-      const disposition = response.headers.get('Content-Disposition') || ''
-      const filename = disposition.match(/filename\*?=(?:UTF-8''|"?)([^";]+)/i)?.[1] || lote.NombreArchivoSalida
-      downloadBlob(await response.blob(), decodeURIComponent(filename.replace(/"/g, '')))
-    } catch (e) { setError(e.message) } finally { setBusy(false) }
-  }
-
-  async function validateResponse() {
-    if (!archivo) return
-    setBusy(true); setError(''); setResultado(null)
-    try {
-      const contenido = await archivo.text()
-      const validation = await apiLaboralExistente('/facturacion/intercambio/internet/importaciones/validar', {
-        method: 'POST', body: { NombreArchivo: archivo.name, Contenido: contenido }
-      })
-      setResultado(validation)
-      if (validation.Estado === 'Validado') await reload()
-    } catch (e) { setError(e.message) } finally { setBusy(false) }
-  }
-
-  async function applyResponse() {
-    if (!resultado?.idLote || resultado.Estado !== 'Validado') return
-    setBusy(true); setError('')
-    try {
-      const applied = await apiLaboralExistente(`/facturacion/intercambio/internet/lotes/${resultado.idLote}/aplicar`, { method: 'POST' })
-      setResultado(applied)
-      await reload()
-    } catch (e) { setError(e.message) } finally { setBusy(false) }
-  }
-
-  async function annulLot() {
-    if (!lote?.idLote || lote.Estado !== 'Exportado') return
-    const Motivo = window.prompt('Motivo para anular este lote y generar una nueva exportación:')
-    if (!Motivo?.trim()) return
-    setBusy(true); setError('')
-    try {
-      await apiLaboralExistente(`/facturacion/intercambio/internet/lotes/${lote.idLote}/anular`, { method: 'POST', body: { Motivo } })
-      setLote(null); setResultado(null); await reload()
-    } catch (e) { setError(e.message) } finally { setBusy(false) }
-  }
-
-  const stateLabel = { Exportado: 'Esperando respuesta externa', Validado: 'Respuesta validada', Aplicado: 'Facturas cargadas', Anulado: 'Anulado' }
-  return <section className="card space-y-4">
-    <div>
-      <h2 className="font-semibold">Internet · facturación por padrón</h2>
-      <p className="text-sm text-gray-600">Exportá los contratos y cargos vigentes del período, sin mediciones. Después validá e importá el CSV de facturas que devuelve el sistema contable.</p>
-    </div>
-    <div className="flex flex-wrap items-end gap-3">
-      <label className="grid gap-1 text-sm">Período a facturar<input className="input-field" type="month" value={periodo} onChange={e => { setPeriodo(e.target.value); setArchivo(null); setResultado(null) }} /></label>
-      <button className="btn-primary" disabled={busy || loading || !periodo} onClick={createAndDownload}>{busy ? 'Procesando…' : lote ? 'Usar lote del período' : 'Crear lote y descargar CSV'}</button>
-      {lote && <button className="btn-secondary" disabled={busy || loading} onClick={downloadExisting}>Descargar CSV guardado</button>}
-      <button className="btn-secondary" disabled={busy || loading} onClick={() => reload().catch(e => setError(e.message))}>Actualizar lote</button>
-    </div>
-    {loading && <p role="status" className="text-sm text-gray-500">Consultando lote del período…</p>}
-    {lote && <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2"><strong>Lote #{lote.idLote} · {lote.Periodo}</strong><span className="rounded-full bg-blue-100 px-3 py-1 font-medium text-blue-800">{stateLabel[lote.Estado] || lote.Estado}</span></div>
-      <p className="mt-2">{lote.CantidadFilas} contratos{lote.CantidadFacturadas != null ? ` · ${lote.CantidadFacturadas} facturados` : ''}{lote.CantidadRechazadas != null ? ` · ${lote.CantidadRechazadas} rechazados` : ''}</p>
-      {lote.NombreArchivoSalida && <p className="text-slate-600">Archivo: {lote.NombreArchivoSalida}</p>}
-      {!!lote.Errores?.length && <ul className="mt-2 list-disc space-y-1 pl-5 text-red-800">{lote.Errores.map((item, i) => <li key={`${i}-${item}`}>{item}</li>)}</ul>}
-      {lote.Estado === 'Exportado' && <button className="mt-3 text-sm font-semibold text-red-700 underline" disabled={busy} onClick={annulLot}>Anular lote para corregir el padrón y exportar de nuevo</button>}
-    </div>}
-    <div className="flex flex-wrap items-end gap-3 border-t pt-4">
-      <label className="grid gap-1 text-sm">CSV de respuesta del sistema contable<input className="input-field" type="file" accept=".csv,text/csv,text/plain" onChange={e => { setArchivo(e.target.files?.[0] || null); setResultado(null); setError('') }} /></label>
-      <button className="btn-secondary" disabled={busy || !archivo || !lote || lote.Estado !== 'Exportado'} onClick={validateResponse}>{busy ? 'Procesando…' : 'Validar respuesta'}</button>
-      <button className="btn-primary" disabled={busy || resultado?.Estado !== 'Validado'} onClick={applyResponse}>{busy ? 'Procesando…' : 'Aplicar facturas'}</button>
-    </div>
-    {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-    {resultado && <div className={`rounded-lg p-4 text-sm ${resultado.Estado === 'Validado' || resultado.Estado === 'Aplicado' ? 'bg-green-50 text-green-900' : 'bg-amber-50 text-amber-950'}`}>
-      <p className="font-semibold">Lote #{resultado.idLote} · {stateLabel[resultado.Estado] || resultado.Estado}</p>
-      {resultado.CantidadFilas != null && <p>{resultado.CantidadValidas ?? resultado.CantidadFilas} de {resultado.CantidadFilas} filas válidas{resultado.CantidadAplicadas != null ? ` · ${resultado.CantidadAplicadas} facturas aplicadas` : ''}</p>}
-      {!!resultado.Errores?.length && <ul className="mt-2 list-disc space-y-1 pl-5">{resultado.Errores.map((item, i) => <li key={`${i}-${item}`}>{item}</li>)}</ul>}
-    </div>}
-    <p className="text-xs text-gray-600">El socio verá la factura y su enlace después de aplicar el lote. Abrir el enlace no confirma el pago; el estado de pago requiere un archivo de conciliación posterior.</p>
-  </section>
+const stateLabels={Exportado:'Esperando respuesta externa',Validado:'Respuesta validada',Aplicado:'Facturas cargadas',Anulado:'Lote anulado'}
+async function getLot(period,signal){const response=await fetch(apiUrl(`/facturacion/intercambio/internet/lotes?periodo=${encodeURIComponent(period)}`),{signal,headers:{Authorization:`Bearer ${localStorage.getItem('token')}`}});if(!response.ok)throw new Error(await billingResponseError(response));return response.status===204?null:response.json()}
+export default function LaboralFacturacionInternet({open,onClose,onApplied}){
+ const [period,setPeriod]=useState(billingPeriod),[lot,setLot]=useState(null),[file,setFile]=useState(null),[result,setResult]=useState(null),[step,setStep]=useState(0)
+ const [loading,setLoading]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[revision,setRevision]=useState(0)
+ useEffect(()=>{if(!open)return;if(!period){setLoading(false);return}const abort=new AbortController();setLoading(true);setError('');getLot(period,abort.signal).then(data=>{if(!abort.signal.aborted){setLot(data);setResult(data&&['Validado','Aplicado'].includes(data.Estado)?data:null);if(data?.Estado==='Validado'||data?.Estado==='Aplicado')setStep(2)}}).catch(e=>{if(!abort.signal.aborted)setError(e.message)}).finally(()=>{if(!abort.signal.aborted)setLoading(false)});return()=>abort.abort()},[open,period,revision])
+ async function failure(e){setError(e.message);await showInfo({title:'No se pudo completar la operación',message:e.message,type:'error',target:billingTarget()})}
+ async function download(){if(busy||loading||!period)return;setBusy(true);setError('');let current=lot;try{if(!current){current=await apiLaboralExistente('/facturacion/intercambio/internet/lotes',{method:'POST',body:{Periodo:period}});setLot(current)}const file=await billingDownload(`/facturacion/intercambio/internet/lotes/${current.idLote}/archivo`,current.NombreArchivoSalida||`internet_${period}.csv`);saveBillingDownload(file);showToast({title:'Padrón descargado',message:'Enviá el CSV al sistema contable y esperá su archivo de respuesta.',type:'success',target:billingTarget()})}catch(e){await failure(e)}finally{setBusy(false)}}
+ async function choose(value){if(busy)return;if(value&&(!value.name.toLowerCase().endsWith('.csv')||value.size>5*1024*1024||!value.size)){await showInfo({title:'Revisá el archivo',message:'Elegí un CSV con contenido de hasta 5 MB.',type:'warning',target:billingTarget()});return}setFile(value);setResult(null);setError('')}
+ async function validate(){if(busy||!file||lot?.Estado!=='Exportado')return;setBusy(true);setError('');try{const data=await apiLaboralExistente('/facturacion/intercambio/internet/importaciones/validar',{method:'POST',body:{NombreArchivo:file.name,Contenido:await file.text()}});setResult(data);if(data.Estado==='Validado'){setLot(l=>({...l,...data}));setStep(2);showToast({title:'Respuesta validada',message:'Revisá las facturadas y rechazadas antes de confirmar.',type:'success',target:billingTarget()})}}catch(e){await failure(e)}finally{setBusy(false)}}
+ async function apply(){if(busy||result?.Estado!=='Validado')return;setBusy(true);setError('');try{if(!await confirmAction({title:'¿Crear las facturas de Internet?',message:`Se crearán las facturas informadas en el lote #${result.idLote}. Los contratos rechazados conservarán su resultado y no generarán factura.`,confirmButtonText:'Crear facturas',target:billingTarget()}))return;const data=await apiLaboralExistente(`/facturacion/intercambio/internet/lotes/${result.idLote}/aplicar`,{method:'POST'});setResult(r=>({...r,...data}));setLot(l=>({...l,...data}));onApplied();showToast({title:'Facturas de Internet cargadas',type:'success',target:billingTarget()})}catch(e){await failure(e)}finally{setBusy(false)}}
+ async function annul(){if(busy||lot?.Estado!=='Exportado')return;setBusy(true);try{const answer=await Swal.fire({target:billingTarget(),title:'Anular el lote exportado',text:'Indicá qué debe corregirse en el padrón. Después podrás generar una nueva exportación del período.',input:'textarea',inputLabel:'Motivo de anulación',inputAttributes:{maxlength:'1000'},inputValidator:value=>value?.trim().length>=5?undefined:'Escribí un motivo de al menos 5 caracteres.',showCancelButton:true,confirmButtonText:'Anular lote',cancelButtonText:'Conservar lote',confirmButtonColor:'#b4533d',reverseButtons:true});if(!answer.isConfirmed)return;await apiLaboralExistente(`/facturacion/intercambio/internet/lotes/${lot.idLote}/anular`,{method:'POST',body:{Motivo:answer.value.trim()}});setLot(null);setResult(null);setFile(null);setStep(0);showToast({title:'Lote anulado',message:'Ya podés corregir el padrón y generar otro lote.',type:'success',target:billingTarget()})}catch(e){await failure(e)}finally{setBusy(false)}}
+ const locked=busy||loading
+ return <BillingDialog {...{open,onClose}} busy={busy} eyebrow="INTERNET · INTERCAMBIO CSV" title="Facturación por padrón" description="Enviá los contratos del período y recibí las facturas sin cargar mediciones." footer={step===0?<button type="button" className="bf-primary" disabled={locked||!period||!!error} onClick={download}>{locked?<Loader2 size={17} className="bf-spin"/>:<Download size={17}/>} {lot?'Descargar padrón guardado':'Crear lote y descargar'}</button>:step===1?<button type="button" className="bf-primary" disabled={locked||!file||lot?.Estado!=='Exportado'} onClick={validate}>{busy?<Loader2 size={17} className="bf-spin"/>:<ShieldCheck size={17}/>}Validar respuesta</button>:result?.Estado==='Validado'?<button type="button" className="bf-primary" disabled={locked} onClick={apply}>{busy?<Loader2 size={17} className="bf-spin"/>:<CheckCircle2 size={17}/>}Crear facturas</button>:null}>
+ <BillingSteps {...{step}} busy={locked} onStep={i=>{if(i===2&&!result)return;setStep(i)}}/>{error&&<p className="bf-error" role="alert">{error}<button type="button" className="bf-text-button" disabled={locked} onClick={()=>setRevision(r=>r+1)}>Actualizar lote</button></p>}
+ <div className="bf-period-row"><label>Período a facturar<input disabled={locked} type="month" value={period} onChange={e=>{setPeriod(e.target.value);setLot(null);setResult(null);setFile(null);setStep(0);setError('')}}/></label><button type="button" className="bf-secondary" disabled={locked||!period} aria-label="Actualizar lote de Internet" onClick={()=>setRevision(r=>r+1)}><RefreshCw size={17}/></button></div>
+ {loading?<p className="bf-description" role="status"><Loader2 size={18} className="bf-spin"/>Consultando el lote del período…</p>:<>{lot&&<div className="bf-lot"><div><strong>Lote #{lot.idLote} · {lot.Periodo}</strong><span className={`bf-badge ${lot.Estado==='Aplicado'?'is-paid':''}`}>{stateLabels[lot.Estado]||lot.Estado}</span></div><p>{lot.CantidadFilas} contratos{lot.CantidadFacturadas!=null?` · ${lot.CantidadFacturadas} facturados`:''}{lot.CantidadRechazadas!=null?` · ${lot.CantidadRechazadas} rechazados`:''}</p>{lot.NombreArchivoSalida&&<small>{lot.NombreArchivoSalida}</small>}</div>}
+ {step===0&&<><h3 className="bf-step-title">1. Prepará el padrón para contabilidad</h3><p className="bf-description">Incluye los contratos y cargos vigentes del período. Cada socio debe tener su número externo y una tarifa configurada.</p><BillingNotice>El lote conserva el padrón exportado. Descargarlo otra vez reutiliza ese archivo; no crea nuevas facturas.</BillingNotice>{lot?.Estado==='Exportado'&&<button type="button" className="bf-text-button" disabled={locked} onClick={()=>setStep(1)}>Ya recibí la respuesta: continuar →</button>}{lot?.Estado==='Exportado'&&<details className="bf-annul"><summary>¿Necesitás corregir el padrón exportado?</summary><p>Primero anulá este lote, corregí los contratos y generá una nueva exportación.</p><button type="button" disabled={locked} onClick={annul}>Anular lote con motivo</button></details>}</>}
+ {step===1&&<><h3 className="bf-step-title">2. Cargá la respuesta del sistema contable</h3><p className="bf-description">El CSV recibido debe referenciar este mismo lote, sus contratos y el período. Puede informar contratos facturados o rechazados.</p>{lot?.Estado==='Exportado'?<BillingFile file={file} onChange={choose} extension=".csv" maxMB={5} disabled={locked}/>:<BillingNotice warning>{lot?'Este lote ya fue procesado. Consultá el resumen del paso 3.':'Primero generá el padrón del período desde el paso 1.'}</BillingNotice>}{result&&<BillingResult result={result} internet/>}</>}
+ {step===2&&(result?<><BillingResult result={result} internet/>{result.Estado==='Validado'&&<BillingNotice>La validación todavía no crea facturas. Confirmá la carga para que los socios puedan consultarlas.</BillingNotice>}</>:<BillingNotice warning>Primero cargá y validá la respuesta del sistema contable.</BillingNotice>)}
+ </>}
+ </BillingDialog>
 }

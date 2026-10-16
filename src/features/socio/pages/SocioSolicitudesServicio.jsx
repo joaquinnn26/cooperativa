@@ -1,176 +1,32 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Clock3, FileText, PlusCircle, XCircle } from 'lucide-react'
+import React,{useEffect,useState} from 'react'
+import {Link} from 'react-router-dom'
+import {ArrowRight,CheckCircle2,ChevronLeft,ChevronRight,Clock3,FileCheck2,FileText,History,Info,Loader2,Plus,RefreshCw,Search,X} from 'lucide-react'
 import BackToSocioDashboard from '@/components/BackToSocioDashboard.jsx'
-import useAuthStore from '@/store/authStore.js'
-import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
-import { useCurrentSocio } from '@/hooks/useCurrentSocio.js'
-import { formatDate } from '@/utils/formatDate.js'
-import { laboralApi } from '@/utils/laboral.js'
+import {useCurrentSocio} from '@/hooks/useCurrentSocio.js'
+import {apiLaboralExistente,laboralApi} from '@/utils/laboral.js'
+import {RequestModal,ServiceIcon,normalizeSocioRequest,requestClosed,requestDate,requestStatusClass,requestText} from './SocioSolicitudUI.jsx'
+import './SocioSolicitudes.css'
 
-function estadoColor(estado) {
-  switch (estado) {
-    case 'Aprobada':
-      return 'bg-emerald-100 text-emerald-700'
-    case 'Pendiente instalacion':
-      return 'bg-teal-100 text-teal-700'
-    case 'Rechazada':
-      return 'bg-red-100 text-red-700'
-    case 'En revision':
-      return 'bg-violet-100 text-violet-700'
-    default:
-      return 'bg-amber-100 text-amber-700'
-  }
+export default function SocioSolicitudesServicio(){
+ const {socioId,loadingSocio}=useCurrentSocio()
+ const [requests,setRequests]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[revision,setRevision]=useState(0)
+ const [search,setSearch]=useState(''),[tab,setTab]=useState('all'),[page,setPage]=useState(1),[selected,setSelected]=useState(null)
+ useEffect(()=>{if(!socioId){if(!loadingSocio){setLoading(false);setError('No se pudo identificar tu cuenta de socio. Volvé a iniciar sesión.')}return}const abort=new AbortController();setLoading(true);setError('');apiLaboralExistente(`/solicitudservicio/socio/${socioId}`,{signal:abort.signal}).then(data=>{if(!abort.signal.aborted)setRequests(data.map(normalizeSocioRequest).sort((a,b)=>Number(b.idSolicitudServicio)-Number(a.idSolicitudServicio)))}).catch(e=>{if(!abort.signal.aborted)setError(e.message)}).finally(()=>{if(!abort.signal.aborted)setLoading(false)});return()=>abort.abort()},[socioId,loadingSocio,revision])
+ const active=requests.filter(r=>!requestClosed(r.estado)).length
+ const filtered=requests.filter(r=>(tab==='all'||(tab==='active'?!requestClosed(r.estado):requestClosed(r.estado)))&&requestText(`${r.servicioNombre} ${r.idSolicitudServicio} ${r.estado} ${r.observaciones}`).includes(requestText(search)))
+ const pages=Math.max(1,Math.ceil(filtered.length/6)),current=Math.min(page,pages)
+ return <section className="socio-requests"><BackToSocioDashboard/><header className="sr-hero"><div><small><FileCheck2 size={15}/>MI CUENTA · SERVICIOS</small><h1>Mis solicitudes de servicio</h1><p>Consultá cómo avanza cada pedido, revisá las novedades y encontrá sus documentos en un solo lugar.</p></div><Link className="sr-hero-create" to="/socio/solicitudes-servicio/nueva"><Plus size={18}/>Solicitar un servicio</Link></header>
+  <div className="sr-list-heading"><div><h2>Tus pedidos</h2><p>{loading?'Consultando tus solicitudes…':error?'La información no está disponible.':`${requests.length} solicitudes registradas · ${active} en seguimiento`}</p></div><button type="button" className="sr-secondary" disabled={loading} onClick={()=>setRevision(r=>r+1)}><RefreshCw size={16} className={loading?'sr-spin':''}/><span>Actualizar</span></button></div>
+  <div className="sr-list-tools"><nav className="sr-tabs" aria-label="Estado de solicitudes">{[['all','Todas'],['active','En seguimiento'],['closed','Resueltas']].map(([id,label])=><button type="button" aria-pressed={tab===id} key={id} onClick={()=>{setTab(id);setPage(1)}}>{label}</button>)}</nav><label className="sr-search"><Search size={18}/><input value={search} maxLength={100} aria-label="Buscar por servicio, número o detalle de solicitud" placeholder="Buscar servicio, número o detalle…" onChange={e=>{setSearch(e.target.value);setPage(1)}}/>{search&&<button type="button" aria-label="Limpiar búsqueda" onClick={()=>{setSearch('');setPage(1)}}><X size={16}/></button>}</label></div>
+  {loading?<div className="sr-empty" role="status"><Loader2 size={28} className="sr-spin"/><p>Cargando tus solicitudes…</p></div>:error?<div className="sr-empty" role="alert"><Info size={30}/><h3>No pudimos cargar tus solicitudes</h3><p>{error}</p><button type="button" className="sr-secondary" onClick={()=>setRevision(r=>r+1)}>Reintentar</button></div>:<><div className="sr-request-grid">{filtered.slice((current-1)*6,current*6).map(r=><article className="sr-request-card" key={r.idSolicitudServicio}><div className="sr-request-top"><span className="sr-card-icon"><ServiceIcon name={r.servicioNombre}/></span><span className={`sr-status ${requestStatusClass(r.estado)}`}>{r.estado||'Estado no informado'}</span></div><small className="sr-card-number">SOLICITUD #{r.idSolicitudServicio}</small><h3>{r.servicioNombre||'Servicio sin nombre registrado'}</h3><p className="sr-card-date"><Clock3 size={13}/>{requestDate(r.fechaSolicitud)}</p><p className="sr-card-notes">{r.observaciones||'Sin detalle adicional registrado.'}</p>{r.motivoRechazo&&<p className="sr-card-rejection"><strong>Motivo informado:</strong> {r.motivoRechazo}</p>}<footer><span><FileText size={14}/>{r.documentos.length} archivos adjuntos</span><button type="button" onClick={()=>setSelected(r)}>Ver seguimiento <ArrowRight size={16}/></button></footer></article>)}</div>{!filtered.length&&<div className="sr-empty"><History size={32}/><h3>{requests.length?'No encontramos solicitudes para esta consulta':'Todavía no tenés solicitudes'}</h3><p>{requests.length?'Probá otro servicio, número o estado.':'Cuando solicites un servicio, podrás consultar aquí sus movimientos y novedades.'}</p>{!requests.length&&<Link className="sr-primary" to="/socio/solicitudes-servicio/nueva"><Plus size={16}/>Solicitar un servicio</Link>}</div>}<nav className="sr-pagination" aria-label="Páginas de solicitudes"><span>{filtered.length} resultados · Página {current} de {pages}</span><div><button type="button" disabled={current===1} onClick={()=>setPage(current-1)}><ChevronLeft size={16}/>Anterior</button><button type="button" disabled={current===pages} onClick={()=>setPage(current+1)}>Siguiente<ChevronRight size={16}/></button></div></nav></>}
+  {selected&&<TrackingDialog request={selected} onClose={()=>setSelected(null)}/>}
+ </section>
 }
 
-export default function SocioSolicitudesServicio() {
-  const usuario = useAuthStore((state) => state.usuario)
-  const { socioId } = useCurrentSocio()
-  const fetchServiceRequests = useServiceWorkflowStore((state) => state.fetchServiceRequests)
-  const fetchServiceRequestsBySocio = useServiceWorkflowStore((state) => state.fetchServiceRequestsBySocio)
-  const [requests, setRequests] = useState([])
-  const [expandedRequest, setExpandedRequest] = useState(null)
-  const [tracking, setTracking] = useState({})
-  const [trackingError, setTrackingError] = useState('')
-  const [trackingLoading, setTrackingLoading] = useState(false)
-
-  async function toggleTracking(id) {
-    if (expandedRequest === id) { setExpandedRequest(null); return }
-    setExpandedRequest(id); setTrackingError('')
-    if (tracking[id]) return
-    setTrackingLoading(true)
-    try { const events = await laboralApi(`/seguimiento/solicitud/${id}`); setTracking(current => ({ ...current, [id]: events })) }
-    catch (error) { setTrackingError(error.message || 'No se pudo cargar el seguimiento.') }
-    finally { setTrackingLoading(false) }
-  }
-
-  useEffect(() => {
-    const matchesSocio = (item) =>
-      String(item.idSocio || '') === String(socioId || '') ||
-      String(item.socioUsuario || '') === String(usuario || '')
-
-    if (socioId != null) {
-      fetchServiceRequests()
-        .then((data) => {
-          const filtered = (data || []).filter(matchesSocio)
-          if (filtered.length) {
-            setRequests(filtered)
-            return
-          }
-          fetchServiceRequestsBySocio(socioId).then(setRequests)
-        })
-        .catch(() => fetchServiceRequestsBySocio(socioId).then(setRequests))
-      return
-    }
-
-    fetchServiceRequests().then((data) => {
-      setRequests((data || []).filter(matchesSocio))
-    })
-  }, [fetchServiceRequests, fetchServiceRequestsBySocio, socioId, usuario])
-
-  const summary = useMemo(
-    () => ({
-      total: requests.length,
-      pending: requests.filter((item) => ['Pendiente', 'En revision', 'Pendiente instalacion', 'Pendiente documentacion'].includes(item.estado)).length,
-      rejected: requests.filter((item) => item.estado === 'Rechazada').length
-    }),
-    [requests]
-  )
-
-  return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <BackToSocioDashboard />
-
-      <div className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Mis Solicitudes</h1>
-          <p className="mt-2 text-gray-600">Consulta el estado, los documentos y cualquier motivo de rechazo.</p>
-        </div>
-        <Link
-          to="/socio/solicitudes-servicio/nueva"
-          className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
-        >
-          <PlusCircle className="mr-2 h-5 w-5" />
-          Nueva solicitud
-        </Link>
-      </div>
-
-      <div className="mb-8 grid gap-4 md:grid-cols-3">
-        <div className="card">
-          <p className="text-sm text-gray-500">Total</p>
-          <p className="mt-2 text-3xl font-bold text-gray-900">{summary.total}</p>
-        </div>
-        <div className="card">
-          <p className="text-sm text-gray-500">Pendientes</p>
-          <p className="mt-2 text-3xl font-bold text-amber-700">{summary.pending}</p>
-        </div>
-        <div className="card">
-          <p className="text-sm text-gray-500">Rechazadas</p>
-          <p className="mt-2 text-3xl font-bold text-red-700">{summary.rejected}</p>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        {requests.map((request) => (
-          <div key={request.idSolicitudServicio} className="card">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-full bg-blue-100 p-2 text-blue-700">
-                    <FileText className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">{request.servicioNombre}</h2>
-                    <p className="text-sm text-gray-500">{formatDate(request.fechaSolicitud, 'es-AR')}</p>
-                  </div>
-                </div>
-                <p className="max-w-3xl text-sm text-gray-700">{request.observaciones}</p>
-                <div className="flex flex-wrap gap-2">
-                  {request.documentos.map((documento) => (
-                    <span key={documento.id} className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
-                      {documento.nombre}
-                    </span>
-                  ))}
-                </div>
-                {request.estado === 'Rechazada' && request.motivoRechazo ? (
-                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    <strong>Motivo rechazo:</strong> {request.motivoRechazo}
-                  </div>
-                ) : null}
-                <button type="button" className="mt-2 text-sm font-semibold text-blue-700 hover:underline" onClick={() => toggleTracking(request.idSolicitudServicio)}>
-                  {expandedRequest === request.idSolicitudServicio ? 'Ocultar seguimiento' : 'Ver seguimiento de la solicitud'}
-                </button>
-                {expandedRequest === request.idSolicitudServicio && <section className="mt-3 rounded-xl bg-slate-50 p-4">
-                  <h3 className="font-semibold text-gray-900">Historial de la solicitud</h3>
-                  {trackingLoading && <p className="mt-2 text-sm text-gray-500">Cargando movimientos...</p>}
-                  {trackingError && <p role="alert" className="mt-2 text-sm text-red-700">{trackingError}</p>}
-                  {tracking[request.idSolicitudServicio] && <ol className="mt-3 space-y-3">{tracking[request.idSolicitudServicio].map((event, index) => <li key={`${event.FechaUtc}-${index}`} className="border-l-2 border-blue-200 pl-3">
-                    <p className="text-sm font-medium text-gray-800">{event.Detalle || event.Estado}</p>
-                    <p className="text-xs text-gray-500">{event.Area || event.Tipo} · {event.Responsable} · {new Date(event.FechaUtc).toLocaleString('es-AR')}</p>
-                  </li>)}</ol>}
-                  {tracking[request.idSolicitudServicio]?.length === 0 && !trackingLoading && <p className="mt-2 text-sm text-gray-500">Todavía no hay movimientos registrados.</p>}
-                </section>}
-              </div>
-              <div className="space-y-2 text-right">
-                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${estadoColor(request.estado)}`}>
-                  {request.estado}
-                </span>
-                <p className="text-sm text-gray-500">Documentos: {request.documentos.length}</p>
-              </div>
-            </div>
-          </div>
-        ))}
-
-        {!requests.length ? (
-          <div className="card py-12 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 text-gray-500">
-              <Clock3 className="h-7 w-7" />
-            </div>
-            <p className="mt-4 text-lg font-medium text-gray-700">No tienes solicitudes registradas.</p>
-            <p className="mt-2 text-gray-500">Cuando crees una, la veras aqui con su estado actualizado.</p>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  )
+function TrackingDialog({request:r,onClose}){
+ const [events,setEvents]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[revision,setRevision]=useState(0),[tab,setTab]=useState('tracking')
+ useEffect(()=>{const abort=new AbortController();setLoading(true);setError('');laboralApi(`/seguimiento/solicitud/${r.idSolicitudServicio}`,{signal:abort.signal}).then(data=>{if(!abort.signal.aborted)setEvents(data)}).catch(e=>{if(!abort.signal.aborted)setError(e.message)}).finally(()=>{if(!abort.signal.aborted)setLoading(false)});return()=>abort.abort()},[r.idSolicitudServicio,revision])
+ return <RequestModal title={r.servicioNombre||'Seguimiento de solicitud'} eyebrow={`SOLICITUD #${r.idSolicitudServicio}`} onClose={onClose}><div className="sr-tracking-status"><span className={`sr-status ${requestStatusClass(r.estado)}`}>{r.estado||'Estado no informado'}</span><small>Solicitada el {requestDate(r.fechaSolicitud)}</small></div><nav className="sr-tabs sr-modal-tabs" aria-label="Detalle de la solicitud">{[['tracking','Seguimiento'],['details','Pedido y documentos']].map(([id,label])=><button type="button" key={id} aria-pressed={tab===id} onClick={()=>setTab(id)}>{label}</button>)}</nav>
+ {tab==='tracking'?<><div className="sr-tracking-title"><div><h3>Movimientos de tu solicitud</h3><p>Las fechas, responsables y novedades corresponden a registros del sistema.</p></div><button type="button" className="sr-secondary" aria-label="Actualizar seguimiento" disabled={loading} onClick={()=>setRevision(s=>s+1)}><RefreshCw size={16} className={loading?'sr-spin':''}/></button></div>{loading?<div className="sr-empty" role="status"><Loader2 size={26} className="sr-spin"/><p>Cargando el historial…</p></div>:error?<div className="sr-error" role="alert"><p>No se pudo cargar el seguimiento: {error}</p><button type="button" className="sr-text-link" onClick={()=>setRevision(s=>s+1)}>Reintentar</button></div>:!events.length?<div className="sr-empty"><History size={29}/><h3>Todavía no hay movimientos registrados</h3><p>Consultá el estado actual de tu solicitud y volvé a revisar más adelante.</p></div>:<ol className="sr-timeline">{events.map((event,i)=><li key={`${event.FechaUtc}-${i}`}><span><CheckCircle2 size={16}/></span><div><time>{requestDate(event.FechaUtc)}</time><h4>{event.Detalle||event.Estado||'Movimiento registrado'}</h4><p>{[event.Area||event.Tipo,event.Responsable].filter(Boolean).join(' · ')||'Responsable no informado'}</p>{event.Estado&&event.Detalle&&<small>{event.Estado}</small>}</div></li>)}</ol>}</>:<><dl className="sr-review-details"><div><dt>Servicio</dt><dd>{r.servicioNombre}</dd></div><div><dt>Detalle de la solicitud</dt><dd className="whitespace-pre-wrap">{r.observaciones||'Sin detalle adicional registrado.'}</dd></div></dl>{r.motivoRechazo&&<div className="sr-error"><strong>Motivo informado</strong><p>{r.motivoRechazo}</p></div>}<h3 className="sr-subtitle">Documentos de la solicitud</h3>{r.documentos.length?<ul className="sr-review-files">{r.documentos.map(d=><li key={d.id}><FileText size={18}/><div><strong>{d.nombre}</strong>{d.fecha&&<span>Adjuntado el {requestDate(d.fecha)}</span>}</div></li>)}</ul>:<p className="sr-description">No hay archivos adjuntos registrados en esta solicitud.</p>}</>}
+ </RequestModal>
 }

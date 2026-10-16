@@ -72,10 +72,9 @@ function buildPanelSections(role, areas) {
       { to: '/admin/legajos', label: 'Legajos de personas', icon: FileText },
       { to: '/admin/altas-socio', label: 'Altas de socios', icon: ShieldCheck },
       { to: '/admin/socios', label: 'Socios', icon: Users },
-      { to: '/admin/servicios', label: 'Servicios', icon: Settings },
+      { to: '/admin/servicios', label: 'Servicios y requisitos', icon: Settings },
       { to: '/admin/medidores', label: 'Inventario de medidores', icon: Gauge },
       { to: '/admin/territorio', label: 'Conexiones y territorio', icon: MapPinned },
-      { to: '/admin/requisitos-servicio', label: 'Requisitos de servicios', icon: FilePlus2 },
       { to: '/admin/anuncios', label: 'Anuncios', icon: Megaphone },
       { to: '/admin/estadisticas-eventos', label: 'Estadísticas e historial', icon: BarChart3 },
       { to: '/admin/motivos-eventos', label: 'Catálogo de motivos', icon: ClipboardList }

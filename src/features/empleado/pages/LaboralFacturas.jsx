@@ -1,117 +1,40 @@
-import React, { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import React,{useEffect,useState} from 'react'
+import {Link} from 'react-router-dom'
+import {ArrowRight,CheckCircle2,ChevronLeft,ChevronRight,Download,ExternalLink,FileCheck2,FileText,Loader2,Receipt,RefreshCw,Wifi} from 'lucide-react'
 import useAuthStore from '@/store/authStore.js'
-import { apiLaboralExistente, laboralApi } from '@/utils/laboral.js'
-import { apiUrl } from '@/config/api.js'
-import { linkPagoSeguro } from '@/utils/laboralPermissions.js'
+import {laboralApi} from '@/utils/laboral.js'
+import {linkPagoSeguro} from '@/utils/laboralPermissions.js'
 import LaboralFacturacionInternet from './LaboralFacturacionInternet.jsx'
+import FacturacionMediciones from './FacturacionMediciones.jsx'
+import {BillingDialog,BillingNotice,billingDate,billingMoney} from './FacturacionUI.jsx'
+import './FacturacionExterna.css'
 
-const mesActual = () => {
-  const ahora = new Date()
-  return `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}`
+export default function LaboralFacturas({personal=false}){
+ const role=useAuthStore(s=>s.rol),areas=useAuthStore(s=>s.areas)||[]
+ const [data,setData]=useState({items:[],total:0}),[page,setPage]=useState(1),[revision,setRevision]=useState(0),[loading,setLoading]=useState(true),[error,setError]=useState('')
+ const [workflow,setWorkflow]=useState(null),[invoice,setInvoice]=useState(null)
+ const canInternet=role==='Administrador'||areas.some(a=>['INTERNET','ADMINISTRACION'].includes(a.Area)&&(a.Encargado||a.Funciones?.includes('FACTURACION')))
+ const canFiles=role==='Administrador'||canInternet||areas.some(a=>a.Area==='GERENCIA'&&a.Funciones?.includes('CONSULTA_GENERAL')||a.Area==='ADMINISTRACION'&&(a.Encargado||a.Funciones?.includes('FACTURACION')))
+ useEffect(()=>{if(personal&&role!=='Socio'){setLoading(false);return}const abort=new AbortController();setLoading(true);setError('');laboralApi(`/facturas?pagina=${page}`,{signal:abort.signal}).then(value=>{if(!abort.signal.aborted)setData(value)}).catch(e=>{if(!abort.signal.aborted)setError(e.message)}).finally(()=>{if(!abort.signal.aborted)setLoading(false)});return()=>abort.abort()},[page,revision,personal,role])
+ const applied=()=>{setPage(1);setRevision(r=>r+1)}
+ const pages=Math.max(1,Math.ceil(data.total/25))
+ if(personal&&role!=='Socio')return <div className="card m-6"><h1 className="text-2xl font-bold">Mis facturas</h1><p>Ingresá con tu cuenta personal de socio para consultar tus facturas.</p><Link to="/login" className="text-blue-700 underline">Iniciar sesión</Link></div>
+ return <section className="billing-external">
+  <header className="bf-hero"><div><span className="bf-eyebrow"><Receipt size={15}/>{personal?'MI CUENTA':'GESTIÓN CONTABLE'}</span><h1>{personal?'Mis facturas':'Facturación externa'}</h1><p>{personal?'Consultá tus facturas, verificá su estado y accedé al enlace de pago.':'Prepará los archivos para contabilidad y cargá las facturas recibidas, paso a paso.'}</p></div><Receipt size={65} className="bf-hero-art" aria-hidden="true"/></header>
+  {!personal&&(canFiles||canInternet)&&<><div className="bf-section-heading"><div><h2>¿Qué necesitás facturar?</h2><p>Elegí el intercambio que corresponde al servicio.</p></div></div><div className="bf-workflows">{canFiles&&<button type="button" className="bf-workflow" onClick={()=>setWorkflow('mediciones')}><span className="bf-workflow-top"><span className="bf-flow-icon"><Download size={24}/></span><span className="bf-format">ARCHIVOS TXT</span></span><h3>Agua y electricidad</h3><p>Exportá las mediciones aprobadas y recibí las facturas que emite el sistema contable.</p><span className="bf-flow-path">Mediciones <ArrowRight size={13}/> Contabilidad <ArrowRight size={13}/> Facturas</span><strong>Gestionar intercambio <ArrowRight size={17}/></strong></button>}{canInternet&&<button type="button" className="bf-workflow is-internet" onClick={()=>setWorkflow('internet')}><span className="bf-workflow-top"><span className="bf-flow-icon"><Wifi size={24}/></span><span className="bf-format">ARCHIVOS CSV</span></span><h3>Internet</h3><p>Exportá el padrón de contratos y cargos del período. Después cargá la respuesta de facturación.</p><span className="bf-flow-path">Padrón <ArrowRight size={13}/> Contabilidad <ArrowRight size={13}/> Facturas</span><strong>Gestionar facturación <ArrowRight size={17}/></strong></button>}</div></>}
+  <BillingNotice>El estado de pago corresponde a la confirmación registrada. Abrir un enlace de pago no confirma que la factura haya sido pagada.</BillingNotice>
+  <section className="bf-invoices"><div className="bf-invoice-heading"><span className="bf-invoice-icon"><FileCheck2 size={23}/></span><div><h2>{personal?'Tus facturas':'Facturas registradas'}</h2><p>{personal?'Abrí una factura para consultar sus datos y el enlace de pago.':'Facturas disponibles dentro de tu alcance de consulta.'}</p></div><button type="button" className="bf-secondary" disabled={loading} onClick={()=>setRevision(r=>r+1)}><RefreshCw size={16} className={loading?'bf-spin':''}/><span>Actualizar</span></button></div>
+   {loading?<div className="bf-empty" role="status"><Loader2 size={27} className="bf-spin"/><p>Cargando facturas…</p></div>:error?<div className="bf-empty" role="alert"><FileText size={29}/><h3>No se pudieron cargar las facturas</h3><p>{error}</p><button type="button" className="bf-secondary" onClick={()=>setRevision(r=>r+1)}>Reintentar</button></div>:!data.items.length?<div className="bf-empty"><Receipt size={34}/><h3>{data.total?'No hay facturas en esta página':'Todavía no hay facturas registradas'}</h3><p>{personal?'Las facturas aparecerán cuando la cooperativa las cargue.':'Después de validar y aplicar un archivo, las facturas creadas aparecerán aquí.'}</p></div>:<div className="bf-table-scroll"><table><thead><tr><th>Factura / servicio</th><th>Importe</th><th>Vencimiento</th><th>Estado de pago</th><th>Confirmación</th><th><span className="sr-only">Acciones</span></th></tr></thead><tbody>{data.items.map(f=><tr key={f.idFactura}><td><strong>{f.NumeroFactura?`N.º ${f.NumeroFactura}`:`Registro #${f.idFactura}`}</strong><span>{f.Servicio}{f.Periodo&&` · ${f.Periodo}`}</span>{!personal&&<small>Socio #{f.idSocio}</small>}</td><td><b>{billingMoney(f.MontoTotal)}</b></td><td>{billingDate(f.FechaCaducidad)}</td><td><span className={`bf-badge ${f.EstadoConfirmado==='Pagada'?'is-paid':f.EstadoConfirmado==='Anulada'?'is-annulled':''}`}>{f.EstadoConfirmado||'Sin confirmación externa'}</span></td><td><span>{f.FechaActualizacionUtc?new Date(f.FechaActualizacionUtc).toLocaleString('es-AR'):'Sin actualización verificable'}</span>{f.Fuente&&<small>{f.Fuente}</small>}</td><td><button type="button" className="bf-open-invoice" onClick={()=>setInvoice(f)}>Ver factura <ArrowRight size={15}/></button></td></tr>)}</tbody></table></div>}
+   <nav className="bf-pagination" aria-label="Páginas de facturas"><span>{loading?'Consultando resultados…':`${data.total} facturas · Página ${page} de ${pages}`}</span><div><button type="button" disabled={loading||page===1} onClick={()=>setPage(p=>p-1)}><ChevronLeft size={16}/>Anterior</button><button type="button" disabled={loading||!!error||page>=pages} onClick={()=>setPage(p=>p+1)}>Siguiente<ChevronRight size={16}/></button></div></nav>
+  </section>
+  {!personal&&canFiles&&<FacturacionMediciones open={workflow==='mediciones'} onClose={()=>setWorkflow(null)} onApplied={applied}/>}
+  {!personal&&canInternet&&<LaboralFacturacionInternet open={workflow==='internet'} onClose={()=>setWorkflow(null)} onApplied={applied}/>}
+  {invoice&&<InvoiceDialog invoice={invoice} personal={personal} onClose={()=>setInvoice(null)}/>}
+ </section>
 }
-
-export default function LaboralFacturas({ personal = false }) {
-  const rol = useAuthStore(s => s.rol)
-  const [data, setData] = useState({ items: [], total: 0 })
-  const [page, setPage] = useState(1)
-  const [revision, setRevision] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [periodo, setPeriodo] = useState(mesActual)
-  const [servicios, setServicios] = useState([])
-  const [idServicio, setIdServicio] = useState('')
-  const [archivo, setArchivo] = useState(null)
-  const [lote, setLote] = useState(null)
-  const [intercambioError, setIntercambioError] = useState('')
-  const [ocupado, setOcupado] = useState(false)
-
-  useEffect(() => {
-    if (personal && rol !== 'Socio') { setLoading(false); return }
-    const abort = new AbortController(); setLoading(true); setError('')
-    laboralApi(`/facturas?pagina=${page}`, { signal: abort.signal }).then(d => { if (!abort.signal.aborted) setData(d) }).catch(e => { if (!abort.signal.aborted) setError(e.message) }).finally(() => { if (!abort.signal.aborted) setLoading(false) })
-    return () => abort.abort()
-  }, [page, revision, personal, rol])
-
-  useEffect(() => {
-    if (personal) return
-    const abort = new AbortController()
-    apiLaboralExistente('/servicio', { signal: abort.signal }).then(setServicios).catch(e => {
-      if (!abort.signal.aborted) setIntercambioError(e.message)
-    })
-    return () => abort.abort()
-  }, [personal])
-
-  async function exportarMediciones() {
-    setOcupado(true); setIntercambioError(''); setLote(null)
-    try {
-      const filtroServicio = idServicio ? `?idServicio=${encodeURIComponent(idServicio)}` : ''
-      const response = await fetch(apiUrl(`/facturacion/intercambio/exportar/${encodeURIComponent(periodo)}${filtroServicio}`), {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      })
-      if (!response.ok) {
-        const body = await response.text()
-        throw new Error(body || 'No se pudieron exportar las mediciones.')
-      }
-      const blob = await response.blob()
-      const disposition = response.headers.get('Content-Disposition') || ''
-      const filename = disposition.match(/filename\*?=(?:UTF-8''|"?)([^";]+)/i)?.[1] || `mediciones_${periodo}.txt`
-      const url = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = url; anchor.download = decodeURIComponent(filename.replace(/"/g, '')); anchor.click()
-      setTimeout(() => URL.revokeObjectURL(url), 1000)
-    } catch (e) { setIntercambioError(e.message) } finally { setOcupado(false) }
-  }
-
-  async function validarArchivo() {
-    if (!archivo) return
-    setOcupado(true); setIntercambioError(''); setLote(null)
-    try {
-      const contenido = await archivo.text()
-      const resultado = await apiLaboralExistente('/facturacion/intercambio/importaciones/validar', {
-        method: 'POST', body: { NombreArchivo: archivo.name, Contenido: contenido }
-      })
-      setLote(resultado)
-    } catch (e) { setIntercambioError(e.message) } finally { setOcupado(false) }
-  }
-
-  async function aplicarLote() {
-    if (!lote?.idLoteImportacion || lote.Estado !== 'Validado') return
-    setOcupado(true); setIntercambioError('')
-    try {
-      const resultado = await apiLaboralExistente(`/facturacion/intercambio/importaciones/${lote.idLoteImportacion}/aplicar`, { method: 'POST' })
-      setLote({ ...lote, ...resultado })
-      setRevision(r => r + 1)
-      setPage(1)
-    } catch (e) { setIntercambioError(e.message) } finally { setOcupado(false) }
-  }
-
-  if (personal && rol !== 'Socio') return <div className="card m-6"><h1 className="text-2xl font-bold">Mis facturas</h1><p>Ingresá con tu cuenta personal de socio para consultar tus facturas.</p><Link to="/login" className="text-blue-700 underline">Iniciar sesión</Link></div>
-  return <div className="space-y-5"><header><h1 className="text-2xl font-bold">{personal ? 'Mis facturas' : 'Facturación externa'}</h1><p className="text-gray-600">{personal ? 'Consultá tus facturas y abrí el enlace de pago proporcionado por la cooperativa.' : 'Consultá facturas y gestioná el intercambio por archivo con el sistema contable.'}</p></header>
-    {!personal && <section className="card space-y-4">
-      <div><h2 className="font-semibold">Intercambio con el sistema contable</h2><p className="text-sm text-gray-600">Exportá las mediciones de un período. Al recibir el TXT de contabilidad, cargalo para validar las asociaciones antes de crear las facturas.</p></div>
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="grid gap-1 text-sm">Período de medición<input className="input-field" type="text" maxLength={10} value={periodo} onChange={e => setPeriodo(e.target.value)} placeholder="Ej.: 2026-09" /></label>
-        <label className="grid gap-1 text-sm">Servicio<select className="input-field" value={idServicio} onChange={e => setIdServicio(e.target.value)}><option value="">Todos los servicios</option>{servicios.map(s => <option key={s.idServicio} value={s.idServicio}>{s.Nombre}</option>)}</select></label>
-        <button className="btn-secondary" disabled={ocupado || !periodo.trim()} onClick={exportarMediciones}>{ocupado ? 'Procesando…' : 'Descargar mediciones TXT'}</button>
-      </div>
-      <div className="flex flex-wrap items-end gap-3 border-t pt-4">
-        <label className="grid gap-1 text-sm">Archivo TXT de contabilidad<input className="input-field" type="file" accept=".txt,text/plain" onChange={e => { setArchivo(e.target.files?.[0] || null); setLote(null); setIntercambioError('') }} /></label>
-        <button className="btn-secondary" disabled={ocupado || !archivo} onClick={validarArchivo}>{ocupado ? 'Procesando…' : 'Validar archivo'}</button>
-      </div>
-      {intercambioError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{intercambioError}</p>}
-      {lote && <div className={`rounded-lg p-4 text-sm ${lote.Estado === 'Validado' || lote.Estado === 'Aplicado' ? 'bg-green-50 text-green-900' : 'bg-amber-50 text-amber-950'}`}>
-        <p className="font-semibold">Lote #{lote.idLoteImportacion} · {lote.Estado}</p>
-        <p>{lote.CantidadValidas} de {lote.CantidadFilas} filas válidas{lote.CantidadAplicadas != null ? ` · ${lote.CantidadAplicadas} facturas aplicadas` : ''}</p>
-        {!!lote.Errores?.length && <ul className="mt-2 list-disc space-y-1 pl-5">{lote.Errores.map((item, i) => <li key={`${i}-${item}`}>{item}</li>)}</ul>}
-        {lote.Estado === 'Validado' && <button className="btn-primary mt-3" disabled={ocupado} onClick={aplicarLote}>Aplicar facturas del lote</button>}
-      </div>}
-      <p className="text-xs text-gray-600">El TXT de respuesta debe conservar las claves del lote exportado. La apertura de un link de pago no confirma el pago; la consulta automática a Mercado Pago aún requiere una integración independiente.</p>
-    </section>}
-    {!personal && <LaboralFacturacionInternet />}
-    {personal && <p className="rounded-lg bg-blue-50 p-3 text-sm">Abrir el enlace no confirma un pago. El estado se actualiza cuando existe una confirmación registrada.</p>}
-    <button className="btn-secondary" onClick={() => setRevision(r => r + 1)}>Actualizar consulta</button>
-    {error && <p role="alert" className="text-red-800">{error}</p>}
-    {loading ? <p role="status">Cargando facturas…</p> : !error && <><div className="card overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{['Factura', 'Servicio', 'Importe', 'Vencimiento', 'Estado confirmado', 'Última actualización', 'Pago'].map(x => <th className="p-3" key={x}>{x}</th>)}</tr></thead><tbody>{data.items.map(f => <tr key={f.idFactura} className="border-t"><td className="p-3">{f.NumeroFactura ? `N.º ${f.NumeroFactura}` : `Registro #${f.idFactura}`}{f.Periodo && <p>Período {f.Periodo}</p>}{!personal && <p>Socio #{f.idSocio}</p>}</td><td className="p-3">{f.Servicio}</td><td className="p-3">{Number(f.MontoTotal).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td><td className="p-3">{new Date(f.FechaCaducidad).toLocaleDateString('es-AR')}</td><td className="p-3">{f.EstadoConfirmado || 'Sin confirmación externa'}</td><td className="p-3">{f.FechaActualizacionUtc ? new Date(f.FechaActualizacionUtc).toLocaleString('es-AR') : 'Sin actualización verificable'}{f.Fuente && <p>{f.Fuente}</p>}</td><td className="p-3">{!['Pagada', 'Anulada'].includes(f.EstadoConfirmado) && linkPagoSeguro(f.LinkPago) ? <a className="btn-primary inline-block" href={linkPagoSeguro(f.LinkPago)} target="_blank" rel="noopener noreferrer">Pagar</a> : f.EstadoConfirmado === 'Pagada' ? 'Pago confirmado' : 'Sin enlace disponible'}</td></tr>)}</tbody></table>{!data.total && <p className="p-4">No hay facturas registradas para esta consulta.</p>}</div><div className="flex justify-between"><button className="btn-secondary" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Anterior</button><span>{data.total} facturas · Página {page}</span><button className="btn-secondary" disabled={page * 25 >= data.total} onClick={() => setPage(p => p + 1)}>Siguiente</button></div></>}
-  </div>
+function InvoiceDialog({invoice:f,personal,onClose}){
+ const link=!['Pagada','Anulada'].includes(f.EstadoConfirmado)&&linkPagoSeguro(f.LinkPago)
+ return <BillingDialog open title={f.NumeroFactura?`Factura ${f.NumeroFactura}`:`Factura #${f.idFactura}`} eyebrow={f.Servicio||'FACTURA REGISTRADA'} description={f.Periodo?`Período ${f.Periodo}`:'Consultá el importe, el vencimiento y la confirmación de pago.'} onClose={onClose} footer={link?<a className="bf-primary" href={link} target="_blank" rel="noopener noreferrer">{personal?'Pagar factura':'Abrir enlace de pago'}<ExternalLink size={16}/></a>:null}>
+ <div className="bf-invoice-amount"><small>Importe de la factura</small><strong>{billingMoney(f.MontoTotal)}</strong><span className={`bf-badge ${f.EstadoConfirmado==='Pagada'?'is-paid':''}`}>{f.EstadoConfirmado||'Sin confirmación externa'}</span></div><dl className="bf-details"><div><dt>Servicio</dt><dd>{f.Servicio||'Sin informar'}</dd></div><div><dt>Vencimiento</dt><dd>{billingDate(f.FechaCaducidad)}</dd></div>{!personal&&<div><dt>Socio asociado</dt><dd>#{f.idSocio}</dd></div>}<div><dt>Fecha de emisión</dt><dd>{billingDate(f.FechaEmision)}</dd></div><div><dt>Fuente de confirmación</dt><dd>{f.Fuente||'Sin confirmación registrada'}</dd></div><div><dt>Última actualización verificable</dt><dd>{f.FechaActualizacionUtc?new Date(f.FechaActualizacionUtc).toLocaleString('es-AR'):'Sin actualización registrada'}</dd></div>{f.Referencia&&<div><dt>Referencia de confirmación</dt><dd>{f.Referencia}</dd></div>}</dl>{f.EstadoConfirmado==='Pagada'?<BillingNotice><CheckCircle2 size={16}/>Esta factura tiene un pago confirmado.</BillingNotice>:f.EstadoConfirmado==='Anulada'?<BillingNotice warning>Esta factura está anulada y no tiene habilitado el acceso al pago.</BillingNotice>:<BillingNotice warning>{link?'El enlace abre el sitio de pago externo. El estado se actualizará cuando exista una confirmación registrada.':'Esta factura no tiene un enlace de pago disponible y seguro. Consultá con la cooperativa.'}</BillingNotice>}
+ </BillingDialog>
 }
