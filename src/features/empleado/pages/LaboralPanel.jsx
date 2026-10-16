@@ -7,6 +7,7 @@ import { laboralApi, tareaEstados } from '@/utils/laboral.js'
 import { rutasLaborales, tieneFuncion, esSoloLecturista } from '@/utils/laboralPermissions.js'
 import './LaboralPanel.css'
 import CrearTrabajoDialog from './CrearTrabajoDialog.jsx'
+import WaterAreaTasks from './WaterAreaTasks.jsx'
 
 export default function LaboralPanel({ gerencia = false }) {
   const areas = useAuthStore(s => s.areas) || []
@@ -21,6 +22,8 @@ function LaboralPanelContent({ gerencia = false }) {
   const manager = gerencia || tieneFuncion(areas, 'GERENCIA', 'CONSULTA_GENERAL')
   const managerHome = manager && (!area || area === 'GERENCIA')
   const profile = areas.find(a => a.Area === area)
+  const waterView=area==='AGUA'&&!managerHome
+  const [taskSearch,setTaskSearch]=useState(''),[taskQuery,setTaskQuery]=useState(''),[taskType,setTaskType]=useState('Operativas')
   const [rows, setRows] = useState({ items: [], total: 0 })
   const [summary, setSummary] = useState([])
   const [indicators, setIndicators] = useState({ porArea: [], tendencia: [] })
@@ -56,14 +59,16 @@ function LaboralPanelContent({ gerencia = false }) {
   ].filter(item => item.value > 0)
   const trendData = indicators.tendencia.map(item => ({ ...item, Mes: new Date(item.Periodo).toLocaleDateString('es-AR', { month: 'short', timeZone: 'UTC' }), Creadas: Number(item.Creadas || 0), Cerradas: Number(item.Cerradas || 0) }))
   useEffect(() => { setPage(1); setTab(managerHome ? 'gerencia' : 'tareas'); setState(''); setManagerArea('') }, [area, managerHome])
+  useEffect(()=>{const timer=setTimeout(()=>{setTaskQuery(taskSearch.trim());setPage(1)},300);return()=>clearTimeout(timer)},[taskSearch])
   useEffect(() => {
     const abort = new AbortController(); setLoading(true); setError('')
     const query = new URLSearchParams({ pagina: page }); if (selectedArea) query.set('area', selectedArea); if (state) query.set('estado', state)
+    if(waterView){query.set('q',taskQuery);query.set('tipo',taskType)}
     Promise.all([laboralApi(`/tareas?${query}`, { signal: abort.signal }), laboralApi('/resumen', { signal: abort.signal }), laboralApi(`/actividad?pagina=${page}${selectedArea ? `&area=${selectedArea}` : ''}`, { signal: abort.signal }), profile?.Encargado ? laboralApi(`/equipo?area=${area}`, { signal: abort.signal }) : [], operational && (profile?.Encargado || profile?.Funciones?.includes('ATENCION')) ? laboralApi(`/bandeja?area=${area}`, { signal: abort.signal }) : null])
       .then(([list, counts, log, people, pending]) => { if (!abort.signal.aborted) { setRows(list); setSummary(counts); setHistory(log); setTeam(people); setInbox(pending) } })
       .catch(e => { if (!abort.signal.aborted) setError(e.message) }).finally(() => { if (!abort.signal.aborted) setLoading(false) })
     return () => abort.abort()
-  }, [area, page, state, revision, areas, selectedArea])
+  }, [area, page, state, revision, areas, selectedArea,waterView,taskQuery,taskType])
   useEffect(() => {
     if (!managerHome) { setIndicators({ porArea: [], tendencia: [] }); return }
     const abort = new AbortController()
@@ -72,10 +77,11 @@ function LaboralPanelContent({ gerencia = false }) {
   }, [managerHome, revision])
   async function create(payload) {
     setBusy(true); setError('')
-    try { const created = await laboralApi('/tareas', { method: 'POST', body: JSON.stringify(payload) }); setNewTask(null); setCreatedTask(created); setTab('tareas'); setPage(1); setState(''); setRevision(r => r + 1) } catch (e) { setError(e.message) } finally { setBusy(false) }
+    try { const created = await laboralApi('/tareas', { method: 'POST', body: JSON.stringify(payload) }); setNewTask(null); setCreatedTask(created); setTab('tareas'); setPage(1); setState('');setTaskType('Operativas');setTaskSearch('');setTaskQuery(''); setRevision(r => r + 1) } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
   if (area && !profile && !manager) return <p className="card">No tenés una asignación vigente en esta área.</p>
   if (!areas.length) return <div className="card space-y-3"><h1 className="text-2xl font-bold">Mi panel laboral</h1><p>Tu cuenta laboral está activa. Falta que administración configure tu área y tus funciones.</p><p>Cargo registrado: {cargo || 'Sin informar'}.</p></div>
+  if(waterView)return <WaterAreaTasks {...{profile,cargo,rows,team,history,inbox,tab,page,state,loading,error,busy,taskSearch,taskQuery,taskType,createdTask,newTask}} setTab={value=>{setTab(value);setPage(1)}} setPage={setPage} setState={value=>{setState(value);setPage(1)}} setTaskSearch={setTaskSearch} setTaskType={value=>{setTaskType(value);setState('');setPage(1)}} onRefresh={()=>setRevision(r=>r+1)} onNew={()=>{setError('');setCreatedTask(null);setNewTask({Area:area})}} onDismissCreated={()=>setCreatedTask(null)} onCreate={create} onCloseNew={()=>{if(!busy){setNewTask(null);setError('')}}}/>
   return <div className={managerHome ? 'laboral-page laboral-manager' : 'laboral-page laboral-employee-page'}>
     {managerHome ? <header className="manager-hero"><div className="manager-hero-copy"><span className="manager-eyebrow"><Building2 size={15} /> PANEL DE GERENCIA</span><h1>Panorama de la cooperativa</h1><p>Seguimiento general de tareas, áreas y actividad operativa.</p><span className="manager-role">{cargo || 'Gerencia'} · Consulta general</span></div><div className="manager-hero-art" aria-hidden="true"><span /><span /><span /><Building2 size={58} /></div></header> : <header><h1 className="text-2xl font-bold">{profile?.Nombre || (manager ? 'Actividad de las áreas' : 'Mi panel laboral')}</h1><p className="text-gray-600">{profile?.Encargado ? 'Organizá el equipo y revisá los trabajos de tu área.' : manager ? 'Consulta general de pendientes e intervenciones.' : 'Consultá tus asignaciones y registrá el trabajo realizado.'}</p><p className="text-sm text-gray-500">Cargo: {cargo || 'Sin informar'}{profile && ` · Encargado: ${profile.EncargadoNombre?.trim() || 'Sin designar'}`}</p></header>}
     {!area && !managerHome && <div className="grid gap-3 md:grid-cols-2">{rutasLaborales(areas).map(r => <Link key={r.to} to={r.to} className="card hover:border-blue-400 border"><strong>{r.label}</strong><p className="text-sm text-gray-600">{r.description}</p></Link>)}</div>}
