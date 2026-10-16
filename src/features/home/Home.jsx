@@ -65,7 +65,7 @@ export default function Home() {
         <div>
           <SectionHeading icon={PlayCircle} title="Cómo usar SocioAPP">Un recorrido por el portal para socios, con narración y subtítulos en castellano.</SectionHeading>
           <p className="public-tutorial-description">Aprendé a consultar tus servicios, facturas y mediciones, solicitar turnos, realizar reclamos y usar el asistente de ayuda.</p>
-          <p className="public-tutorial-note">Duración: 3 minutos y 19 segundos. Las pantallas muestran una cuenta de ejemplo; tus datos pueden ser diferentes.</p>
+          <p className="public-tutorial-note">Duración: 3 minutos y 18 segundos. Las pantallas muestran una cuenta de ejemplo; tus datos pueden ser diferentes.</p>
         </div>
         <video className="public-tutorial-video" controls preload="none" playsInline poster={`${import.meta.env.BASE_URL}tutoriales/tutorial-socios-portada.png`} aria-label="Video tutorial para socios de SocioAPP Rancul">
           <source src={`${import.meta.env.BASE_URL}tutoriales/tutorial-socios.mp4`} type="video/mp4" />
