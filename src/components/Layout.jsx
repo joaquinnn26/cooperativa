@@ -28,6 +28,7 @@ import {
 import cospralLogo from '@/assets/cospral-wordmark.png'
 import useAuthStore from '../store/authStore.js'
 import AuthSessionManager from './AuthSessionManager.jsx'
+import HelpChatbot from './HelpChatbot.jsx'
 import PublicAnnouncementsBanner from './PublicAnnouncementsBanner.jsx'
 import PublicFooter from '@/features/home/PublicFooter.jsx'
 import '@/features/home/Home.css'
@@ -404,6 +405,7 @@ export default function Layout() {
           </div>
         </div>
       </footer>}
+      <HelpChatbot key={`${rol || 'publico'}:${usuario || ''}`} />
     </div>
   )
 }
