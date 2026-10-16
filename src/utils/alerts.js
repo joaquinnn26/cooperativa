@@ -21,8 +21,9 @@ const toast = Swal.mixin({
   }
 })
 
-export function showToast({ title, message, type = 'info' }) {
+export function showToast({ title, message, type = 'info', target }) {
   return toast.fire({
+    ...(target ? { target } : {}),
     icon: TYPE_TO_ICON[type] || 'info',
     title: title || 'Aviso',
     text: message || ''
@@ -51,9 +52,11 @@ export async function confirmAction({
   confirmButtonText = 'Confirmar',
   cancelButtonText = 'Cancelar',
   type = 'question',
-  danger = false
+  danger = false,
+  target
 }) {
   const result = await Swal.fire({
+    ...(target ? { target } : {}),
     icon: TYPE_TO_ICON[type] || type || 'question',
     title,
     text: message,

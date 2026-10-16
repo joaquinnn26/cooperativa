@@ -32,7 +32,7 @@ import PublicAnnouncementsBanner from './PublicAnnouncementsBanner.jsx'
 import PublicFooter from '@/features/home/PublicFooter.jsx'
 import '@/features/home/Home.css'
 import { getDefaultRouteByRole, normalizeCargo, normalizeRole } from '@/utils/auth.js'
-import { puedeVerEstadisticasLaborales, rutasLaborales } from '@/utils/laboralPermissions.js'
+import { puedeVerEstadisticasLaborales, rutasLaborales, esSoloLecturista } from '@/utils/laboralPermissions.js'
 
 const employeeIconByPath = {
   '/empleado/anuncios': Megaphone,
@@ -62,7 +62,7 @@ const employeeIconByPath = {
 
 function buildPanelSections(role, areas) {
   const normalizedRole = normalizeRole(role)
-  const trabajo = { title: 'Mi trabajo', items: [{ to: '/empleado', label: areas.length ? 'Panel laboral' : 'Asignación pendiente', icon: Bell }, ...rutasLaborales(areas).map(r => ({ ...r, icon: employeeIconByPath[r.to] || ClipboardList })), ...(puedeVerEstadisticasLaborales(areas) ? [{ to: '/empleado/estadisticas-eventos', label: 'Estadísticas e historial', icon: BarChart3 }] : [])] }
+  const trabajo = { title: 'Mi trabajo', items: [...(esSoloLecturista(areas) ? [] : [{ to: '/empleado', label: areas.length ? 'Panel laboral' : 'Asignación pendiente', icon: Bell }]), ...rutasLaborales(areas).map(r => ({ ...r, icon: employeeIconByPath[r.to] || ClipboardList })), ...(puedeVerEstadisticasLaborales(areas) ? [{ to: '/empleado/estadisticas-eventos', label: 'Estadísticas e historial', icon: BarChart3 }] : [])] }
   if (normalizedRole === 'Administrador') return [
     { title: 'Administración del sistema', items: [
       { to: '/admin', label: 'Panel principal', icon: Bell },

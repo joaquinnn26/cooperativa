@@ -15,7 +15,7 @@ export function allowedMeterActions(meter, admin) {
   const actions = []
   if (!meter.IdentidadVerificada) actions.push('Verificar')
   else if (admin) actions.push('Editar')
-  if (meter.idAsignacion && meter.PendienteConciliacion && meter.IdentidadVerificada) actions.push('Revision')
+  if (meter.idAsignacion && (meter.PendienteConciliacion || meter.EstadoFisico === 'Averiado' || meter.EstadoFisico === 'PendienteRevision') && meter.IdentidadVerificada) actions.push('Revision')
   if (!meter.idAsignacion) {
     if (['Averiado', 'PendienteRevision'].includes(meter.EstadoFisico)) actions.push('Reparacion')
     if (meter.IdentidadVerificada) actions.push('Revision')

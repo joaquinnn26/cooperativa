@@ -1,14 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, Building2, CheckCircle2, ClipboardList, Clock3, RefreshCw, TrendingUp } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Link, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import useAuthStore from '@/store/authStore.js'
 import { laboralApi, tareaEstados } from '@/utils/laboral.js'
-import { rutasLaborales, tieneFuncion } from '@/utils/laboralPermissions.js'
+import { rutasLaborales, tieneFuncion, esSoloLecturista } from '@/utils/laboralPermissions.js'
 import './LaboralPanel.css'
 import CrearTrabajoDialog from './CrearTrabajoDialog.jsx'
 
 export default function LaboralPanel({ gerencia = false }) {
+  const areas = useAuthStore(s => s.areas) || []
+  if (esSoloLecturista(areas)) return <Navigate to="/empleado/hoja-ruta" replace />
+  return <LaboralPanelContent gerencia={gerencia}/>
+}
+
+function LaboralPanelContent({ gerencia = false }) {
   const { area } = useParams()
   const areas = useAuthStore(s => s.areas) || []
   const cargo = useAuthStore(s => s.cargo)

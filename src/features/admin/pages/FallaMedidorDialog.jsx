@@ -1,0 +1,29 @@
+import React, { useEffect, useState } from 'react'
+import { AlertTriangle, Check, Clock3, Gauge, Loader2, MapPin, Search, X } from 'lucide-react'
+import './FallaMedidorDialog.css'
+
+const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+export default function FallaMedidorDialog({ dialogRef, form, meter, motivos, busy, field, onSubmit, onClose }) {
+  const [query, setQuery] = useState('')
+  const [customDate, setCustomDate] = useState(Boolean(form.Fecha))
+  useEffect(() => {
+    const modal = dialogRef.current
+    const previousOverflow = document.body.style.overflow
+    if (!modal.open) modal.showModal()
+    document.body.style.overflow = 'hidden'
+    return () => { if (modal.open) modal.close(); document.body.style.overflow = previousOverflow }
+  }, [dialogRef])
+  const reasons = motivos.filter(item => item.Activo && item.Accion === 'Falla')
+  const selected = reasons.find(item => String(item.idMotivo) === String(form.idMotivo))
+  const matches = reasons.filter(item => normalize(item.Nombre).includes(normalize(query)))
+  return <dialog ref={dialogRef} className="meter-fault-dialog" aria-labelledby="meter-fault-title" onCancel={event => { event.preventDefault(); if (!busy) onClose() }}><form onSubmit={onSubmit}>
+    <header className="meter-fault-header"><span><AlertTriangle size={27}/></span><div><small>NOVEDAD DEL EQUIPO</small><h2 id="meter-fault-title">Registrar falla</h2><p>Identificá el problema detectado para darle seguimiento.</p></div><button type="button" disabled={busy} onClick={onClose} aria-label="Cerrar formulario de falla"><X size={21}/></button></header>
+    <div className="meter-fault-body"><div className="meter-fault-equipment"><Gauge size={25}/><div><small>MEDIDOR</small><strong>{form.label || form.Numero}</strong><p>{[meter?.Tipo, form.Marca, form.Modelo].filter(Boolean).join(' · ')}</p></div>{meter?.idAsignacion && <div className="meter-fault-location"><MapPin size={16}/><span>{meter.Socio || 'Socio de la conexión'}<small>{meter.Direccion || 'Domicilio no registrado'}</small></span></div>}</div>
+      <fieldset disabled={busy}><section><div className="meter-fault-section"><span>1</span><div><h3>¿Qué falla detectaste?</h3><p>Elegí un motivo del catálogo. Es obligatorio.</p></div></div>{reasons.length > 5 && <label className="meter-fault-search"><Search size={17}/><input aria-label="Buscar tipo de falla" maxLength={100} value={query} onChange={event => setQuery(event.target.value)} placeholder="Buscá el problema detectado…"/></label>}<div className="meter-fault-reasons" role="radiogroup" aria-label="Tipo de falla">{matches.map(item => <label key={item.idMotivo} className={String(item.idMotivo) === String(form.idMotivo) ? 'is-selected' : ''}><input type="radio" name="fault-reason" value={item.idMotivo} checked={String(item.idMotivo) === String(form.idMotivo)} onChange={() => field('idMotivo', String(item.idMotivo))}/><span>{item.Nombre}</span>{String(item.idMotivo) === String(form.idMotivo) && <Check size={17}/>}</label>)}</div>{!reasons.length ? <p className="meter-fault-empty">No hay motivos de falla activos configurados. Solicitá su configuración para registrar el evento.</p> : !matches.length && <div className="meter-fault-empty">No encontramos ese motivo.<button type="button" onClick={() => setQuery('')}>Ver todos los motivos</button></div>}{selected && <p className="meter-fault-selection"><Check size={15}/>Seleccionado: {selected.Nombre}</p>}</section>
+      <section><div className="meter-fault-section"><span>2</span><div><h3>Agregá información útil</h3><p>Los detalles complementan el motivo seleccionado.</p></div></div><label className="meter-fault-label">¿Qué observaste? <small>(opcional)</small><textarea maxLength={1000} value={form.Detalle} onChange={event => field('Detalle', event.target.value)} placeholder="Describí cómo se detectó la falla y cualquier dato útil para la revisión…"/><small>{form.Detalle.length}/1000 caracteres</small></label>
+      <div className="meter-fault-date"><Clock3 size={18}/><div><strong>Fecha y hora del evento</strong><p>{customDate ? 'Ingresá cuándo se detectó la falla.' : 'Se registrará la fecha y hora al confirmar.'}</p><label><input type="checkbox" checked={customDate} onChange={event => { setCustomDate(event.target.checked); if (!event.target.checked) field('Fecha', '') }}/>La falla se detectó en otro momento</label>{customDate && <input aria-label="Fecha y hora de detección" required type="datetime-local" value={form.Fecha} onChange={event => field('Fecha', event.target.value)}/>}</div></div>
+      <details className="meter-fault-reference"><summary>Agregar referencia de trabajo <small>(opcional)</small></summary><label className="meter-fault-label">Referencia<input maxLength={100} value={form.ReferenciaTrabajo} onChange={event => field('ReferenciaTrabajo', event.target.value)} placeholder="Ej.: número de tarea u orden de trabajo"/></label></details></section></fieldset>
+      <aside className="meter-fault-summary"><AlertTriangle size={20}/><div><strong>El medidor quedará marcado como averiado</strong><p>Se guardarán el motivo, la fecha y el responsable en su historial. {meter?.idAsignacion ? 'La conexión y la asignación actual se mantienen; el retiro o reemplazo se registra desde una tarea.' : 'El equipo dejará de estar disponible para nuevas instalaciones.'}</p></div></aside>
+    </div><footer className="meter-fault-footer"><small>{selected ? 'Revisá los datos antes de confirmar.' : 'Seleccioná un motivo para continuar.'}</small><button type="button" className="btn-secondary" disabled={busy} onClick={onClose}>Cancelar</button><button className="btn-primary" disabled={busy || !selected || (customDate && !form.Fecha)}>{busy ? <><Loader2 size={16} className="inventory-spin"/>Guardando…</> : 'Registrar falla'}</button></footer>
+  </form></dialog>
+}
