@@ -40,3 +40,10 @@ html:has(.public-home){scroll-behavior:smooth}
 .public-news-dialog time { display: block; font-size: 12px; color: #52627b; margin-top: 10px; }
 .public-news-dialog p { margin-top: 18px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media(max-width:480px) { .public-news-item { gap: 8px; padding: 10px; } .public-news-item>time { flex-basis: 48px; } }
+
+.public-tutorial { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); align-items: center; gap: 24px; margin-bottom: 14px; }
+.public-tutorial-description { color: #405672; font-size: 14px; line-height: 1.7; }
+.public-tutorial-note { margin-top: 12px; color: #52627b; font-size: 12px; line-height: 1.6; }
+.public-tutorial-video { display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 10px; background: #003c35; }
+.public-tutorial-video:focus-visible { outline: 3px solid #149b83; outline-offset: 4px; }
+@media(max-width:760px) { .public-tutorial { grid-template-columns: 1fr; gap: 16px; } }
