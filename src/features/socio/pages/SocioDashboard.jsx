@@ -22,7 +22,8 @@ import useCooperativeStore from '@/store/cooperativeStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
 import useAppStore from '@/store/appStore.js'
 import { useCurrentSocio } from '@/hooks/useCurrentSocio.js'
-import { useTurnos } from '@/hooks/useTurnos.jsx'
+import { useAvisos } from '@/features/avisos/AvisosProvider.jsx'
+import { AvisosCard } from '@/features/avisos/AvisosWidgets.jsx'
 import { formatDate } from '@/utils/formatDate.js'
 import { isInternetService, normalizeServiceText, serviceRequiresInstallation, serviceRequiresMeter } from '@/utils/serviceInstallation.js'
 
@@ -50,70 +51,30 @@ function meterMatchesService(meter, service, socioId) {
   return sameSocio && sameService
 }
 
-function alertToneClasses(tone) {
-  const tones = {
-    amber: 'border-amber-200 bg-amber-50 text-amber-900',
-    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-900',
-    indigo: 'border-indigo-200 bg-indigo-50 text-indigo-900',
-    slate: 'border-slate-200 bg-white text-slate-800'
-  }
-
-  return tones[tone] || tones.slate
-}
-
-function isOpenServiceRequest(request) {
-  const status = normalizeServiceText(request?.estado)
-  return ['pendiente', 'en revision'].includes(status)
-}
-
-function isRejectedServiceRequest(request) {
-  return normalizeServiceText(request?.estado).startsWith('rechazad')
-}
-
-function isTurnoWaitingUser(turno) {
-  return normalizeServiceText(turno?.estado).startsWith('propuest')
-}
-
-function isTurnoPending(turno) {
-  return normalizeServiceText(turno?.estado) === 'pendiente'
-}
-
-function isTurnoRejected(turno) {
-  return normalizeServiceText(turno?.estado).startsWith('rechazad')
-}
-
 export default function SocioDashboard() {
   const nombre = useAuthStore((state) => state.nombre)
   const usuario = useAuthStore((state) => state.usuario)
   const { socioId } = useCurrentSocio()
   const fetchBillsBySocio = useCooperativeStore((state) => state.fetchBillsBySocio)
-  const fetchAnnouncements = useCooperativeStore((state) => state.fetchAnnouncements)
   const fetchSocioServices = useServiceWorkflowStore((state) => state.fetchSocioServices)
-  const fetchServiceRequestsBySocio = useServiceWorkflowStore((state) => state.fetchServiceRequestsBySocio)
   const fetchMeters = useServiceWorkflowStore((state) => state.fetchMeters)
   const fetchMetersBySocio = useServiceWorkflowStore((state) => state.fetchMetersBySocio)
   const fetchMeasurementsBySocio = useServiceWorkflowStore((state) => state.fetchMeasurementsBySocio)
   const addNotification = useAppStore((state) => state.addNotification)
-  const { obtenerTurnosPorSocio } = useTurnos()
+  const { noLeidos } = useAvisos()
 
   const [services, setServices] = useState([])
   const [bills, setBills] = useState([])
-  const [announcements, setAnnouncements] = useState([])
-  const [serviceRequests, setServiceRequests] = useState([])
-  const [turnos, setTurnos] = useState([])
 
   useEffect(() => {
     if (!socioId) return
 
     const loadData = async () => {
       try {
-        const [servicesData, measurementsData, billsData, announcementsData, requestsData, turnosData] = await Promise.all([
+        const [servicesData, measurementsData, billsData] = await Promise.all([
           fetchSocioServices(socioId),
           fetchMeasurementsBySocio(socioId),
-          fetchBillsBySocio({ idSocio: socioId, usuario }),
-          fetchAnnouncements().catch(() => []),
-          fetchServiceRequestsBySocio(socioId).catch(() => []),
-          obtenerTurnosPorSocio(socioId).catch(() => [])
+          fetchBillsBySocio({ idSocio: socioId, usuario })
         ])
         const metersData = fetchMetersBySocio ? await fetchMetersBySocio(socioId) : await fetchMeters()
 
@@ -153,9 +114,6 @@ export default function SocioDashboard() {
 
         setServices(enrichedServices)
         setBills(billsData || [])
-        setAnnouncements(announcementsData || [])
-        setServiceRequests(requestsData || [])
-        setTurnos(turnosData || [])
       } catch (error) {
         addNotification({
           title: 'No se pudo cargar el panel',
@@ -168,14 +126,11 @@ export default function SocioDashboard() {
     loadData()
   }, [
     addNotification,
-    fetchAnnouncements,
     fetchBillsBySocio,
     fetchMeasurementsBySocio,
     fetchMeters,
     fetchMetersBySocio,
-    fetchServiceRequestsBySocio,
     fetchSocioServices,
-    obtenerTurnosPorSocio,
     socioId,
     usuario
   ])
@@ -195,96 +150,6 @@ export default function SocioDashboard() {
     [pendingBills]
   )
   const todayLabel = useMemo(() => formatDate(new Date(), 'es-AR', { weekday: 'long' }), [])
-  const openServiceRequests = useMemo(() => serviceRequests.filter(isOpenServiceRequest), [serviceRequests])
-  const rejectedServiceRequests = useMemo(() => serviceRequests.filter(isRejectedServiceRequest), [serviceRequests])
-  const proposedTurnos = useMemo(() => turnos.filter(isTurnoWaitingUser), [turnos])
-  const pendingTurnos = useMemo(() => turnos.filter(isTurnoPending), [turnos])
-  const rejectedTurnos = useMemo(() => turnos.filter(isTurnoRejected), [turnos])
-
-  const dashboardAlerts = useMemo(() => {
-    const alerts = announcements.slice(0, 3).map((announcement) => ({
-      title: announcement.title,
-      message: announcement.content,
-      tone: announcement.priority === 'high' ? 'amber' : announcement.priority === 'low' ? 'emerald' : 'indigo',
-      to: '/socio',
-      icon: announcement.priority === 'high' ? AlertTriangle : Bell
-    }))
-
-    if (pendingBills.length) {
-      alerts.push({
-        title: 'Pago pendiente',
-        message: `${pendingBills.length} factura${pendingBills.length === 1 ? '' : 's'} por revisar.`,
-        tone: 'amber',
-        to: '/facturas',
-        icon: Receipt
-      })
-    }
-
-    if (proposedTurnos.length) {
-      alerts.push({
-        title: 'Turno con propuesta',
-        message: `${proposedTurnos.length} turno${proposedTurnos.length === 1 ? '' : 's'} esperando tu respuesta.`,
-        tone: 'indigo',
-        to: '/socio/turnos',
-        icon: CalendarCheck
-      })
-    }
-
-    if (pendingTurnos.length) {
-      alerts.push({
-        title: 'Turno pendiente',
-        message: `${pendingTurnos.length} solicitud${pendingTurnos.length === 1 ? '' : 'es'} de turno pendiente${pendingTurnos.length === 1 ? '' : 's'} de aprobacion.`,
-        tone: 'slate',
-        to: '/socio/turnos',
-        icon: Clock3
-      })
-    }
-
-    if (rejectedTurnos.length) {
-      const latestRejected = rejectedTurnos[0]
-      alerts.push({
-        title: 'Turno rechazado',
-        message: latestRejected?.motivoRechazo
-          ? `Motivo: ${latestRejected.motivoRechazo}`
-          : `${rejectedTurnos.length} turno${rejectedTurnos.length === 1 ? '' : 's'} rechazado${rejectedTurnos.length === 1 ? '' : 's'}.`,
-        tone: 'amber',
-        to: '/socio/turnos',
-        icon: AlertTriangle
-      })
-    }
-
-    if (openServiceRequests.length) {
-      alerts.push({
-        title: 'Solicitud en tramite',
-        message: `${openServiceRequests.length} solicitud${openServiceRequests.length === 1 ? '' : 'es'} de servicio en revision.`,
-        tone: 'indigo',
-        to: '/socio/solicitudes-servicio',
-        icon: FilePlus2
-      })
-    }
-
-    if (rejectedServiceRequests.length) {
-      alerts.push({
-        title: 'Solicitud rechazada',
-        message: `${rejectedServiceRequests.length} solicitud${rejectedServiceRequests.length === 1 ? '' : 'es'} requiere${rejectedServiceRequests.length === 1 ? '' : 'n'} revision.`,
-        tone: 'amber',
-        to: '/socio/solicitudes-servicio',
-        icon: AlertTriangle
-      })
-    }
-
-    return alerts
-  }, [
-    announcements,
-    openServiceRequests.length,
-    pendingBills.length,
-    pendingTurnos.length,
-    proposedTurnos.length,
-    rejectedTurnos,
-    rejectedTurnos.length,
-    rejectedServiceRequests.length
-  ])
-
   const quickActions = useMemo(
     () => [
       {
@@ -426,48 +291,12 @@ export default function SocioDashboard() {
             </span>
             <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-2 text-sm font-medium text-gray-700">
               <Bell className="h-4 w-4 text-indigo-700" />
-              Avisos: <strong className="text-gray-900">{dashboardAlerts.length}</strong>
+              Avisos: <strong className="text-gray-900">{noLeidos ?? '—'}</strong>
             </span>
           </div>
         </div>
 
-        <aside className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
-            <div className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-indigo-600" />
-              <h2 className="text-lg font-bold text-gray-900">Avisos</h2>
-            </div>
-            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
-              {dashboardAlerts.length}
-            </span>
-          </div>
-
-          {dashboardAlerts.length ? (
-            <div className="divide-y divide-gray-100">
-              {dashboardAlerts.map((alert) => {
-              const Icon = alert.icon
-              return (
-                <Link key={alert.title} to={alert.to} className="flex items-start gap-3 p-4 transition hover:bg-gray-50">
-                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${alertToneClasses(alert.tone)}`}>
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-semibold text-gray-900">{alert.title}</span>
-                    <span className="mt-1 block text-sm text-gray-600">{alert.message}</span>
-                  </span>
-                  <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-gray-400" />
-                </Link>
-              )
-              })}
-            </div>
-          ) : (
-            <div className="px-5 py-10 text-center">
-              <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
-              <p className="mt-3 font-medium text-gray-700">No hay avisos activos.</p>
-              <p className="mt-1 text-sm text-gray-500">Cuando haya anuncios, facturas, turnos o solicitudes con novedades, apareceran aca.</p>
-            </div>
-          )}
-        </aside>
+        <AvisosCard />
       </section>
 
       <section className="mb-6">

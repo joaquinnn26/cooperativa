@@ -21,6 +21,7 @@ import Login from '@/features/auth/pages/Login.jsx'
 import RecoverPassword from '@/features/auth/pages/RecoverPassword.jsx'
 import Register from '@/features/auth/pages/Register.jsx'
 import SocioDashboard from '@/features/socio/pages/SocioDashboard.jsx'
+import AvisosHistory from '@/features/avisos/AvisosHistory.jsx'
 import ReclamosList from '@/features/socio/pages/ReclamosList.jsx'
 import ReclamoNuevo from '@/features/socio/pages/ReclamoNuevo.jsx'
 import SocioSolicitudesServicio from '@/features/socio/pages/SocioSolicitudesServicio.jsx'
@@ -104,6 +105,7 @@ export default function App() {
           <Route path="/socio/alta" element={<SocioAlta />} />
           <Route path="/socio/documentos" element={<SocioDocumentos />} />
           <Route path="/socio" element={<SocioDashboard />} />
+          <Route path="/socio/avisos" element={<AvisosHistory />} />
           <Route path="/socio/reclamos" element={<ReclamosList />} />
           <Route path="/socio/reclamos/nuevo" element={<ReclamoNuevo />} />
           <Route path="/socio/solicitudes-servicio" element={<SocioSolicitudesServicio />} />

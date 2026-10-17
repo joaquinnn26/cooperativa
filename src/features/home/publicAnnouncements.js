@@ -11,6 +11,9 @@ export async function fetchPublicAnnouncements(url, { signal, fetchImpl = fetch 
     content: item.Contenido || '',
     date: item.FechaPublicacion,
     priority: item.Prioridad === 'Alta' ? 'high' : item.Prioridad === 'Baja' ? 'low' : 'medium',
-    fixed: Boolean(item.Fijo)
+    fixed: Boolean(item.Fijo),
+    active: item.Activo !== false,
+    startsAt: item.FechaInicio || null,
+    endsAt: item.FechaFin || null
   }))
 }

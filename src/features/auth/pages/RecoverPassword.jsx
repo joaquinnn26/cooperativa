@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { KeyRound } from 'lucide-react'
+import PasswordInput from '@/components/PasswordInput.jsx'
 import { apiUrl } from '@/config/api.js'
 import useAppStore from '@/store/appStore.js'
 import {
@@ -21,7 +22,9 @@ async function tryRecoverPassword(email, tipoAcceso) {
 
   const data = await response.json().catch(() => null)
   if (!response.ok) {
-    throw new Error(data?.Message || data?.message || 'No se pudo iniciar la recuperacion.')
+    throw new Error(response.status >= 500
+      ? 'La recuperacion por correo no esta disponible temporalmente. Intenta mas tarde o contacta a la cooperativa.'
+      : data?.Message || data?.message || 'No se pudo iniciar la recuperacion.')
   }
 
   return data || {}
@@ -65,15 +68,10 @@ export default function RecoverPassword() {
     setSubmitting(true)
 
     try {
-      const result = await tryRecoverPassword(cleanText(email).toLowerCase(), tipoAcceso)
-      if (result.resetToken) {
-        setResetForm((current) => ({ ...current, token: result.resetToken }))
-      }
+      await tryRecoverPassword(cleanText(email).toLowerCase(), tipoAcceso)
       addNotification({
         title: 'Solicitud enviada',
-        message: result.resetToken
-          ? 'Se genero un token de desarrollo. Completa el restablecimiento en esta pantalla.'
-          : 'Si el correo existe, recibiras instrucciones para recuperar tu contrasena.',
+        message: 'Si el correo corresponde a una cuenta, recibiras instrucciones para recuperar tu contrasena.',
         type: 'success'
       })
     } catch (error) {
@@ -91,6 +89,7 @@ export default function RecoverPassword() {
     event.preventDefault()
 
     const validationError = firstValidationError([
+      validateEmail(email),
       validateMeaningfulText(resetForm.token, 'El token', { ...FIELD_LIMITS.token, requireLetter: false }),
       validateStrongPassword(resetForm.nueva, 'La nueva contrasena')
     ])
@@ -145,7 +144,13 @@ export default function RecoverPassword() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block mb-4">Cuenta a recuperar<select className="input-field" value={tipoAcceso} onChange={e => setTipoAcceso(e.target.value)}><option value="Socio">Personal de socio</option><option value="Empleado">Laboral</option><option value="Administrador">Administración del sistema</option></select></label>
+            <label className="block mb-4">
+              Cuenta a recuperar
+              <select className="input-field" value={tipoAcceso} onChange={e => setTipoAcceso(e.target.value)}>
+                <option value="Socio">Socio</option>
+                <option value="Empleado">Empleado</option>
+              </select>
+            </label>
             <label className="mb-2 block text-sm font-medium text-gray-700">Correo electronico</label>
             <input
               type="email"
@@ -166,32 +171,42 @@ export default function RecoverPassword() {
 
         <form onSubmit={handleReset} className="mt-8 space-y-4 border-t border-gray-200 pt-6">
           <h2 className="text-lg font-semibold text-gray-900">Ya tengo un token</h2>
-          <input
-            value={resetForm.token}
-            onChange={(event) => setResetForm((current) => ({ ...current, token: event.target.value }))}
-            minLength={FIELD_LIMITS.token.min}
-            maxLength={FIELD_LIMITS.token.max}
-            className="input-field"
-            placeholder="Token de recuperacion"
-          />
-          <input
-            type="password"
-            value={resetForm.nueva}
-            onChange={(event) => setResetForm((current) => ({ ...current, nueva: event.target.value }))}
-            minLength={FIELD_LIMITS.password.min}
-            maxLength={FIELD_LIMITS.password.max}
-            className="input-field"
-            placeholder="Nueva contrasena"
-          />
-          <input
-            type="password"
-            value={resetForm.confirmar}
-            onChange={(event) => setResetForm((current) => ({ ...current, confirmar: event.target.value }))}
-            minLength={FIELD_LIMITS.password.min}
-            maxLength={FIELD_LIMITS.password.max}
-            className="input-field"
-            placeholder="Confirmar nueva contrasena"
-          />
+          <div>
+            <label htmlFor="recovery-token" className="mb-2 block text-sm font-medium text-gray-700">Token de recuperación</label>
+            <input
+              id="recovery-token"
+              value={resetForm.token}
+              onChange={(event) => setResetForm((current) => ({ ...current, token: event.target.value }))}
+              minLength={FIELD_LIMITS.token.min}
+              maxLength={FIELD_LIMITS.token.max}
+              className="input-field"
+              placeholder="Token de recuperacion"
+            />
+          </div>
+          <div>
+            <label htmlFor="recovery-password-new" className="mb-2 block text-sm font-medium text-gray-700">Nueva contraseña</label>
+            <PasswordInput
+              id="recovery-password-new"
+              label="nueva contraseña"
+              value={resetForm.nueva}
+              onChange={(event) => setResetForm((current) => ({ ...current, nueva: event.target.value }))}
+              minLength={FIELD_LIMITS.password.min}
+              maxLength={FIELD_LIMITS.password.max}
+              placeholder="Nueva contrasena"
+            />
+          </div>
+          <div>
+            <label htmlFor="recovery-password-confirm" className="mb-2 block text-sm font-medium text-gray-700">Confirmar nueva contraseña</label>
+            <PasswordInput
+              id="recovery-password-confirm"
+              label="confirmación de nueva contraseña"
+              value={resetForm.confirmar}
+              onChange={(event) => setResetForm((current) => ({ ...current, confirmar: event.target.value }))}
+              minLength={FIELD_LIMITS.password.min}
+              maxLength={FIELD_LIMITS.password.max}
+              placeholder="Confirmar nueva contrasena"
+            />
+          </div>
           <button type="submit" disabled={submitting} className="w-full btn-secondary disabled:opacity-60">
             Restablecer contrasena
           </button>

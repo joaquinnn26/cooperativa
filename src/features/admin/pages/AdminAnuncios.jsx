@@ -1,10 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Bell, Edit3, Megaphone, Pin, PlusCircle, Trash2, X } from 'lucide-react'
-import useAuthStore from '@/store/authStore.js'
 import useAppStore from '@/store/appStore.js'
 import useCooperativeStore from '@/store/cooperativeStore.js'
-import { formatDate } from '@/utils/formatDate.js'
-import { cleanText, FIELD_LIMITS, firstValidationError, isValidDate, validateMeaningfulText } from '@/utils/validation.js'
+import { announcementDateLabel as formatDate, announcementPublicationDateLabel, announcementDay, announcementState, validAnnouncementDay as isValidDate } from '@/features/home/announcementRules.js'
+import { cleanText, FIELD_LIMITS, firstValidationError, validateMeaningfulText } from '@/utils/validation.js'
 
 const initialForm = {
   title: '',
@@ -29,7 +28,7 @@ function priorityClasses(priority) {
 }
 
 function toDateInput(value) {
-  return value ? String(value).slice(0, 10) : ''
+  return announcementDay(value)
 }
 
 function validateAnnouncement(form) {
@@ -46,7 +45,6 @@ function validateAnnouncement(form) {
 }
 
 export default function AdminAnuncios() {
-  const idEmpleado = useAuthStore((state) => state.idEmpleado)
   const addNotification = useAppStore((state) => state.addNotification)
   const fetchAnnouncementsAdmin = useCooperativeStore((state) => state.fetchAnnouncementsAdmin)
   const createAnnouncement = useCooperativeStore((state) => state.createAnnouncement)
@@ -58,13 +56,22 @@ export default function AdminAnuncios() {
   const [editingId, setEditingId] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [listError, setListError] = useState('')
+  const [now, setNow] = useState(Date.now())
+  const busy = useRef(false)
+  const uncertain = useCooperativeStore(state => state.announcementOutcomeUncertain)
+  const blocked = saving || loading || uncertain || Boolean(listError)
 
   const loadAnnouncements = async () => {
     setLoading(true)
+    setListError('')
     try {
       const data = await fetchAnnouncementsAdmin()
       setAnuncios(data)
     } catch (err) {
+      setListError(err.message || 'No se pudieron cargar los anuncios.')
       addNotification({
         title: 'Error',
         message: err.message || 'No se pudieron cargar los anuncios.',
@@ -79,22 +86,34 @@ export default function AdminAnuncios() {
     loadAnnouncements()
   }, [fetchAnnouncementsAdmin])
 
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    if (!showForm) return
+    const close = event => { if (event.key === 'Escape' && !busy.current) resetForm() }
+    window.addEventListener('keydown', close)
+    return () => window.removeEventListener('keydown', close)
+  }, [showForm])
+
   const summary = useMemo(
-    () => ({
-      active: anuncios.filter((anuncio) => anuncio.active).length,
-      fixed: anuncios.filter((anuncio) => anuncio.active && anuncio.fixed).length,
-      high: anuncios.filter((anuncio) => anuncio.active && anuncio.priority === 'high').length
-    }),
-    [anuncios]
+    () => anuncios.reduce((result, item) => { result[announcementState(item, now)]++; return result }, { current: 0, scheduled: 0, expired: 0, inactive: 0 }),
+    [anuncios, now]
   )
 
   const resetForm = () => {
+    if (busy.current) return
+    setShowForm(false)
     setForm(initialForm)
     setEditingId(null)
     setError('')
   }
 
   const editAnnouncement = (anuncio) => {
+    if (busy.current || blocked) return
+    setShowForm(true)
     setEditingId(anuncio.id)
     setForm({
       title: anuncio.title || '',
@@ -110,6 +129,7 @@ export default function AdminAnuncios() {
 
   const submitAnnouncement = async (event) => {
     event.preventDefault()
+    if (busy.current || uncertain) return
 
     const validationError = validateAnnouncement(form)
     if (validationError) {
@@ -120,10 +140,12 @@ export default function AdminAnuncios() {
     const payload = {
       ...form,
       title: cleanText(form.title),
-      content: cleanText(form.content),
-      idEmpleado
+      content: cleanText(form.content)
     }
 
+    busy.current = true
+    setSaving(true)
+    setError('')
     try {
       if (editingId) {
         await updateAnnouncement(editingId, payload)
@@ -131,21 +153,35 @@ export default function AdminAnuncios() {
         await createAnnouncement(payload)
       }
 
-      await loadAnnouncements()
+      busy.current = false
       resetForm()
       addNotification({
-        title: editingId ? 'Anuncio actualizado' : 'Anuncio publicado',
-        message: 'El comunicado ya esta disponible segun su configuracion.',
+        title: editingId ? 'Anuncio actualizado' : 'Anuncio guardado',
+        message: 'La API confirmó el guardado del anuncio.',
         type: 'success'
       })
+      await loadAnnouncements()
     } catch (err) {
       setError(err.message || 'No se pudo guardar el anuncio.')
+      if (err.uncertain) {
+        busy.current = false
+        resetForm()
+        addNotification({ title: 'Resultado sin confirmar', message: err.message, type: 'error' })
+        await loadAnnouncements()
+      }
+      if (err.status === 409) await loadAnnouncements()
+    } finally {
+      busy.current = false
+      setSaving(false)
     }
   }
 
-  const disableAnnouncement = async (id) => {
+  const disableAnnouncement = async (anuncio) => {
+    if (busy.current || blocked) return
+    busy.current = true
+    setSaving(true)
     try {
-      await deactivateAnnouncement(id)
+      await deactivateAnnouncement(anuncio.id)
       await loadAnnouncements()
       addNotification({
         title: 'Anuncio desactivado',
@@ -158,6 +194,10 @@ export default function AdminAnuncios() {
         message: err.message || 'No se pudo desactivar el anuncio.',
         type: 'error'
       })
+      if (err.uncertain || err.status === 409) await loadAnnouncements()
+    } finally {
+      busy.current = false
+      setSaving(false)
     }
   }
 
@@ -168,44 +208,34 @@ export default function AdminAnuncios() {
           <h1 className="text-3xl font-bold text-gray-900">Anuncios</h1>
           <p className="mt-2 text-gray-600">Publica comunicados visibles para socios y visitantes del portal.</p>
         </div>
-        <button type="button" onClick={() => { resetForm(); setShowForm(true) }} className="btn-primary"><PlusCircle className="mr-2 h-4 w-4" />Nuevo anuncio</button>
+        <button type="button" disabled={blocked} onClick={() => { resetForm(); setShowForm(true) }} className="btn-primary disabled:opacity-50"><PlusCircle className="mr-2 h-4 w-4" />Nuevo anuncio</button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="card">
-          <p className="text-sm text-gray-500">Activos</p>
-          <p className="mt-2 text-3xl font-bold text-blue-700">{summary.active}</p>
-        </div>
-        <div className="card">
-          <p className="text-sm text-gray-500">Fijos</p>
-          <p className="mt-2 text-3xl font-bold text-indigo-700">{summary.fixed}</p>
-        </div>
-        <div className="card">
-          <p className="text-sm text-gray-500">Prioridad alta</p>
-          <p className="mt-2 text-3xl font-bold text-red-700">{summary.high}</p>
-        </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Object.entries({ current: 'Vigentes', scheduled: 'Programados', expired: 'Vencidos', inactive: 'Inactivos' }).map(([state, label]) => <div key={state} className="card"><p className="text-sm text-gray-500">{label}</p><p className="mt-2 text-3xl font-bold text-blue-700">{summary[state]}</p></div>)}
       </div>
+      {(listError || uncertain) && <div role="alert" className="rounded-lg bg-red-50 p-4 text-red-700"><p>{listError || 'El último resultado no pudo confirmarse. Actualizá el listado antes de continuar.'}</p><button type="button" disabled={loading || saving} onClick={loadAnnouncements} className="mt-2 underline">Actualizar listado</button></div>}
 
       <div className="space-y-6">
         {showForm && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={event => { if (event.target === event.currentTarget) resetForm() }}><form role="dialog" aria-modal="true" aria-labelledby="announcement-modal-title" onSubmit={submitAnnouncement} className="max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 id="announcement-modal-title" className="text-xl font-bold text-gray-900">{editingId ? 'Editar anuncio' : 'Nuevo anuncio'}</h2>
-              <p className="mt-1 text-sm text-gray-500">Usa fechas solo si el aviso debe aparecer en una ventana puntual.</p>
+              <p className="mt-1 text-sm text-gray-500">Usá fechas para indicar el inicio y la finalización del anuncio. La vigencia la determina la API.</p>
             </div>
-            {editingId ? (
               <button
                 type="button"
                 onClick={resetForm}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50"
-                aria-label="Cancelar edicion"
+                disabled={saving} aria-label="Cerrar formulario"
               >
                 <X className="h-4 w-4" />
               </button>
-            ) : null}
           </div>
 
+          <fieldset disabled={saving || uncertain} className="space-y-4">
           <input
+            autoFocus
             value={form.title}
             onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
             placeholder="Titulo del comunicado"
@@ -284,8 +314,9 @@ export default function AdminAnuncios() {
             className="inline-flex w-full items-center justify-center rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700"
           >
             <PlusCircle className="mr-2 h-4 w-4" />
-            {editingId ? 'Guardar cambios' : 'Publicar anuncio'}
+            {saving ? 'Guardando...' : editingId ? 'Guardar cambios' : !form.active ? 'Guardar inactivo' : announcementState(form) === 'scheduled' ? 'Programar anuncio' : announcementState(form) === 'expired' ? 'Guardar vencido' : 'Publicar anuncio'}
           </button>
+          </fieldset>
         </form></div>}
 
         <section className="card">
@@ -317,13 +348,11 @@ export default function AdminAnuncios() {
                             Fijo
                           </span>
                         ) : null}
-                        {!anuncio.active ? (
-                          <span className="rounded-full bg-gray-200 px-2 py-1 text-xs font-semibold text-gray-700">Inactivo</span>
-                        ) : null}
+                        <span className="rounded-full bg-gray-200 px-2 py-1 text-xs font-semibold text-gray-700">{{ current: 'Vigente', scheduled: 'Programado', expired: 'Vencido', inactive: 'Inactivo' }[announcementState(anuncio, now)]}</span>
                       </div>
                       <p className="mt-2 text-sm leading-6">{anuncio.content}</p>
                       <p className="mt-3 text-xs opacity-80">
-                        Publicado: {formatDate(anuncio.date, 'es-AR')} · Prioridad: {priorityLabel(anuncio.priority)}
+                        Creado: {announcementPublicationDateLabel(anuncio.date)} · Prioridad: {priorityLabel(anuncio.priority)}
                         {anuncio.startsAt ? ` · Desde: ${formatDate(anuncio.startsAt, 'es-AR')}` : ''}
                         {anuncio.endsAt ? ` · Hasta: ${formatDate(anuncio.endsAt, 'es-AR')}` : ''}
                       </p>
@@ -332,6 +361,7 @@ export default function AdminAnuncios() {
                     <div className="flex shrink-0 gap-2">
                       <button
                         type="button"
+                        disabled={blocked}
                         onClick={() => editAnnouncement(anuncio)}
                         className="inline-flex items-center rounded-lg bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
                       >
@@ -341,7 +371,7 @@ export default function AdminAnuncios() {
                       {anuncio.active ? (
                         <button
                           type="button"
-                          onClick={() => disableAnnouncement(anuncio.id)}
+                          disabled={blocked} onClick={() => disableAnnouncement(anuncio)}
                           className="inline-flex items-center rounded-lg bg-white px-3 py-2 text-xs font-semibold text-red-700 shadow-sm hover:bg-red-50"
                         >
                           <Trash2 className="mr-1 h-4 w-4" />
@@ -353,9 +383,9 @@ export default function AdminAnuncios() {
                 </article>
               ))}
             </div>
-          ) : (
+          ) : !listError ? (
             <p className="py-8 text-center text-gray-500">Todavia no hay anuncios cargados.</p>
-          )}
+          ) : null}
         </section>
       </div>
     </div>

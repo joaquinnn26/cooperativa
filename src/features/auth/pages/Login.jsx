@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { BriefcaseBusiness, UserRound } from 'lucide-react'
+import PasswordInput from '@/components/PasswordInput.jsx'
 import useAuthStore from '@/store/authStore.js'
 import useAppStore from '@/store/appStore.js'
 import cospralLogo from '@/assets/cospral-wordmark.png'
@@ -128,16 +129,16 @@ export default function Login() {
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">Contrasena</label>
-            <input
+            <label htmlFor="login-password" className="mb-2 block text-sm font-medium text-gray-700">Contrasena</label>
+            <PasswordInput
+              id="login-password"
+              label="contraseña"
               name="password"
               value={form.password}
               onChange={handleChange}
-              type="password"
               required
               minLength={FIELD_LIMITS.password.min}
               maxLength={FIELD_LIMITS.password.max}
-              className="input-field"
               placeholder="Tu contrasena"
             />
             <div className="mt-2 text-right">
