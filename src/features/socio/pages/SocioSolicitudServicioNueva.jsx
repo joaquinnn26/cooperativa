@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Send, Sparkles } from 'lucide-react'
 import BackToSocioDashboard from '@/components/BackToSocioDashboard.jsx'
+import AdhesionForm from '@/components/AdhesionForm.jsx'
+import { adhesionPayload, esAdicional, esEnergia, nuevaAdhesion } from '@/utils/adhesiones.js'
+import { apiLaboralExistente, archivoPayload } from '@/utils/laboral.js'
 import useAuthStore from '@/store/authStore.js'
 import useAppStore from '@/store/appStore.js'
 import useServiceWorkflowStore from '@/store/serviceWorkflowStore.js'
@@ -72,6 +75,13 @@ export default function SocioSolicitudServicioNueva() {
     observaciones: ''
   })
   const [filesByRequirement, setFilesByRequirement] = useState({})
+  const [adhesiones, setAdhesiones] = useState(nuevaAdhesion)
+  const [beneficios, setBeneficios] = useState([])
+  const [beneficiosError, setBeneficiosError] = useState('')
+
+  useEffect(() => {
+    apiLaboralExistente('/adhesiones/catalogo').then(data => setBeneficios(data.servicios)).catch(e => setBeneficiosError(e.message))
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -98,7 +108,7 @@ export default function SocioSolicitudServicioNueva() {
             .filter(isBlockingServiceRequest)
             .map((item) => String(item.idServicio))
         ])
-        const available = (catalog || []).filter((item) => item.Activo && !blockedIds.has(String(item.idServicio)))
+        const available = (catalog || []).filter((item) => item.Activo && !esAdicional(item.Nombre) && !blockedIds.has(String(item.idServicio)))
 
         setBlockedServiceIds(Array.from(blockedIds))
         setServices(available)
@@ -217,13 +227,16 @@ export default function SocioSolicitudServicioNueva() {
     setError('')
 
     try {
+      const adicionales = esEnergia(selectedService?.Nombre) && (adhesiones.Sepelio || adhesiones.Ortopedia)
+        ? await adhesionPayload(adhesiones, form.direccionInstalacion, archivoPayload) : null
       await createServiceRequest({
         idSocio: Number(resolvedSocioId),
         idServicio: Number(form.idServicio),
         observaciones: `Domicilio de instalacion: ${cleanText(form.direccionInstalacion)}. Detalle: ${cleanText(form.observaciones)}`,
         socioUsuario: usuario,
         socioNombre: nombre || usuario,
-        filesByRequirement
+        filesByRequirement,
+        adhesiones: adicionales
       })
 
       addNotification({
@@ -343,6 +356,10 @@ export default function SocioSolicitudServicioNueva() {
             </div>
           </div>
 
+          {esEnergia(selectedService?.Nombre) && <>
+            {beneficiosError ? <p role="status" className="rounded-lg bg-amber-50 p-3 text-sm">No se pueden cargar las adhesiones adicionales: {beneficiosError}</p> : <AdhesionForm value={adhesiones} onChange={setAdhesiones} servicios={beneficios} />}
+            <p className="text-sm text-slate-600">Las adhesiones elegidas quedan en revisión junto con este pedido. No estarán activas hasta que la conexión eléctrica esté habilitada y Administración verifique el alta.</p>
+          </>}
           {loadingSocio ? <p className="text-sm text-gray-500">Identificando socio actual...</p> : null}
 
           {error ? (

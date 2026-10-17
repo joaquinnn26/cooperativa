@@ -9,7 +9,7 @@ export function rutasLaborales(areas = []) {
   if (tieneFuncion(areas, 'ADMINISTRACION', 'ATENCION') || esEncargado(areas, 'ADMINISTRACION')) routes.push({ to: '/empleado/atencion', label: 'Atención y trámites' })
   if (tieneFuncion(areas, 'ADMINISTRACION', 'ATENCION') || esEncargado(areas, 'ADMINISTRACION')) routes.push({ to: '/empleado/turnos', label: 'Gestión de turnos', description: 'Revisa solicitudes de visita y organiza la agenda de atención.' })
   if (areas.some(a => a.Funciones?.includes('FACTURACION')) || esEncargado(areas, 'ADMINISTRACION')) routes.push({ to: '/empleado/facturas', label: 'Facturación externa' })
-  if (tieneFuncion(areas, 'BENEFICIOS', 'GESTION_BENEFICIO') || esEncargado(areas, 'BENEFICIOS')) routes.push({ to: '/empleado/beneficios', label: 'Sepelio y ortopedia' })
+  if (tieneFuncion(areas, 'BENEFICIOS', 'GESTION_BENEFICIO') || esEncargado(areas, 'BENEFICIOS') || tieneFuncion(areas, 'ADMINISTRACION', 'ATENCION') || esEncargado(areas, 'ADMINISTRACION')) routes.push({ to: '/empleado/beneficios', label: 'Adhesiones y prestaciones' })
   if (tieneFuncion(areas, 'GERENCIA', 'CONSULTA_GENERAL')) routes.push({ to: '/empleado/reportes', label: 'Actividad de las áreas' })
   return routes
 }

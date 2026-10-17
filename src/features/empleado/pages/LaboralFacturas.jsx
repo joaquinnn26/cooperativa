@@ -5,6 +5,7 @@ import { apiLaboralExistente, laboralApi } from '@/utils/laboral.js'
 import { apiUrl } from '@/config/api.js'
 import { linkPagoSeguro } from '@/utils/laboralPermissions.js'
 import LaboralFacturacionInternet from './LaboralFacturacionInternet.jsx'
+import FacturaOtrosConceptos from '@/components/FacturaOtrosConceptos.jsx'
 
 const mesActual = () => {
   const ahora = new Date()
@@ -25,6 +26,7 @@ export default function LaboralFacturas({ personal = false }) {
   const [lote, setLote] = useState(null)
   const [intercambioError, setIntercambioError] = useState('')
   const [ocupado, setOcupado] = useState(false)
+  const [incluirAdhesiones, setIncluirAdhesiones] = useState(true)
 
   useEffect(() => {
     if (personal && rol !== 'Socio') { setLoading(false); return }
@@ -45,7 +47,10 @@ export default function LaboralFacturas({ personal = false }) {
   async function exportarMediciones() {
     setOcupado(true); setIntercambioError(''); setLote(null)
     try {
-      const filtroServicio = idServicio ? `?idServicio=${encodeURIComponent(idServicio)}` : ''
+      const query = new URLSearchParams()
+      if (idServicio) query.set('idServicio', idServicio)
+      if (incluirAdhesiones) query.set('incluirAdhesiones', 'true')
+      const filtroServicio = query.size ? `?${query}` : ''
       const response = await fetch(apiUrl(`/facturacion/intercambio/exportar/${encodeURIComponent(periodo)}${filtroServicio}`), {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       })
@@ -94,6 +99,7 @@ export default function LaboralFacturas({ personal = false }) {
         <label className="grid gap-1 text-sm">Período de medición<input className="input-field" type="text" maxLength={10} value={periodo} onChange={e => setPeriodo(e.target.value)} placeholder="Ej.: 2026-09" /></label>
         <label className="grid gap-1 text-sm">Servicio<select className="input-field" value={idServicio} onChange={e => setIdServicio(e.target.value)}><option value="">Todos los servicios</option>{servicios.map(s => <option key={s.idServicio} value={s.idServicio}>{s.Nombre}</option>)}</select></label>
         <button className="btn-secondary" disabled={ocupado || !periodo.trim()} onClick={exportarMediciones}>{ocupado ? 'Procesando…' : 'Descargar mediciones TXT'}</button>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={incluirAdhesiones} onChange={e => setIncluirAdhesiones(e.target.checked)} />Incluir cuotas de Sepelio y Ortopedia (formato SOCIOAPP-2)</label>
       </div>
       <div className="flex flex-wrap items-end gap-3 border-t pt-4">
         <label className="grid gap-1 text-sm">Archivo TXT de contabilidad<input className="input-field" type="file" accept=".txt,text/plain" onChange={e => { setArchivo(e.target.files?.[0] || null); setLote(null); setIntercambioError('') }} /></label>
@@ -112,6 +118,6 @@ export default function LaboralFacturas({ personal = false }) {
     {personal && <p className="rounded-lg bg-blue-50 p-3 text-sm">Abrir el enlace no confirma un pago. El estado se actualiza cuando existe una confirmación registrada.</p>}
     <button className="btn-secondary" onClick={() => setRevision(r => r + 1)}>Actualizar consulta</button>
     {error && <p role="alert" className="text-red-800">{error}</p>}
-    {loading ? <p role="status">Cargando facturas…</p> : !error && <><div className="card overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{['Factura', 'Servicio', 'Importe', 'Vencimiento', 'Estado confirmado', 'Última actualización', 'Pago'].map(x => <th className="p-3" key={x}>{x}</th>)}</tr></thead><tbody>{data.items.map(f => <tr key={f.idFactura} className="border-t"><td className="p-3">{f.NumeroFactura ? `N.º ${f.NumeroFactura}` : `Registro #${f.idFactura}`}{f.Periodo && <p>Período {f.Periodo}</p>}{!personal && <p>Socio #{f.idSocio}</p>}</td><td className="p-3">{f.Servicio}</td><td className="p-3">{Number(f.MontoTotal).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td><td className="p-3">{new Date(f.FechaCaducidad).toLocaleDateString('es-AR')}</td><td className="p-3">{f.EstadoConfirmado || 'Sin confirmación externa'}</td><td className="p-3">{f.FechaActualizacionUtc ? new Date(f.FechaActualizacionUtc).toLocaleString('es-AR') : 'Sin actualización verificable'}{f.Fuente && <p>{f.Fuente}</p>}</td><td className="p-3">{!['Pagada', 'Anulada'].includes(f.EstadoConfirmado) && linkPagoSeguro(f.LinkPago) ? <a className="btn-primary inline-block" href={linkPagoSeguro(f.LinkPago)} target="_blank" rel="noopener noreferrer">Pagar</a> : f.EstadoConfirmado === 'Pagada' ? 'Pago confirmado' : 'Sin enlace disponible'}</td></tr>)}</tbody></table>{!data.total && <p className="p-4">No hay facturas registradas para esta consulta.</p>}</div><div className="flex justify-between"><button className="btn-secondary" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Anterior</button><span>{data.total} facturas · Página {page}</span><button className="btn-secondary" disabled={page * 25 >= data.total} onClick={() => setPage(p => p + 1)}>Siguiente</button></div></>}
+    {loading ? <p role="status">Cargando facturas…</p> : !error && <><div className="card overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{['Factura', 'Servicio', 'Importe', 'Vencimiento', 'Estado confirmado', 'Última actualización', 'Pago'].map(x => <th className="p-3" key={x}>{x}</th>)}</tr></thead><tbody>{data.items.map(f => <tr key={f.idFactura} className="border-t"><td className="p-3">{f.NumeroFactura ? `N.º ${f.NumeroFactura}` : `Registro #${f.idFactura}`}{f.Periodo && <p>Período {f.Periodo}</p>}{!personal && <p>Socio #{f.idSocio}</p>}</td><td className="p-3">{f.Servicio}<FacturaOtrosConceptos conceptos={f.Conceptos} /></td><td className="p-3">{Number(f.MontoTotal).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td><td className="p-3">{new Date(f.FechaCaducidad).toLocaleDateString('es-AR')}</td><td className="p-3">{f.EstadoConfirmado || 'Sin confirmación externa'}</td><td className="p-3">{f.FechaActualizacionUtc ? new Date(f.FechaActualizacionUtc).toLocaleString('es-AR') : 'Sin actualización verificable'}{f.Fuente && <p>{f.Fuente}</p>}</td><td className="p-3">{!['Pagada', 'Anulada'].includes(f.EstadoConfirmado) && linkPagoSeguro(f.LinkPago) ? <a className="btn-primary inline-block" href={linkPagoSeguro(f.LinkPago)} target="_blank" rel="noopener noreferrer">Pagar</a> : f.EstadoConfirmado === 'Pagada' ? 'Pago confirmado' : 'Sin enlace disponible'}</td></tr>)}</tbody></table>{!data.total && <p className="p-4">No hay facturas registradas para esta consulta.</p>}</div><div className="flex justify-between"><button className="btn-secondary" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Anterior</button><span>{data.total} facturas · Página {page}</span><button className="btn-secondary" disabled={page * 25 >= data.total} onClick={() => setPage(p => p + 1)}>Siguiente</button></div></>}
   </div>
 }
