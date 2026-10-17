@@ -8,6 +8,7 @@ import LaboralFacturacionInternet from './LaboralFacturacionInternet.jsx'
 import FacturacionMediciones from './FacturacionMediciones.jsx'
 import {BillingDialog,BillingNotice,billingDate,billingMoney} from './FacturacionUI.jsx'
 import './FacturacionExterna.css'
+import FacturaOtrosConceptos from '@/components/FacturaOtrosConceptos.jsx'
 
 export default function LaboralFacturas({personal=false}){
  const role=useAuthStore(s=>s.rol),areas=useAuthStore(s=>s.areas)||[]
@@ -36,5 +37,6 @@ function InvoiceDialog({invoice:f,personal,onClose}){
  const link=!['Pagada','Anulada'].includes(f.EstadoConfirmado)&&linkPagoSeguro(f.LinkPago)
  return <BillingDialog open title={f.NumeroFactura?`Factura ${f.NumeroFactura}`:`Factura #${f.idFactura}`} eyebrow={f.Servicio||'FACTURA REGISTRADA'} description={f.Periodo?`Período ${f.Periodo}`:'Consultá el importe, el vencimiento y la confirmación de pago.'} onClose={onClose} footer={link?<a className="bf-primary" href={link} target="_blank" rel="noopener noreferrer">{personal?'Pagar factura':'Abrir enlace de pago'}<ExternalLink size={16}/></a>:null}>
  <div className="bf-invoice-amount"><small>Importe de la factura</small><strong>{billingMoney(f.MontoTotal)}</strong><span className={`bf-badge ${f.EstadoConfirmado==='Pagada'?'is-paid':''}`}>{f.EstadoConfirmado||'Sin confirmación externa'}</span></div><dl className="bf-details"><div><dt>Servicio</dt><dd>{f.Servicio||'Sin informar'}</dd></div><div><dt>Vencimiento</dt><dd>{billingDate(f.FechaCaducidad)}</dd></div>{!personal&&<div><dt>Socio asociado</dt><dd>#{f.idSocio}</dd></div>}<div><dt>Fecha de emisión</dt><dd>{billingDate(f.FechaEmision)}</dd></div><div><dt>Fuente de confirmación</dt><dd>{f.Fuente||'Sin confirmación registrada'}</dd></div><div><dt>Última actualización verificable</dt><dd>{f.FechaActualizacionUtc?new Date(f.FechaActualizacionUtc).toLocaleString('es-AR'):'Sin actualización registrada'}</dd></div>{f.Referencia&&<div><dt>Referencia de confirmación</dt><dd>{f.Referencia}</dd></div>}</dl>{f.EstadoConfirmado==='Pagada'?<BillingNotice><CheckCircle2 size={16}/>Esta factura tiene un pago confirmado.</BillingNotice>:f.EstadoConfirmado==='Anulada'?<BillingNotice warning>Esta factura está anulada y no tiene habilitado el acceso al pago.</BillingNotice>:<BillingNotice warning>{link?'El enlace abre el sitio de pago externo. El estado se actualizará cuando exista una confirmación registrada.':'Esta factura no tiene un enlace de pago disponible y seguro. Consultá con la cooperativa.'}</BillingNotice>}
+ <FacturaOtrosConceptos conceptos={f.Conceptos} />
  </BillingDialog>
 }

@@ -25,8 +25,8 @@ import ReclamosList from '@/features/socio/pages/ReclamosList.jsx'
 import ReclamoNuevo from '@/features/socio/pages/ReclamoNuevo.jsx'
 import SocioSolicitudesServicio from '@/features/socio/pages/SocioSolicitudesServicio.jsx'
 import SocioSolicitudServicioNueva from '@/features/socio/pages/SocioSolicitudServicioNueva.jsx'
-import SocioBeneficios from '@/features/socio/pages/SocioBeneficios.jsx'
-import BeneficiosTercerizados from '@/features/empleado/pages/BeneficiosTercerizados.jsx'
+import SocioBeneficios from '@/features/socio/pages/SocioAdhesiones.jsx'
+import AdminAdhesiones from '@/features/admin/pages/AdminAdhesiones.jsx'
 import SocioServicios from '@/features/socio/pages/SocioServicios.jsx'
 import SocioMediciones from '@/features/socio/pages/SocioMediciones.jsx'
 import SocioFacturas from '@/features/socio/pages/SocioFacturas.jsx'
@@ -126,6 +126,7 @@ export default function App() {
           <Route path="/admin/empleados" element={<AdminEmpleados />} />
           <Route path="/admin/facturas" element={<Navigate to="/empleado/facturas" replace />} />
           <Route path="/admin/servicios" element={<AdminServicios />} />
+          <Route path="/admin/adhesiones" element={<AdminAdhesiones />} />
           <Route path="/admin/pagos" element={<Navigate to="/empleado/facturas" replace />} />
           <Route path="/admin/anuncios" element={<AdminAnuncios />} />
           <Route path="/admin/reclamos" element={<Navigate to="/empleado/areas/ADMINISTRACION" replace />} />
@@ -149,7 +150,7 @@ export default function App() {
             <Route path="/empleado/atencion" element={<LaboralAtencion />} />
             <Route path="/empleado/turnos" element={<LaboralTurnos />} />
             <Route path="/empleado/facturas" element={<LaboralFacturas />} />
-            <Route path="/empleado/beneficios" element={<BeneficiosTercerizados />} />
+            <Route path="/empleado/beneficios" element={<AdminAdhesiones />} />
             <Route path="/empleado/hoja-ruta" element={<EmpleadoHojaRuta />} />
             <Route path="/empleado/medidores" element={<AdminMedidores />} />
             <Route path="/empleado/mediciones" element={<LaboralLecturas />} />

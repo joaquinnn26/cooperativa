@@ -73,6 +73,7 @@ function buildPanelSections(role, areas) {
       { to: '/admin/altas-socio', label: 'Altas de socios', icon: ShieldCheck },
       { to: '/admin/socios', label: 'Socios', icon: Users },
       { to: '/admin/servicios', label: 'Servicios y requisitos', icon: Settings },
+      { to: '/admin/adhesiones', label: 'Adhesiones a Sepelio y Ortopedia', icon: HeartHandshake },
       { to: '/admin/medidores', label: 'Inventario de medidores', icon: Gauge },
       { to: '/admin/territorio', label: 'Conexiones y territorio', icon: MapPinned },
       { to: '/admin/anuncios', label: 'Anuncios', icon: Megaphone },

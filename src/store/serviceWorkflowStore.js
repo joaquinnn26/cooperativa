@@ -869,7 +869,8 @@ const useServiceWorkflowStore = create(
             body: JSON.stringify({
               idSocio: Number(payload.idSocio),
               idServicio: Number(payload.idServicio),
-              observaciones: payload.observaciones
+              observaciones: payload.observaciones,
+              Adhesiones: payload.adhesiones || null
             })
           })
 
