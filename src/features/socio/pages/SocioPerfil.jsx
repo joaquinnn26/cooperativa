@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { KeyRound, Save, UserCircle2 } from 'lucide-react'
+import PasswordInput from '@/components/PasswordInput.jsx'
 import { apiUrl } from '@/config/api.js'
 import useAuthStore from '@/store/authStore.js'
 import useAppStore from '@/store/appStore.js'
@@ -341,38 +342,38 @@ export default function SocioPerfil() {
 
         <div className="grid gap-4 md:grid-cols-3">
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">Contrasena actual</label>
-            <input
-              type="password"
+            <label htmlFor="profile-password-current" className="mb-2 block text-sm font-medium text-gray-700">Contrasena actual</label>
+            <PasswordInput
+              id="profile-password-current"
+              label="contraseña actual"
               value={passwordForm.actual}
               onChange={(event) => setPasswordForm((prev) => ({ ...prev, actual: event.target.value }))}
               minLength={FIELD_LIMITS.password.min}
               maxLength={FIELD_LIMITS.password.max}
-              className="input-field"
               required
             />
           </div>
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">Nueva contrasena</label>
-            <input
-              type="password"
+            <label htmlFor="profile-password-new" className="mb-2 block text-sm font-medium text-gray-700">Nueva contrasena</label>
+            <PasswordInput
+              id="profile-password-new"
+              label="nueva contraseña"
               value={passwordForm.nueva}
               onChange={(event) => setPasswordForm((prev) => ({ ...prev, nueva: event.target.value }))}
               minLength={FIELD_LIMITS.password.min}
               maxLength={FIELD_LIMITS.password.max}
-              className="input-field"
               required
             />
           </div>
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">Confirmar nueva contrasena</label>
-            <input
-              type="password"
+            <label htmlFor="profile-password-confirm" className="mb-2 block text-sm font-medium text-gray-700">Confirmar nueva contrasena</label>
+            <PasswordInput
+              id="profile-password-confirm"
+              label="confirmación de nueva contraseña"
               value={passwordForm.confirmar}
               onChange={(event) => setPasswordForm((prev) => ({ ...prev, confirmar: event.target.value }))}
               minLength={FIELD_LIMITS.password.min}
               maxLength={FIELD_LIMITS.password.max}
-              className="input-field"
               required
             />
           </div>

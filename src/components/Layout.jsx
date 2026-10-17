@@ -30,6 +30,8 @@ import useAuthStore from '../store/authStore.js'
 import AuthSessionManager from './AuthSessionManager.jsx'
 import HelpChatbot from './HelpChatbot.jsx'
 import PublicAnnouncementsBanner from './PublicAnnouncementsBanner.jsx'
+import { AvisosProvider } from '@/features/avisos/AvisosProvider.jsx'
+import { AvisosBell } from '@/features/avisos/AvisosWidgets.jsx'
 import PublicFooter from '@/features/home/PublicFooter.jsx'
 import '@/features/home/Home.css'
 import { getDefaultRouteByRole, normalizeCargo, normalizeRole } from '@/utils/auth.js'
@@ -154,6 +156,7 @@ export default function Layout() {
   ]
 
   return (
+    <AvisosProvider>
     <div className="min-h-screen bg-gray-50">
       <AuthSessionManager />
       {!usuario && !isHomeRoute ? <PublicAnnouncementsBanner /> : null}
@@ -203,6 +206,7 @@ export default function Layout() {
             ) : null}
 
             <div className="public-header-actions flex items-center space-x-3">
+              <AvisosBell />
               {usuario ? (
                 <>
                   <Link
@@ -407,5 +411,6 @@ export default function Layout() {
       </footer>}
       <HelpChatbot key={`${rol || 'publico'}:${usuario || ''}`} />
     </div>
+    </AvisosProvider>
   )
 }

@@ -24,24 +24,6 @@ const initialServices = [
   }
 ]
 
-const initialAnnouncements = [
-  {
-    id: 1,
-    title: 'Mantenimiento programado',
-    content:
-      'Se realizara mantenimiento en la red de agua el proximo viernes de 8:00 a 12:00.',
-    date: '2024-01-20',
-    priority: 'high'
-  },
-  {
-    id: 2,
-    title: 'Nuevos horarios de atencion',
-    content: 'Los horarios de atencion han cambiado. Consulta los nuevos horarios en nuestra pagina.',
-    date: '2024-01-18',
-    priority: 'medium'
-  }
-]
-
 function normalizeAnnouncementPriority(value) {
   const normalized = String(value || '').trim().toLowerCase()
   if (['alta', 'high'].includes(normalized)) return 'high'
@@ -178,139 +160,52 @@ function announcementPayload(payload) {
   }
 }
 
-async function firstSuccessfulJson(paths, options) {
-  let lastError = null
-
-  for (const path of paths) {
-    try {
-      return await jsonFetch(apiUrl(path), options)
-    } catch (error) {
-      lastError = error
-      if (![404, 405].includes(error.status)) break
-    }
-  }
-
-  throw lastError || new Error('No se pudo completar la operacion.')
-}
-
-function nextAnnouncementId(items) {
-  return items.length ? Math.max(...items.map((item) => Number(item.id) || 0)) + 1 : 1
-}
-
-function apiModuleUnavailable(error) {
-  return [404, 405].includes(error?.status) || String(error?.message || '').includes('Failed to fetch')
-}
-
 const useCooperativeStore = create(
   persist(
     (set, get) => ({
       services: initialServices,
       bills: [],
-      announcements: initialAnnouncements,
+      announcements: [],
+      announcementOutcomeUncertain: false,
 
       fetchServices: async () => get().services,
       fetchAnnouncements: async () => {
         return fetchPublicAnnouncements(apiUrl('/anuncios'))
       },
       fetchAnnouncementsAdmin: async () => {
-        try {
-          const data = await firstSuccessfulJson(['/anuncios/admin', '/anuncio/admin', '/anuncios', '/anuncio'])
-          const normalized = ensureArray(data).map(normalizeAnnouncementFromApi)
-          set((state) => ({ ...state, announcements: normalized }))
-          return normalized
-        } catch (error) {
-          if (!apiModuleUnavailable(error)) throw error
-          return get().announcements
-        }
+        const data = await jsonFetch(apiUrl('/anuncios/admin'))
+        const items = Array.isArray(data) ? data : data?.$values
+        if (!Array.isArray(items)) throw new Error('La respuesta de anuncios no es válida.')
+        const announcements = items.map(normalizeAnnouncementFromApi)
+        set({ announcements, announcementOutcomeUncertain: false })
+        return announcements
       },
-      createAnnouncement: async (payload) => {
+      mutateAnnouncement: async (path, options) => {
+        if (get().announcementOutcomeUncertain) throw new Error('Actualizá el listado antes de realizar otra operación: el último resultado no pudo confirmarse.')
         try {
-          const created = await firstSuccessfulJson(['/anuncios', '/anuncio'], {
-            method: 'POST',
-            body: JSON.stringify(announcementPayload(payload))
-          })
-
-          await get().fetchAnnouncementsAdmin()
-          return normalizeAnnouncementFromApi(created)
+          const data = await jsonFetch(apiUrl(path), options)
+          if (!data || !data.idAnuncio) throw new Error('La API no confirmó el resultado de la operación.')
+          return normalizeAnnouncementFromApi(data)
         } catch (error) {
-          if (!apiModuleUnavailable(error)) throw error
-
-          const created = {
-            id: nextAnnouncementId(get().announcements),
-            title: payload.title,
-            content: payload.content,
-            priority: payload.priority || 'medium',
-            date: new Date().toISOString(),
-            startsAt: payload.startsAt || '',
-            endsAt: payload.endsAt || '',
-            active: payload.active !== false,
-            fixed: Boolean(payload.fixed),
-            idEmpleado: payload.idEmpleado || null
+          if (!error.status || error.status >= 500) {
+            set({ announcementOutcomeUncertain: true })
+            try { await get().fetchAnnouncementsAdmin() } catch { /* Keep writes blocked until a successful read. */ }
+            const uncertain = new Error('No se pudo confirmar el guardado. Revisá el listado actualizado antes de volver a intentarlo.')
+            uncertain.uncertain = true
+            throw uncertain
           }
-
-          set((state) => ({ ...state, announcements: [created, ...state.announcements] }))
-          return created
+          throw error
         }
       },
-      updateAnnouncement: async (id, payload) => {
-        try {
-          const updated = await firstSuccessfulJson([`/anuncios/${id}`, `/anuncio/${id}`], {
-            method: 'PUT',
-            body: JSON.stringify(announcementPayload(payload))
-          })
-
-          await get().fetchAnnouncementsAdmin()
-          return normalizeAnnouncementFromApi(updated)
-        } catch (error) {
-          if (!apiModuleUnavailable(error)) throw error
-
-          let updatedAnnouncement = null
-          set((state) => ({
-            ...state,
-            announcements: state.announcements.map((announcement) => {
-              if (String(announcement.id) !== String(id)) return announcement
-              updatedAnnouncement = {
-                ...announcement,
-                title: payload.title,
-                content: payload.content,
-                priority: payload.priority || 'medium',
-                startsAt: payload.startsAt || '',
-                endsAt: payload.endsAt || '',
-                active: payload.active !== false,
-                fixed: Boolean(payload.fixed),
-                idEmpleado: payload.idEmpleado || announcement.idEmpleado || null
-              }
-              return updatedAnnouncement
-            })
-          }))
-
-          return updatedAnnouncement
-        }
-      },
-      deactivateAnnouncement: async (id) => {
-        try {
-          const updated = await firstSuccessfulJson([`/anuncios/${id}`, `/anuncio/${id}`], {
-            method: 'DELETE'
-          })
-
-          await get().fetchAnnouncementsAdmin()
-          return updated ? normalizeAnnouncementFromApi(updated) : null
-        } catch (error) {
-          if (!apiModuleUnavailable(error)) throw error
-
-          let updatedAnnouncement = null
-          set((state) => ({
-            ...state,
-            announcements: state.announcements.map((announcement) => {
-              if (String(announcement.id) !== String(id)) return announcement
-              updatedAnnouncement = { ...announcement, active: false }
-              return updatedAnnouncement
-            })
-          }))
-
-          return updatedAnnouncement
-        }
-      },
+      createAnnouncement: async (payload) => get().mutateAnnouncement('/anuncios', {
+        method: 'POST', body: JSON.stringify(announcementPayload(payload))
+      }),
+      updateAnnouncement: async (id, payload) => get().mutateAnnouncement('/anuncios/' + id, {
+        method: 'PUT', body: JSON.stringify(announcementPayload(payload))
+      }),
+      deactivateAnnouncement: async (id) => get().mutateAnnouncement('/anuncios/' + id, {
+        method: 'DELETE'
+      }),
       fetchBills: async () => {
         const data = await jsonFetch(apiUrl('/factura'))
         const normalized = ensureArray(data)
@@ -338,7 +233,9 @@ const useCooperativeStore = create(
 
     }),
     {
-      name: 'cooperativa-billing'
+      name: 'cooperativa-billing',
+      partialize: ({ services, bills }) => ({ services, bills }),
+      merge: (saved, current) => ({ ...current, services: saved?.services ?? current.services, bills: saved?.bills ?? current.bills })
     }
   )
 )
