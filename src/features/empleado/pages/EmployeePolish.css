@@ -1,0 +1,10 @@
+.laboral-employee-page{max-width:1280px;margin-inline:auto;padding:12px;background:radial-gradient(ellipse at top right,#e5f5f5,transparent 65%);border-radius:24px}
+.employee-task-guide{display:flex;align-items:center;gap:14px;padding:18px 22px;border:1px solid #cce7e7;border-radius:18px;background:linear-gradient(120deg,#f0fafa,#fff);color:#176584}
+.employee-task-guide svg{flex-shrink:0}.employee-task-guide h2{font-size:16px;font-weight:700}.employee-task-guide p{margin-top:4px;font-size:14px;line-height:1.6;color:#526779}
+.laboral-employee-page .task-quick-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:10px;gap:10px}
+.laboral-employee-page .task-quick-filters button{justify-content:space-between;min-height:58px;background:#f5f8fa;font-size:14px;padding:12px 16px}
+.laboral-employee-page .task-quick-filters button.is-active{background:#176584;color:white}.laboral-employee-page .task-quick-filters strong{font-size:18px}
+.laboral-employee-page a:focus-visible,.laboral-employee-page button:focus-visible{outline:3px solid #16838a;outline-offset:4px}
+.laboral-employee-page a.card.block{border-left:4px solid #16838a!important}.laboral-employee-page a.card.block h2{line-height:1.5}.laboral-employee-page a.card.block>p{line-height:1.65}
+@media(max-width:640px){.laboral-employee-page{padding:4px}.laboral-employee-page .task-quick-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.laboral-employee-page .task-quick-filters button{font-size:12px;padding:10px}.employee-task-guide{align-items:flex-start;padding:16px}}
+@media(prefers-reduced-motion:no-preference){.employee-task-guide{animation:manager-rise .3s ease both}.laboral-employee-page .task-quick-filters button{transition:background .2s,box-shadow .2s,transform .2s}.laboral-employee-page .task-quick-filters button:hover{box-shadow:0 6px 16px #163a4914}}

@@ -17,7 +17,15 @@ test('al asignar un área se habilita su vista sin conceder funciones de otra á
   assert.equal(permiteRutaLaboral(areas, '/empleado/areas/ENERGIA'), false)
   assert.equal(permiteRutaLaboral(areas, '/empleado/facturas'), false)
   assert.equal(permiteRutaLaboral(areas, '/empleado/rutas-medicion'), false)
-  assert.equal(permiteRutaLaboral(areas, '/empleado/estadisticas-eventos'), true)
+  assert.equal(permiteRutaLaboral(areas, '/empleado/estadisticas-eventos'), false)
+})
+
+test('las estadísticas laborales requieren ser encargado o tener consulta general de Gerencia', () => {
+  const route = '/empleado/estadisticas-eventos'
+  assert.equal(permiteRutaLaboral([{ Area: 'AGUA', Encargado: true, Funciones: [] }], route), true)
+  assert.equal(permiteRutaLaboral([{ Area: 'GERENCIA', Funciones: ['CONSULTA_GENERAL'] }], route), true)
+  assert.equal(permiteRutaLaboral([{ Area: 'GERENCIA', Funciones: [] }], route), false)
+  assert.equal(permiteRutaLaboral([{ Area: 'AGUA', Funciones: ['LECTURISTA'] }], route), false)
 })
 
 test('asignar y quitar encargado cambia el acceso a la organización de recorridos', () => {

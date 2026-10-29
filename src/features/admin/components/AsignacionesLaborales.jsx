@@ -34,7 +34,8 @@ export default function AsignacionesLaborales() {
     const abort = new AbortController(); setLoading(true)
     laboralApi('/configuracion', { signal: abort.signal }).then(value => {
       if (abort.signal.aborted) return
-      if (!Array.isArray(value.puestos)) throw new Error('La API necesita la actualización de asignación de área y puesto.')
+      if (!Array.isArray(value?.puestos)) throw new Error('La API respondió, pero su versión no incluye los puestos de trabajo. Falta publicar la actualización de organización laboral del backend.')
+      if (!['areas', 'miembros', 'encargados', 'empleados'].every(key => Array.isArray(value[key]))) throw new Error('La API devolvió una configuración laboral incompleta. Revisá la versión publicada del backend.')
       setData(value)
       setArea(current => value.areas.some(a => a.Codigo === current) ? current : value.areas[0]?.Codigo || '')
     }).catch(e => { if (!abort.signal.aborted) setError(e.message) }).finally(() => { if (!abort.signal.aborted) setLoading(false) })

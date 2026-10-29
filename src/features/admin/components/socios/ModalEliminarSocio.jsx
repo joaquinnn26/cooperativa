@@ -1,28 +1,6 @@
 import React from 'react'
-
+import { UserRoundX } from 'lucide-react'
 export default function ModalEliminarSocio({ show, socio, onClose, onConfirm }) {
   if (!show || !socio) return null
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="w-full max-w-sm rounded-lg bg-white p-6 text-center shadow-xl">
-        <h2 className="mb-4 text-lg font-bold">Dar de baja socio</h2>
-        <p className="mb-6 text-gray-700">
-          Vas a marcar como inactivo a <strong>{socio.Persona?.Nombre} {socio.Persona?.Apellido}</strong>. No se eliminan sus registros historicos.
-        </p>
-        <div className="flex justify-center space-x-2">
-          <button type="button" onClick={onClose} className="rounded bg-gray-200 px-4 py-2 hover:bg-gray-300">
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="rounded bg-red-600 px-4 py-2 text-white hover:bg-red-700"
-          >
-            Dar de baja
-          </button>
-        </div>
-      </div>
-    </div>
-  )
+  return <div className="people-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><div className="people-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="baja-socio-title"><span className="people-confirm-icon"><UserRoundX size={25} /></span><h2 id="baja-socio-title">¿Dar de baja al socio?</h2><p><strong>{socio.Persona?.Nombre} {socio.Persona?.Apellido}</strong> quedará inactivo y no podrá operar con su cuenta. Sus registros y el historial se conservarán.</p><footer><button type="button" onClick={onClose} className="btn-secondary">Conservar socio</button><button type="button" onClick={onConfirm} className="people-danger-button">Confirmar baja</button></footer></div></div>
 }

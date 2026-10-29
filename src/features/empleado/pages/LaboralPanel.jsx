@@ -6,8 +6,15 @@ import useAuthStore from '@/store/authStore.js'
 import { laboralApi, tareaEstados } from '@/utils/laboral.js'
 import { rutasLaborales, tieneFuncion, esSoloLecturista } from '@/utils/laboralPermissions.js'
 import './LaboralPanel.css'
+import './EmployeePolish.css'
 import CrearTrabajoDialog from './CrearTrabajoDialog.jsx'
 import WaterAreaTasks from './WaterAreaTasks.jsx'
+
+function TaskQuickFilters({ totals, state, onSelect }) {
+  const options = [['PendienteAsignacion', 'Sin asignar'], ['Asignada', 'Asignadas'], ['EnCurso', 'En curso'], ['Observada', 'Observadas'], ['Cerrada', 'Cerradas']]
+  const total = Object.values(totals).reduce((sum, value) => sum + value, 0)
+  return <div className="task-quick-filters" aria-label="Filtros rápidos de tareas"><button type="button" className={!state ? 'is-active' : ''} onClick={() => onSelect('')}>Todas <strong>{total}</strong></button>{options.map(([value, label]) => <button type="button" key={value} className={state === value ? 'is-active' : ''} onClick={() => onSelect(value)}>{label} <strong>{totals[value] || 0}</strong></button>)}</div>
+}
 
 export default function LaboralPanel({ gerencia = false }) {
   const areas = useAuthStore(s => s.areas) || []
@@ -88,6 +95,8 @@ function LaboralPanelContent({ gerencia = false }) {
     {area === 'GAS' && <p className="card bg-amber-50">El área y su encargado pueden configurarse. Las operaciones de atención por convenio requieren definición de la cooperativa antes de habilitar tareas.</p>}
     {!managerHome && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{summary.filter(a => !area || a.Area === area).map(a => <div className="card" key={a.Area}><h2 className="font-semibold">{a.Nombre}</h2>{a.conteos.map(c => <p className="text-sm mt-1" key={c.Estado}>{tareaEstados[c.Estado]}: <strong>{c.Cantidad}</strong></p>)}{!a.conteos.length && <p className="text-gray-500 text-sm">Sin tareas registradas.</p>}</div>)}</div>}
     {managerHome ? <nav className="manager-nav" aria-label="Secciones de gerencia">{[['gerencia', 'Resumen', Building2], ['tareas', 'Tareas', ClipboardList], ['actividad', 'Actividad', Activity]].map(([key, label, Icon]) => <button key={key} className={tab === key ? 'is-active' : ''} onClick={() => { setTab(key); setPage(1) }}><Icon size={16} />{label}</button>)}<button className="manager-refresh" onClick={() => setRevision(r => r + 1)} disabled={loading}><RefreshCw size={15} className={loading ? 'manager-spin' : ''} />Actualizar</button></nav> : <div className="flex gap-2 flex-wrap">{[['tareas', profile?.Encargado || manager ? 'Tareas del área' : 'Mis tareas'], ['actividad', 'Historial de actividad'], ...(profile?.Encargado ? [['equipo', 'Equipo']] : []), ...(inbox ? [['bandeja', profile?.Funciones?.includes('ATENCION') ? 'Solicitudes y reclamos' : 'Trámites por organizar']] : [])].map(([key, label]) => <button key={key} className={tab === key ? 'btn-primary' : 'btn-secondary'} onClick={() => { setTab(key); setPage(1) }}>{label}</button>)}<button className="btn-secondary" onClick={() => setRevision(r => r + 1)}>Actualizar</button></div>}
+    {!managerHome && tab === 'tareas' && <section className="employee-task-guide"><ClipboardList size={24} aria-hidden="true"/><div><h2>{profile?.Encargado ? 'Organizá el trabajo de tu equipo' : 'Tu trabajo, paso a paso'}</h2><p>{profile?.Encargado ? 'Filtrá las tareas por estado y abrí un trabajo para consultar su responsable y revisar los resultados.' : 'Elegí un estado y abrí una tarea para ver las instrucciones y registrar tus avances.'}</p></div></section>}
+    {!managerHome && tab === 'tareas' && <TaskQuickFilters totals={Object.fromEntries(summary.filter(a => !area || a.Area === area).flatMap(a => a.conteos || []).map(c => [c.Estado, Number(c.Cantidad)]))} state={state} onSelect={value => { setState(value); setPage(1) }} />}
     {error && <p role="alert" className="p-3 bg-red-50 text-red-800">{error}</p>}
     {createdTask && <div role="status" className="card flex flex-wrap items-center justify-between gap-3 border-emerald-200 bg-emerald-50"><div><strong>Trabajo creado correctamente</strong><p className="text-sm">{createdTask.Titulo} | Pendiente de asignacion.</p></div><Link className="btn-primary" to={`/empleado/tareas/${createdTask.idTarea}`}>Abrir tarea y asignar responsable</Link><button type="button" aria-label="Cerrar confirmacion" className="text-sm underline" onClick={() => setCreatedTask(null)}>Cerrar</button></div>}
     {loading ? <p role="status" className={managerHome ? 'manager-loading' : ''}>Cargando información del área…</p> : !error && <>

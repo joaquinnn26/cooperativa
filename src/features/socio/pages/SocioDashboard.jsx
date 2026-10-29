@@ -135,7 +135,7 @@ export default function SocioDashboard() {
     usuario
   ])
 
-  const pendingBills = useMemo(() => bills.filter((bill) => bill.status === 'pending'), [bills])
+  const pendingBills = useMemo(() => bills.filter((bill) => !['paid', 'cancelled'].includes(bill.status)), [bills])
   const totalPendingAmount = useMemo(
     () => pendingBills.reduce((total, bill) => total + Number(bill.amount || 0), 0),
     [pendingBills]
@@ -211,9 +211,8 @@ export default function SocioDashboard() {
     window.open(bill.paymentLink, '_blank', 'noopener,noreferrer')
   }
 
-  const unverifiedBills = bills.filter(b => b.status === 'unverified')
-  const BillingStatusIcon = pendingBills.length || unverifiedBills.length ? AlertTriangle : CheckCircle2
-  const billingStatus = unverifiedBills.length ? { label: 'Confirmación pendiente', title: 'Hay facturas sin estado confirmado', description: 'Consultá Mis facturas. La actualización de pagos depende de la integración con contabilidad.', amount: 'Sin confirmar', panel: 'border-amber-200 bg-amber-50', icon: 'bg-amber-100 text-amber-700' } : pendingBills.length
+  const BillingStatusIcon = pendingBills.length ? AlertTriangle : CheckCircle2
+  const billingStatus = pendingBills.length
     ? {
         label: 'Requiere atencion',
         title: `${pendingBills.length} factura${pendingBills.length === 1 ? '' : 's'} pendiente${pendingBills.length === 1 ? '' : 's'}`,
@@ -238,23 +237,25 @@ export default function SocioDashboard() {
       }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-cyan-50/50 px-4 py-8">
+      <div className="mx-auto max-w-7xl">
+      <div className="mb-7 flex flex-col gap-4 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-900 px-6 py-7 text-white shadow-xl shadow-slate-200 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase text-gray-500">Portal del socio</p>
-          <h1 className="mt-1 text-3xl font-bold text-gray-900">Hola, {nombre || usuario || 'socio'}!</h1>
+          <p className="text-sm font-semibold uppercase tracking-widest text-cyan-200">Portal del socio</p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Hola, {nombre || usuario || 'socio'}!</h1>
+          <p className="mt-2 text-sm text-slate-300">Todo lo importante de tu cuenta, en un solo lugar.</p>
         </div>
-        <div className="inline-flex w-fit items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 shadow-sm">
-          <Clock3 className="h-4 w-4 text-gray-400" />
+        <div className="inline-flex w-fit items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-medium text-cyan-50 backdrop-blur">
+          <Clock3 className="h-4 w-4 text-cyan-200" />
           <span className="capitalize">{todayLabel}</span>
         </div>
       </div>
 
       <section className="mb-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className={`rounded-lg border p-6 shadow-sm ${billingStatus.panel}`}>
+        <div className={`rounded-3xl border p-6 shadow-lg transition-shadow hover:shadow-xl ${billingStatus.panel}`}>
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-start gap-4">
-              <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-lg ${billingStatus.icon}`}>
+              <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${billingStatus.icon}`}>
                 <BillingStatusIcon className="h-7 w-7" />
               </div>
 
@@ -304,14 +305,14 @@ export default function SocioDashboard() {
           <h2 className="text-xl font-bold text-gray-900">Acciones rapidas</h2>
         </div>
 
-        <nav className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+        <nav className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
           {quickActions.map((action) => {
             const Icon = action.icon
             return (
               <Link
                 key={action.to}
                 to={action.to}
-                className="group flex min-h-[112px] flex-col justify-between rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
+                className="group flex min-h-[124px] flex-col justify-between rounded-2xl border border-gray-200/80 bg-white/90 p-5 shadow-sm backdrop-blur transition duration-300 hover:-translate-y-1 hover:border-cyan-300 hover:shadow-xl"
               >
                 <span className="flex w-full items-start justify-between gap-3">
                   <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border ${action.classes}`}>
@@ -330,7 +331,7 @@ export default function SocioDashboard() {
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
-        <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <section className="overflow-hidden rounded-3xl border border-gray-200/80 bg-white/90 shadow-lg shadow-slate-200/60 backdrop-blur">
           <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
             <div>
               <h2 className="text-xl font-bold text-gray-900">Facturas pendientes</h2>
@@ -397,7 +398,7 @@ export default function SocioDashboard() {
           )}
         </section>
 
-        <aside className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <aside className="overflow-hidden rounded-3xl border border-gray-200/80 bg-white/90 shadow-lg shadow-slate-200/60 backdrop-blur">
           <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
             <div>
               <h2 className="text-xl font-bold text-gray-900">Servicios activos</h2>
@@ -452,6 +453,7 @@ export default function SocioDashboard() {
             </div>
           )}
         </aside>
+      </div>
       </div>
     </div>
   )

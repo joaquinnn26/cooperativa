@@ -4,6 +4,7 @@ import { apiLaboralExistente, descargarApi } from '@/utils/laboral.js'
 const states = ['Recibida', 'EnRevision', 'NecesitaInformacion', 'Aprobada', 'Exportada', 'Finalizada', 'Rechazada', 'Cancelada']
 const stateLabels = { Recibida: 'Recibida', EnRevision: 'En revisión', NecesitaInformacion: 'Falta información', Aprobada: 'Aprobada para enviar', Exportada: 'Enviada al prestador', Finalizada: 'Finalizada', Rechazada: 'Rechazada', Cancelada: 'Cancelada' }
 const typeLabels = { SEPELIO: 'Sepelio', ORTOPEDIA: 'Ortopedia' }
+const typeStyles = { SEPELIO: 'border-violet-200 bg-violet-50', ORTOPEDIA: 'border-amber-200 bg-amber-50' }
 
 export default function BeneficiosTercerizados() {
   const [items, setItems] = useState([])
@@ -64,8 +65,10 @@ export default function BeneficiosTercerizados() {
     try { const history = await apiLaboralExistente(`/beneficios/solicitudes/${item.idSolicitudBeneficio}/historial`); setHistories(old => ({ ...old, [item.idSolicitudBeneficio]: history })) } catch (e) { setError(e.message) }
   }
 
+  const counts = states.reduce((out, state) => ({ ...out, [state]: items.filter(item => item.Estado === state).length }), {})
   return <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
     <header className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-semibold uppercase tracking-wider text-cyan-800">Área Beneficios</p><h1 className="mt-1 text-3xl font-bold text-slate-900">Sepelio y ortopedia</h1><p className="mt-2 max-w-3xl text-slate-600">Revisá solicitudes, pedí información y aprobá las que correspondan. Solo se exportan casos aprobados con consentimiento registrado.</p></div><button className="btn-primary" disabled={busy || !items.some(x => x.Estado === 'Aprobada')} onClick={exportApproved}>{busy ? 'Procesando…' : 'Exportar aprobadas al prestador'}</button></header>
+    <section className="grid grid-cols-2 gap-3 sm:grid-cols-4"><div className="card"><small className="text-slate-500">Total</small><strong className="mt-1 block text-2xl">{items.length}</strong></div><div className="card"><small className="text-slate-500">Para revisar</small><strong className="mt-1 block text-2xl">{(counts.Recibida || 0) + (counts.EnRevision || 0) + (counts.NecesitaInformacion || 0)}</strong></div><div className="card"><small className="text-slate-500">Aprobadas</small><strong className="mt-1 block text-2xl">{counts.Aprobada || 0}</strong></div><div className="card"><small className="text-slate-500">Enviadas</small><strong className="mt-1 block text-2xl">{counts.Exportada || 0}</strong></div></section>
     {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}{notice && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900">{notice}</p>}
     <section className="card space-y-4"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-xl font-semibold">Bandeja de solicitudes</h2><p className="text-sm text-slate-600">Los datos personales y adjuntos son confidenciales y se muestran solo al equipo autorizado.</p></div><label className="grid gap-1 text-sm">Estado<select className="input-field min-w-56" value={filter} onChange={e => setFilter(e.target.value)}><option value="">Todos</option>{states.map(s => <option key={s} value={s}>{stateLabels[s]}</option>)}</select></label></div>
       {!items.length && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">No hay trámites para este filtro.</p>}

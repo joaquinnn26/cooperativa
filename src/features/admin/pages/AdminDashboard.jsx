@@ -1,9 +1,42 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { laboralApi, apiLaboralExistente } from '@/utils/laboral.js'
 import { ArrowUpRight, BarChart3, Users, Building2, ShieldCheck, Search, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from 'recharts'
 import './AdminDashboard.css'
+
+// Hidden panels can measure 0 x 0. Mount charts only after layout is available.
+function DashboardChart({ children }) {
+  const containerRef = useRef(null)
+  const [size, setSize] = useState({ width: 0, height: 0 })
+
+  useEffect(() => {
+    const container = containerRef.current
+    const updateSize = (width, height) => {
+      width = Math.round(width)
+      height = Math.round(height)
+      setSize(previous => previous.width === width && previous.height === height
+        ? previous : { width, height })
+    }
+    const measure = () => updateSize(container.clientWidth, container.clientHeight)
+    measure()
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measure)
+      return () => window.removeEventListener('resize', measure)
+    }
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) updateSize(entry.contentRect.width, entry.contentRect.height)
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
+
+  return <div ref={containerRef} style={{ width: '100%', height: '100%', minWidth: 0 }}>
+    {size.width > 0 && size.height > 0 && <ResponsiveContainer width={size.width} height={size.height}>
+      {children}
+    </ResponsiveContainer>}
+  </div>
+}
 
 const groups = [
   { title: 'Organización y personal', intro: 'Administrá accesos y estructura interna.', links: [
@@ -49,7 +82,10 @@ export default function AdminDashboard() {
       if (abort.signal.aborted) return
       setData(organization.status === 'fulfilled' ? organization.value : null)
       setSocios(members.status === 'fulfilled' ? members.value : null)
-      setErrors([organization.status === 'rejected' && 'organización laboral', members.status === 'rejected' && 'socios'].filter(Boolean))
+      setErrors([
+        organization.status === 'rejected' && `organización laboral (${organization.reason?.message || 'Error de conexión'})`,
+        members.status === 'rejected' && `socios (${members.reason?.message || 'Error de conexión'})`
+      ].filter(Boolean))
       setUpdated(organization.status === 'fulfilled' || members.status === 'fulfilled' ? new Date() : null)
       setLoading(false)
     })
@@ -88,10 +124,10 @@ export default function AdminDashboard() {
     <section className="ad-stats" aria-label="Indicadores generales" aria-busy={loading}>{stats.map(({ label, value, detail, icon: Icon, color, to }, index) => <Link to={to} className={`ad-stat ad-${color}`} key={label} style={{ animationDelay: `${index * 65}ms` }}><div className="ad-stat-top"><span className="ad-icon"><Icon size={21} /></span><ArrowUpRight size={17} /></div><p>{label}</p>{loading ? <span className="ad-skeleton" /> : <strong>{value == null ? '—' : value.toLocaleString('es-AR')}</strong>}<small>{!loading && value == null ? 'Información no disponible' : detail}</small></Link>)}</section>
     <div className="ad-charts">
       <section className="ad-panel"><div className="ad-panel-heading"><div><h2>Equipo por área</h2><p>Distribución de integrantes vigentes</p></div><span className="ad-icon ad-blue"><Building2 size={20} /></span></div>
-        {!loading && setup?.areas.length ? <><div style={{ height: Math.max(240, setup.areas.length * 54), minWidth: 0 }}><ResponsiveContainer width="100%" height="100%"><BarChart data={setup.areas} layout="vertical" margin={{ top: 8, right: 25, left: 0, bottom: 8 }} accessibilityLayer><CartesianGrid strokeDasharray="3 5" horizontal={false} stroke="#e8edf3" /><XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} /><YAxis type="category" dataKey="Nombre" width={112} tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} /><Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0' }} /><Bar dataKey="count" name="Integrantes" fill="#3875ca" radius={[0, 6, 6, 0]} barSize={20} isAnimationActive={false} /></BarChart></ResponsiveContainer></div><details className="ad-data"><summary>Ver cantidades por área</summary><ul>{setup.areas.map(a => <li key={a.Codigo}><span>{a.Nombre}</span><b>{a.count}</b></li>)}</ul></details><p className="ad-note">Una persona puede integrar más de un área.</p></> : empty(setup ? 'Todavía no hay áreas registradas.' : 'No se pudo cargar la organización.')}
+        {!loading && setup?.areas.length ? <><div style={{ width: '100%', height: Math.max(240, setup.areas.length * 54), minWidth: 0 }}><DashboardChart><BarChart data={setup.areas} layout="vertical" margin={{ top: 8, right: 25, left: 0, bottom: 8 }} accessibilityLayer><CartesianGrid strokeDasharray="3 5" horizontal={false} stroke="#e8edf3" /><XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} /><YAxis type="category" dataKey="Nombre" width={112} tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} /><Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0' }} /><Bar dataKey="count" name="Integrantes" fill="#3875ca" radius={[0, 6, 6, 0]} barSize={20} isAnimationActive={false} /></BarChart></DashboardChart></div><details className="ad-data"><summary>Ver cantidades por área</summary><ul>{setup.areas.map(a => <li key={a.Codigo}><span>{a.Nombre}</span><b>{a.count}</b></li>)}</ul></details><p className="ad-note">Una persona puede integrar más de un área.</p></> : empty(setup ? 'Todavía no hay áreas registradas.' : 'No se pudo cargar la organización.')}
       </section>
       <section className="ad-panel"><div className="ad-panel-heading"><div><h2>Comunidad de socios</h2><p>Estado de las cuentas registradas</p></div><span className="ad-icon ad-teal"><Users size={20} /></span></div>
-        {!loading && socios?.length ? <><div className="ad-donut"><ResponsiveContainer width="100%" height="100%"><PieChart accessibilityLayer><Pie data={distribution} dataKey="value" nameKey="name" innerRadius="70%" outerRadius="88%" paddingAngle={3} stroke="none" isAnimationActive={false}>{distribution.map(row => <Cell key={row.name} fill={row.color} />)}</Pie><Tooltip contentStyle={{ borderRadius: 12 }} /></PieChart></ResponsiveContainer><div className="ad-donut-label"><strong>{Math.round(active / socios.length * 100)}%</strong><span>socios activos</span></div></div><ul className="ad-legend">{distribution.map(row => <li key={row.name}><span><i style={{ background: row.color }} />{row.name}</span><b>{row.value.toLocaleString('es-AR')}</b></li>)}</ul></> : empty(socios ? 'Todavía no hay socios registrados.' : 'No se pudieron cargar los socios.')}
+        {!loading && socios?.length ? <><div className="ad-donut"><DashboardChart><PieChart accessibilityLayer><Pie data={distribution} dataKey="value" nameKey="name" innerRadius="70%" outerRadius="88%" paddingAngle={3} stroke="none" isAnimationActive={false}>{distribution.map(row => <Cell key={row.name} fill={row.color} />)}</Pie><Tooltip contentStyle={{ borderRadius: 12 }} /></PieChart></DashboardChart><div className="ad-donut-label"><strong>{Math.round(active / socios.length * 100)}%</strong><span>socios activos</span></div></div><ul className="ad-legend">{distribution.map(row => <li key={row.name}><span><i style={{ background: row.color }} />{row.name}</span><b>{row.value.toLocaleString('es-AR')}</b></li>)}</ul></> : empty(socios ? 'Todavía no hay socios registrados.' : 'No se pudieron cargar los socios.')}
       </section>
     </div>
     <section className="ad-panel"><div className="ad-panel-heading"><div><h2>Estado de la organización</h2><p>Revisá qué áreas necesitan atención</p></div><Link className="ad-text-link" to="/admin/organizacion">Gestionar <ArrowUpRight size={16} /></Link></div>

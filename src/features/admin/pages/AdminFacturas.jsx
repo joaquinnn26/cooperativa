@@ -394,7 +394,7 @@ export default function AdminFacturas() {
                   <div className="mt-4 flex items-center justify-between">
                     <p className="text-lg font-bold text-gray-900">${Number(factura.amount).toLocaleString('es-AR')}</p>
                     <div className="flex gap-2">
-                      {factura.paymentLink ? (
+                      {false && factura.paymentLink ? (
                         <a
                           href={factura.paymentLink}
                           target="_blank"
@@ -444,7 +444,7 @@ export default function AdminFacturas() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-2">
-                          {factura.paymentLink ? (
+                          {false && factura.paymentLink ? (
                             <a
                               href={factura.paymentLink}
                               target="_blank"

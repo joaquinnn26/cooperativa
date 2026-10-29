@@ -81,14 +81,14 @@ export default function ReclamosList() {
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Mis reclamos</h1>
-          <p className="mt-1 text-gray-600">Revisa el estado y el detalle de tus reclamos.</p>
+          <p className="mt-1 text-gray-600">Consultá el estado de tus reclamos y registrá uno nuevo desde esta misma pantalla.</p>
         </div>
         <Link
           to="/socio/reclamos/nuevo"
           className="inline-flex w-fit items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
         >
           <PlusCircle className="mr-2 h-5 w-5" />
-          Nuevo reclamo
+          Registrar un reclamo
         </Link>
       </div>
 

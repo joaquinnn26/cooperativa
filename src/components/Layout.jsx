@@ -80,7 +80,6 @@ function buildPanelSections(role, areas) {
       { to: '/admin/territorio', label: 'Conexiones y territorio', icon: MapPinned },
       { to: '/admin/anuncios', label: 'Anuncios', icon: Megaphone },
       { to: '/admin/estadisticas-eventos', label: 'Estadísticas e historial', icon: BarChart3 },
-      { to: '/admin/motivos-eventos', label: 'Catálogo de motivos', icon: ClipboardList }
     ] }, ...(areas.length ? [trabajo] : [])]
   if (normalizedRole === 'Empleado') return [
     { title: 'Mi cuenta', items: [{ to: '/empleado/legajo', label: 'Mi legajo', icon: FileText }] },
@@ -98,7 +97,6 @@ function buildPanelSections(role, areas) {
     { to: '/socio/solicitudes-servicio', label: 'Solicitudes de servicio', icon: ClipboardList },
     { to: '/socio/solicitudes-servicio/nueva', label: 'Nuevo servicio', icon: FilePlus2 },
     { to: '/socio/reclamos', label: 'Mis reclamos', icon: AlertTriangle },
-    { to: '/socio/reclamos/nuevo', label: 'Nuevo reclamo', icon: AlertTriangle },
     { to: '/socio/turnos', label: 'Mis turnos', icon: CalendarClock }
   ] }]
 }
@@ -285,6 +283,10 @@ export default function Layout() {
             </aside>
 
             <main className="min-w-0">
+              {normalizedRole === 'Empleado' && <section aria-label="Tu asignación laboral" className="mb-4 rounded-2xl border border-cyan-200 bg-cyan-50 px-5 py-4 text-cyan-950">
+                <p className="text-xs font-semibold uppercase tracking-wide text-cyan-700">Tu área de trabajo</p>
+                {areas?.length ? <div className="mt-2 flex flex-wrap gap-2">{areas.map((assignment, index) => <span key={`${assignment.Area}-${index}`} className="rounded-xl border border-cyan-200 bg-white px-3 py-2 text-sm"><strong>{assignment.Nombre || ({ AGUA: 'Agua potable', ENERGIA: 'Energía eléctrica', INTERNET: 'Internet', ADMINISTRACION: 'Administración', GERENCIA: 'Gerencia', GAS: 'Gas' }[assignment.Area]) || assignment.Area}</strong><span className="ml-2 text-cyan-700">· {assignment.Encargado ? 'Encargado del área' : 'Empleado'}</span></span>)}</div> : <p className="mt-1 text-sm">Todavía no tenés un área asignada.</p>}
+              </section>}
               {showBackToPanel ? (
                 <Link
                   to={panelPath}

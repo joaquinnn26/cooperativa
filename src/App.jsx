@@ -12,7 +12,6 @@ import LegajoPersona from '@/features/socio/pages/LegajoPersona.jsx'
 import AdminAltasSocio from '@/features/admin/pages/AdminAltasSocio.jsx'
 import AdminLegajos from '@/features/admin/pages/AdminLegajos.jsx'
 import EventosEstadisticas from '@/features/admin/pages/EventosEstadisticas.jsx'
-import AdminMotivosEventos from '@/features/admin/pages/AdminMotivosEventos.jsx'
 import React from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from '@/components/Layout.jsx'
@@ -122,7 +121,7 @@ export default function App() {
           <Route path="/admin/legajos" element={<AdminLegajos />} />
           <Route path="/admin/organizacion" element={<AdminOrganizacionLaboral />} />
           <Route path="/admin/estadisticas-eventos" element={<EventosEstadisticas />} />
-          <Route path="/admin/motivos-eventos" element={<AdminMotivosEventos />} />
+          <Route path="/admin/motivos-eventos" element={<Navigate to="/admin" replace />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/socios" element={<AdminSocios />} />
           <Route path="/admin/empleados" element={<AdminEmpleados />} />

@@ -2,6 +2,15 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { apiLaboralExistente, archivoPayload } from '@/utils/laboral.js'
 
 const labels = { SEPELIO: 'Sepelio', ORTOPEDIA: 'Ortopedia' }
+
+function BenefitsSummary({ items, counts }) {
+  return <section className="grid gap-3 sm:grid-cols-4">
+    <div className="rounded-2xl border border-cyan-100 bg-cyan-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-cyan-800">Total</p><p className="mt-1 text-2xl font-bold text-cyan-950">{items.length}</p><p className="text-sm text-cyan-900">solicitudes</p></div>
+    <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-amber-800">En revision</p><p className="mt-1 text-2xl font-bold text-amber-950">{(counts.Recibida || 0) + (counts.EnRevision || 0)}</p><p className="text-sm text-amber-900">pendientes</p></div>
+    <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Aprobadas</p><p className="mt-1 text-2xl font-bold text-emerald-950">{counts.Aprobada || 0}</p><p className="text-sm text-emerald-900">listas para avanzar</p></div>
+    <div className="rounded-2xl border border-violet-100 bg-violet-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-violet-800">Servicios</p><p className="mt-1 text-lg font-bold text-violet-950">Sepelio · Ortopedia</p><p className="text-sm text-violet-900">elegí al solicitar</p></div>
+  </section>
+}
 const statusLabels = { Recibida: 'Recibida', EnRevision: 'En revisión', NecesitaInformacion: 'Falta información', Aprobada: 'Aprobada', Rechazada: 'Rechazada', Exportada: 'Enviada al prestador', Finalizada: 'Finalizada', Cancelada: 'Cancelada' }
 
 export default function SocioBeneficios() {
@@ -15,6 +24,7 @@ export default function SocioBeneficios() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const requestCounts = items.reduce((out, item) => ({ ...out, [item.Estado]: (out[item.Estado] || 0) + 1 }), {})
 
   const load = useCallback(async () => {
     const [gate, requests] = await Promise.all([
@@ -60,6 +70,7 @@ export default function SocioBeneficios() {
   }
 
   return <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
+    <BenefitsSummary items={items} counts={requestCounts} />
     <header><p className="text-sm font-semibold uppercase tracking-wider text-cyan-800">Servicios para socios</p><h1 className="mt-1 text-3xl font-bold text-slate-900">Sepelio y ortopedia</h1><p className="mt-2 max-w-3xl text-slate-600">Iniciá una solicitud cubierta por el servicio eléctrico y seguí su revisión. El equipo de Beneficios comparte los datos con el prestador solo con tu autorización.</p></header>
     {eligibilidad && <section className={`rounded-2xl border p-4 ${eligibilidad.Elegible ? 'border-emerald-200 bg-emerald-50 text-emerald-950' : 'border-amber-200 bg-amber-50 text-amber-950'}`}><h2 className="font-semibold">{eligibilidad.Elegible ? 'Podés solicitar estos beneficios' : 'Revisá tu cobertura'}</h2><p className="mt-1 text-sm">{eligibilidad.Elegible ? 'La conexión eléctrica y la última factura registrada cumplen las condiciones del portal.' : eligibilidad.Criterio}</p></section>}
     {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}{notice && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900">{notice}</p>}
